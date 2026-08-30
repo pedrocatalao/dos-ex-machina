@@ -89,7 +89,10 @@ int main(int argc,char **argv){
     uint8_t *chas=chassis_render(&L,W,H);
     gpu_set_chassis(g,chas,W,H);
 
-    SDL_AudioSpec as={SDL_AUDIO_S16,2,48000};
+    /* The core renders at 44100 Hz (skyroads audio.c SAMPLE_RATE).  The
+     * stream must be opened at the CORE's rate - SDL3 resamples to whatever
+     * the hardware wants.  Opening at 48000 played everything 8.8%% fast. */
+    SDL_AudioSpec as={SDL_AUDIO_S16,2,44100};
     SDL_AudioStream *ast=SDL_OpenAudioDeviceStream(
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&as,audio_cb,NULL);
     if(ast) SDL_ResumeAudioStreamDevice(ast);

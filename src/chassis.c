@@ -17,7 +17,7 @@
 
 #define BEZEL_BAND    0.056f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
-#define BEZEL_R_MID   0.022f   /* where the dished band meets the flat     */
+#define BEZEL_R_MID   0.042f   /* where the dished band meets the flat     */
                                /* moulding face - its OWN radius, not      */
                                /* R_IN + BAND, which forced a huge curve   */
 #define BEZEL_R_OUT   0.006f   /* housing outer corner - tighter than the  */
@@ -43,6 +43,13 @@ static void px_set(canvas *c,int x,int y,int r,int g,int b){
 static void px_blend(canvas *c,int x,int y,int r,int g,int b,float a){
     if(x<0||y<0||x>=c->w||y>=c->h||a<=0) return;
     if(a>1) a=1;
+    /* CLAMP before the uint8_t cast.  Shading factors >1 (the lit dish wall)
+     * pushed channels past 255, and the unclamped cast WRAPPED them - red
+     * wrapped first (the plastic's largest channel), leaving teal/blue
+     * speckles across the brightest parts of the bezel. */
+    if(r>255)r=255; if(r<0)r=0;
+    if(g>255)g=255; if(g<0)g=0;
+    if(b>255)b=255; if(b<0)b=0;
     uint8_t *p=c->px+((size_t)y*c->w+x)*4;
     p[0]=(uint8_t)(p[0]*(1-a)+r*a); p[1]=(uint8_t)(p[1]*(1-a)+g*a);
     p[2]=(uint8_t)(p[2]*(1-a)+b*a); p[3]=255;
@@ -62,6 +69,44 @@ static float plastic_tex(int x,int y){
     float flow   = sinf((float)y*0.35f + hash2(x>>7,0,4)*6.28f)*0.5f;
     return fine*0.052f + coarse*0.030f + blotch*0.018f + flow*0.006f;
 }
+/* One light, from above and slightly left, as in the reference photo.  y runs
+ * DOWN in canvas space, so "up" is negative y. */
+#define LIGHT_X (-0.42f)
+#define LIGHT_Y (-0.91f)
+
+/* signed distance to a rounded rect; negative inside */
+static float rr_sd(float px,float py,float cx,float cy,float hw,float hh,float r){
+    float qx=fabsf(px-cx)-(hw-r), qy=fabsf(py-cy)-(hh-r);
+    float ax=fmaxf(qx,0.0f), ay=fmaxf(qy,0.0f);
+    return sqrtf(ax*ax+ay*ay)+fminf(fmaxf(qx,qy),0.0f)-r;
+}
+/* read-modify-write: scale a pixel and add a specular term */
+static void px_shade(canvas *c,int x,int y,float mul,float spec){
+    if(x<0||y<0||x>=c->w||y>=c->h) return;
+    uint8_t *p=c->px+((size_t)y*c->w+x)*4;
+    for(int k=0;k<3;k++){
+        float v=p[k]*mul+spec*255.0f;
+        p[k]=(uint8_t)(v<0?0:v>255?255:v);
+    }
+}
+
+/* Rounded box evaluated in the warped space, with its own corner radius and
+ * an outward offset.  Two of these define the band: the aperture at offset 0,
+ * and the band's outer boundary at offset = band width.  Giving that second
+ * curve its own radius is the point - deriving it as a uniform offset of the
+ * aperture forces its corner to be R_IN + BAND, which is far too round. */
+static float warped_rr_sd(const dxm_layout *L,float px,float py,
+                          float r,float grow){
+    float tx=(px-L->tube_x)/L->tube_w, ty=(py-L->tube_y)/L->tube_h;
+    float bx,by; barrel_cpu(tx,ty,DXM_WARP,&bx,&by);
+    float ax=fabsf(bx*2.0f-1.0f)*L->tube_w*0.5f;   /* px from centre */
+    float ay=fabsf(by*2.0f-1.0f)*L->tube_h*0.5f;
+    float hw=L->tube_w*0.5f+grow, hh=L->tube_h*0.5f+grow;
+    float qx=ax-(hw-r), qy=ay-(hh-r);
+    if(qx>0.0f && qy>0.0f) return sqrtf(qx*qx+qy*qy)-r;
+    return fmaxf(ax-hw, ay-hh);
+}
+
 static void rect(canvas *c,float x,float y,float w,float h,int r,int g,int b){
     for(int j=(int)y;j<(int)(y+h);j++) for(int i=(int)x;i<(int)(x+w);i++) px_set(c,i,j,r,g,b);
 }
@@ -129,29 +174,40 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
 /* A grille is a recessed WELL with a moulded lip, and slots inside it with
  * real cross-section: dark trough, lit lower lip, shadowed upper lip. */
 static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
-                         float ew,float shadow,int raised);
+                         float ew,float shadow,int raised,float gain);
 static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
-    rrect(c,x,y,w,h,h*0.045f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.90f,0.96f);
-    housing_edge(c,x,y,w,h,h*0.045f,fmaxf(2.0f,h*0.055f),fmaxf(2.0f,h*0.05f),0);
-    float ix=x+w*0.045f, iy=y+h*0.075f, iw=w*0.91f, ih=h*0.85f;
+    /* Flat, like the real thing: slats moulded straight into the case face -
+     * no recessed well, no raised frame.  Through the slots you glimpse the
+     * driver: a darker disc behind the middle of the panel, near-black at
+     * the cone, dark grey where the slot only shows backing plastic. */
+    float ccx=x+w*0.5f;
+    float wy=y+h*0.640f, wr=fminf(w*0.470f,h*0.30f);   /* woofer, low  */
+    float ty=y+h*0.215f, tr=wr*0.42f;                  /* tweeter, high */
     if(pitch<3.0f) pitch=3.0f;
-    float slot=fmaxf(1.5f,pitch*0.46f);
-    for(float sy=iy; sy<iy+ih-slot; sy+=pitch){
+    float slot=fmaxf(1.5f,pitch*0.50f);
+    for(float sy=y+pitch*0.5f; sy<y+h-slot; sy+=pitch){
         for(int t=0;t<(int)slot;t++){
-            float f=(float)t/slot;
-            int v=(int)(26+30*f);                    /* trough lightens downward */
-            for(int i=(int)ix;i<(int)(ix+iw);i++){
-                float e=1.0f;                        /* round the slot ends */
-                float dl=(i-ix)/slot, dr=((ix+iw)-i)/slot;
-                if(dl<1.0f) e=dl; if(dr<1.0f) e=fminf(e,dr);
-                if(e<=0) continue;
-                px_blend(c,i,(int)sy+t,v,v-1,v-3,0.88f*e);
+            float yy=sy+t;
+            for(int i2=(int)x;i2<(int)(x+w);i2++){
+                float e=1.0f;                       /* rounded slot ends */
+                float dl=(i2-x)/(slot*1.3f), dr=((x+w)-i2)/(slot*1.3f);
+                if(dl<1.0f) e=dl;
+                if(dr<1.0f) e=fminf(e,dr);
+                if(e<=0.0f) continue;
+                float dx=i2-ccx;
+                float dw=sqrtf(dx*dx+(yy-wy)*(yy-wy));
+                float dt=sqrtf(dx*dx+(yy-ty)*(yy-ty));
+                float cone=fmaxf(
+                    1.0f-fminf(fmaxf((dw-wr)/(wr*0.10f),0.0f),1.0f),
+                    1.0f-fminf(fmaxf((dt-tr)/(tr*0.16f),0.0f),1.0f));
+                int v=(int)(46.0f-36.0f*cone);      /* backing vs cone */
+                v+=(int)(9.0f*((float)t/slot));     /* slot depth shading */
+                px_blend(c,i2,(int)yy,v,v-1,v-2,0.86f*e);
             }
         }
-        for(int i=(int)ix;i<(int)(ix+iw);i++){
-            px_blend(c,i,(int)sy-1,20,19,17,0.42f);          /* upper shadow */
-            px_blend(c,i,(int)(sy+slot),255,252,244,0.30f);  /* lower lit lip */
-        }
+        /* the thinnest lit line under each rib, or the slats read as paint */
+        for(int i2=(int)(x+slot);i2<(int)(x+w-slot);i2++)
+            px_blend(c,i2,(int)(sy+slot),252,250,244,0.15f);
     }
 }
 /* thin vent slots straight into flat plastic (case breathing holes) */
@@ -192,62 +248,186 @@ static void slider(canvas *c,float x,float y,float w,float h,float pos){
             px_blend(c,(int)i+1,j,255,252,244,0.22f);
         }
 }
-static void thumbwheel(canvas *c,float x,float y,float w,float h){
-    rrect(c,x,y,w,h,h*0.22f,84,81,74,0.55f,0.62f);
-    bevel(c,x,y,w,h,fmaxf(1.0f,h*0.14f),0);
-    rrect(c,x+w*0.08f,y+h*0.13f,w*0.84f,h*0.74f,h*0.18f,
-          PLASTIC_R,PLASTIC_G,PLASTIC_B,1.08f,0.78f);
-    for(float i=x+w*0.16f;i<x+w*0.86f;i+=fmaxf(2.0f,w*0.11f))
-        for(int j=(int)(y+h*0.20f);j<(int)(y+h*0.80f);j++){
-            px_blend(c,(int)i,j,58,55,50,0.48f);
-            px_blend(c,(int)i+1,j,255,252,244,0.20f);
-        }
+/* Chamfer ring around a recessed opening: a small dished slope from the
+ * face down into the hole.  Lit from above, its top run falls dark and its
+ * bottom run catches light. */
+static void chamfer_ring(canvas *c,float x,float y,float w,float h,float r,
+                         float cw){
+    float cx=x+w*0.5f, cy=y+h*0.5f, hw=w*0.5f, hh=h*0.5f;
+    for(int j2=(int)(y-cw-1);j2<(int)(y+h+cw+1);j2++)
+      for(int i2=(int)(x-cw-1);i2<(int)(x+w+cw+1);i2++){
+        float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,r);
+        if(sd<0.0f||sd>cw) continue;
+        float gx=rr_sd((float)i2+1,(float)j2,cx,cy,hw,hh,r)
+                -rr_sd((float)i2-1,(float)j2,cx,cy,hw,hh,r);
+        float gy=rr_sd((float)i2,(float)j2+1,cx,cy,hw,hh,r)
+                -rr_sd((float)i2,(float)j2-1,cx,cy,hw,hh,r);
+        float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
+        /* slope faces INTO the hole: inward normal */
+        float lam=(-gx/gl)*LIGHT_X+(-gy/gl)*LIGHT_Y;
+        float prof=1.0f-sd/cw;
+        px_shade(c,i2,j2,1.0f+lam*prof*0.45f,
+                 powf(fmaxf(lam,0.0f),8.0f)*prof*0.22f);
+      }
 }
-/* 3.5" drive: face plate, slotted door with a steel shutter lip, sprung
- * eject button in its own recess, activity LED in a moulded well. */
+
+/* 3.5" drive, the geometry of the reference understood properly:
+ *  - the faceplate sits slightly RECESSED into the chassis surface, in a
+ *    warmer, browner plastic than the case, with a moulded ridge running
+ *    around it just inside its edge
+ *  - the slot and the two finger CUTS all get a small dished chamfer where
+ *    they break the face
+ *  - the eject button protrudes through its own cut opening
+ * Millimetres of a 101.6 x 25.4 face. */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
-    rrect(c,x,y,w,h,h*0.09f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.99f,1.04f);
-    housing_edge(c,x,y,w,h,h*0.09f,fmaxf(2.0f,h*0.10f),fmaxf(2.0f,h*0.09f),0);
-    seam(c,x+w*0.02f,y+h*0.06f,w*0.96f,0,fmaxf(1.0f,h*0.02f));
-    /* the disk slot: recess, then the drive door behind it */
-    float sx=x+w*0.055f, sy=y+h*0.30f, sw=w*0.63f, sh=h*0.19f;
-    rrect(c,sx-w*0.012f,sy-h*0.05f,sw+w*0.024f,sh+h*0.10f,sh*0.30f,72,69,63,0.80f,0.92f);
-    rrect(c,sx,sy,sw,sh,sh*0.25f,26,25,23,1.0f,1.0f);
-    for(int i=(int)sx;i<(int)(sx+sw);i++){
-        px_blend(c,i,(int)(sy+sh),255,252,244,0.34f);      /* lit lower lip  */
-        px_blend(c,i,(int)sy-1,14,13,12,0.55f);            /* shadow above   */
+    float mm=h/25.4f; (void)w;
+    float fw=101.6f*mm;
+    /* warmer, browner than the case */
+    int pr=(int)(PLASTIC_R*0.95f),pg=(int)(PLASTIC_G*0.90f),pb=(int)(PLASTIC_B*0.80f);
+    /* the chassis has a cut-out for the drive: chamfered case edge, a dark
+     * mounting gap all round, then the drive's own faceplate inside it */
+    rrect(c,x-0.5f*mm,y-0.5f*mm,fw+1.0f*mm,h+1.0f*mm,2.2f*mm,
+          (int)(PLASTIC_R*0.38f),(int)(PLASTIC_G*0.38f),(int)(PLASTIC_B*0.38f),
+          0.92f,1.04f);
+    chamfer_ring(c,x-0.5f*mm,y-0.5f*mm,fw+1.0f*mm,h+1.0f*mm,2.2f*mm,0.5f*mm);
+    rrect(c,x,y,fw,h,2.0f*mm,pr,pg,pb,0.97f,1.01f);
+    housing_edge(c,x,y,fw,h,2.0f*mm,1.2f*mm,0.0f,0,1.3f);
+    /* moulded ridge just inside the plate edge: a raised bead, lit on top,
+     * shadowed underneath */
+    { float rx=x+1.8f*mm, ry=y+1.8f*mm, rw=fw-3.6f*mm, rh=h-3.6f*mm;
+      float rcx=rx+rw*0.5f, rcy=ry+rh*0.5f;
+      float bw=0.55f*mm;
+      for(int j2=(int)ry;j2<(int)(ry+rh);j2++)
+        for(int i2=(int)rx;i2<(int)(rx+rw);i2++){
+          float sd=rr_sd((float)i2,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
+          if(fabsf(sd)>bw) continue;
+          float gx=rr_sd((float)i2+1,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm)
+                  -rr_sd((float)i2-1,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
+          float gy=rr_sd((float)i2,(float)j2+1,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm)
+                  -rr_sd((float)i2,(float)j2-1,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
+          float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
+          float lam=(gx/gl)*LIGHT_X+(gy/gl)*LIGHT_Y;   /* raised bead */
+          float prof=1.0f-fabsf(sd)/bw;
+          px_shade(c,i2,j2,1.0f+lam*prof*0.34f,
+                   powf(fmaxf(lam,0.0f),8.0f)*prof*0.18f);
+        }
     }
-    /* steel shutter glint just inside the slot */
-    for(int i=(int)(sx+sw*0.06f);i<(int)(sx+sw*0.94f);i++)
-        px_blend(c,i,(int)(sy+sh*0.30f),190,193,198,0.30f);
-    /* eject button, recessed */
-    float ex=x+w*0.80f, ey=y+h*0.52f, ew=w*0.14f, eh=h*0.24f;
-    rrect(c,ex-ew*0.12f,ey-eh*0.14f,ew*1.24f,eh*1.28f,eh*0.28f,84,81,74,0.62f,0.70f);
-    rrect(c,ex,ey,ew,eh,eh*0.24f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.14f,0.86f);
-    bevel(c,ex,ey,ew,eh,fmaxf(1.0f,eh*0.16f),1);
-    led(c,x+w*0.085f,y+h*0.72f,fmaxf(1.5f,h*0.055f),70,235,95);
-}
-/* CD-ROM: taller face, tray seam with a finger recess, its own volume and
- * headphone jack — which is exactly what these drives had. */
-static void cd_drive(canvas *c,float x,float y,float w,float h,float lbl){
-    rrect(c,x,y,w,h,h*0.07f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.99f,1.04f);
-    housing_edge(c,x,y,w,h,h*0.07f,fmaxf(2.0f,h*0.075f),fmaxf(2.0f,h*0.07f),0);
-    float tx=x+w*0.045f, ty=y+h*0.14f, tw=w*0.91f, th=h*0.34f;
-    rrect(c,tx,ty,tw,th,th*0.12f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.92f,1.00f);
-    bevel(c,tx,ty,tw,th,fmaxf(1.0f,th*0.10f),0);
-    for(int i=(int)tx;i<(int)(tx+tw);i++){
-        px_blend(c,i,(int)(ty+th*0.62f),30,29,27,0.72f);     /* tray split   */
-        px_blend(c,i,(int)(ty+th*0.62f)+1,255,252,244,0.30f);
+
+    float sly=y+8.6f*mm, slh=4.8f*mm;   /* taller, like the reference */
+    float slx=x+5.0f*mm, slw=fw-10.0f*mm;
+    float tcw=36.0f*mm, tcx=x+(fw-tcw)*0.5f, tcy0=y+3.4f*mm;
+    float bcw=41.0f*mm, bcx=x+(fw-bcw)*0.5f, bcy1=y+21.2f*mm;
+
+    /* dished chamfers where the openings break the face - BEFORE the floors,
+     * so the floors and slot overwrite the inner overlap */
+    chamfer_ring(c,tcx,tcy0,tcw,sly-tcy0,1.6f*mm,0.9f*mm);
+    chamfer_ring(c,bcx,sly+slh,bcw,bcy1-(sly+slh),1.6f*mm,0.9f*mm);
+
+    /* finger cuts: deep wells with rounded floors */
+    struct { float cx,cw,y0,y1; } cut[2] = {
+        { tcx, tcw, tcy0,   sly },
+        { bcx, bcw, sly+slh, bcy1 },
+    };
+    for(int k=0;k<2;k++){
+        float cx0=cut[k].cx, cw0=cut[k].cw, y0=cut[k].y0, y1=cut[k].y1;
+        float ch0=y1-y0, rr=1.6f*mm;
+        if(k==0) rrect(c,cx0,y0,cw0,ch0+rr,rr,pr,pg,pb,0.62f,0.80f);
+        else     rrect(c,cx0,y0-rr,cw0,ch0+rr,rr,pr,pg,pb,0.46f,0.84f);
+        for(int j2=(int)(y0+rr*0.5f);j2<(int)(y1-((k==1)?rr*0.5f:0.0f));j2++)
+            for(int t3=0;t3<(int)fmaxf(1.0f,0.5f*mm);t3++){
+                px_blend(c,(int)cx0+t3,j2,30,29,27,0.50f);
+                px_blend(c,(int)(cx0+cw0)-1-t3,j2,30,29,27,0.36f);
+            }
+        for(int t3=0;t3<(int)(1.1f*mm);t3++){
+            float a2=0.55f*(1.0f-t3/(1.1f*mm));
+            for(int i2=(int)cx0;i2<(int)(cx0+cw0);i2++)
+                px_blend(c,i2,(int)y0+t3,18,17,16,a2);
+        }
+        for(int i2=(int)(cx0+0.8f*mm);i2<(int)(cx0+cw0-0.8f*mm);i2++){
+            px_blend(c,i2,(int)y1-1,255,253,247,(k==1)?0.40f:0.26f);
+            px_blend(c,i2,(int)y1,252,250,244,0.18f);
+        }
     }
-    rrect(c,tx+tw*0.36f,ty+th*0.66f,tw*0.28f,th*0.26f,th*0.10f,70,67,61,0.7f,0.85f);
-    float ex=x+w*0.86f, ey=y+h*0.62f, ew=w*0.10f, eh=h*0.18f;
-    rrect(c,ex,ey,ew,eh,eh*0.26f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.14f,0.86f);
-    bevel(c,ex,ey,ew,eh,fmaxf(1.0f,eh*0.18f),1);
-    led(c,x+w*0.07f,y+h*0.74f,fmaxf(1.5f,h*0.045f),255,180,45);
-    slider(c,x+w*0.18f,y+h*0.66f,w*0.26f,h*0.16f,0.55f);
-    rrect(c,x+w*0.52f,y+h*0.64f,h*0.20f,h*0.20f,h*0.10f,64,61,56,0.7f,0.8f);
-    led(c,x+w*0.52f+h*0.10f,y+h*0.74f,h*0.055f,18,17,16);
-    (void)lbl;
+
+    /* the slot: chamfered opening, drawn AFTER the cut floors so the
+     * chamfer survives (it was being painted over before) */
+    chamfer_ring(c,slx,sly,slw,slh,slh*0.24f,1.2f*mm);
+    rrect(c,slx,sly,slw,slh,slh*0.24f,12,11,10,1.0f,1.0f);
+    { float ch1=1.1f*mm;                     /* chamfer faces INSIDE the slot */
+      for(int j2=0;j2<(int)ch1;j2++){
+        float t2=(float)j2/ch1;
+        int vt=(int)(66.0f-46.0f*t2);        /* top face: shadowed slope    */
+        int vb=(int)(30.0f+70.0f*(1.0f-t2)); /* bottom face: catches light  */
+        for(int i2=(int)(slx+1.2f*mm);i2<(int)(slx+slw-1.2f*mm);i2++){
+            px_blend(c,i2,(int)sly+j2,vt,vt-2,vt-4,1.0f);
+            px_blend(c,i2,(int)(sly+slh)-1-j2,(int)(vb*1.05f),vb,(int)(vb*0.88f),1.0f);
+        }
+      }
+      for(int i2=(int)(slx+1.5f*mm);i2<(int)(slx+slw-1.5f*mm);i2++)
+        px_blend(c,i2,(int)(sly+slh),255,253,247,0.38f);   /* lit break edge */
+    }
+    /* a diskette IS inserted: its back edge fills the slot - 90mm of dark
+     * charcoal shell plastic, a lit top edge where the light grazes it,
+     * black gaps left and right where the slot is wider than the disk */
+    { float dkw=90.0f*mm, dkx=x+(fw-dkw)*0.5f;
+      float dky=sly+1.2f*mm, dkh=slh-2.3f*mm;
+      for(int j2=(int)dky;j2<(int)(dky+dkh);j2++){
+        float t2=(float)(j2-dky)/dkh;
+        int v=(int)(64.0f-26.0f*t2);              /* shell, darker downward */
+        for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
+            float n=hash2(i2,j2,7)*6.0f;
+            px_blend(c,i2,j2,(int)(v+n),(int)(v+n),(int)(v+n+4),1.0f);
+        }
+      }
+      for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
+        px_blend(c,i2,(int)dky,168,170,176,0.55f);          /* grazing light */
+        px_blend(c,i2,(int)dky+1,110,112,118,0.35f);
+      }
+      /* the shell's centre seam, faint */
+      for(int i2=(int)(dkx+2.0f*mm);i2<(int)(dkx+dkw-2.0f*mm);i2++)
+        px_blend(c,i2,(int)(dky+dkh*0.55f),20,20,22,0.35f);
+    }
+
+    /* eject: a CUT opening in the face, the button protruding through it */
+    float ew=13.0f*mm, eh=6.0f*mm;
+    float ex=x+fw-ew-9.0f*mm, ey=y+16.4f*mm;
+    rrect(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,
+          (int)(pr*0.48f),(int)(pg*0.48f),(int)(pb*0.48f),0.90f,1.02f);
+    chamfer_ring(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,0.7f*mm);
+    rrect(c,ex,ey,ew,eh,1.2f*mm,
+          (int)(pr*1.08f),(int)(pg*1.08f),(int)(pb*1.08f),1.12f,0.86f);
+    housing_edge(c,ex,ey,ew,eh,1.2f*mm,1.0f*mm,0.6f*mm,1,1.8f);
+    for(int i2=(int)(ex+1.2f*mm);i2<(int)(ex+ew-1.2f*mm);i2++)
+        px_blend(c,i2,(int)(ey+0.6f*mm),255,254,250,0.38f);
+
+    /* activity LED: a lens sitting RECESSED in its own hole - dark well
+     * with an overhang shadow, the lens below the face, a soft green glow
+     * bleeding onto the well walls, and a gloss glint on the lens */
+    float lx=x+14.5f*mm, ly=y+17.4f*mm, lw=5.0f*mm, lh=2.4f*mm;
+    rrect(c,lx-0.8f*mm,ly-0.8f*mm,lw+1.6f*mm,lh+1.6f*mm,0.9f*mm,
+          (int)(pr*0.40f),(int)(pg*0.40f),(int)(pb*0.40f),0.80f,1.10f);
+    chamfer_ring(c,lx-0.8f*mm,ly-0.8f*mm,lw+1.6f*mm,lh+1.6f*mm,0.9f*mm,0.5f*mm);
+    for(int i2=(int)(lx-0.8f*mm);i2<(int)(lx+lw+0.8f*mm);i2++)
+        px_blend(c,i2,(int)(ly-0.8f*mm),12,12,11,0.6f);      /* overhang     */
+    for(int j2=(int)ly;j2<(int)(ly+lh);j2++)
+        for(int i2=(int)lx;i2<(int)(lx+lw);i2++){
+            float t2=(float)(j2-ly)/lh;
+            float u2=(float)(i2-lx)/lw;
+            float ctr=1.0f-1.6f*((u2-0.5f)*(u2-0.5f)+(t2-0.45f)*(t2-0.45f));
+            if(ctr<0.55f) ctr=0.55f;
+            px_blend(c,i2,j2,(int)(50*ctr+30),(int)(215*ctr+20),(int)(60*ctr),1.0f);
+        }
+    /* glow bleeding out of the recess onto the well */
+    for(int j2=(int)(ly-0.8f*mm);j2<(int)(ly+lh+0.8f*mm);j2++)
+        for(int i2=(int)(lx-0.8f*mm);i2<(int)(lx+lw+0.8f*mm);i2++){
+            float ddx=(i2-(lx+lw*0.5f))/(lw*0.9f);
+            float ddy=(j2-(ly+lh*0.5f))/(lh*1.4f);
+            float g2=1.0f-(ddx*ddx+ddy*ddy);
+            if(g2>0.0f && (i2<lx||i2>=lx+lw||j2<ly||j2>=ly+lh))
+                px_blend(c,i2,j2,40,190,60,g2*0.28f);
+        }
+    for(int i2=(int)(lx+0.7f*mm);i2<(int)(lx+lw-0.7f*mm);i2++)
+        px_blend(c,i2,(int)(ly+0.35f*mm),235,255,235,0.5f);  /* lens glint  */
 }
 
 dxm_layout chassis_layout(int W,int H){
@@ -257,20 +437,20 @@ dxm_layout chassis_layout(int W,int H){
     float edge=W*0.016f, inset=H*0.052f;
     /* the monitor housing is chunky: it wraps the picture by BEZEL_HOUSING
      * on every side, and the layout has to budget for it */
-    float th=((float)H-inset)*0.68f, tw=th*4.0f/3.0f;
+    float th=((float)H-inset)*0.735f, tw=th*4.0f/3.0f;   /* slimmer band */
     float hous=th*BEZEL_HOUSING;
-    float avail=W-2*edge-tw-2*hous-inset*0.5f, min_bay=tw*0.24f;
-    if(avail<min_bay){
-        float k=(W-2*edge-min_bay-inset*0.5f)/(tw+2*th*BEZEL_HOUSING*4.0f/3.0f);
+    /* The CRT sits in the CENTRE, a speaker column on each side; the drive
+     * and controls all live in the bottom band.  One arrangement for every
+     * aspect - narrow displays just get slimmer speakers. */
+    float min_spk=inset*1.1f;
+    float avail=(W-2*edge-tw-2*hous)*0.5f;      /* per side */
+    if(avail<min_spk){
+        float k=(W-2*edge-2*min_spk)/(tw+2.0f*hous);
         if(k<0.35f) k=0.35f;
         tw*=k; th*=k; hous=th*BEZEL_HOUSING;
-        avail=W-2*edge-tw-2*hous-inset*0.5f;
     }
-    float spk=(L.variant==LAY_STEREO)?avail*0.16f:0.0f;
-    if(spk*2>avail-min_bay) spk=(avail-min_bay)*0.5f;
-    if(spk<0) spk=0;
     L.tube_w=tw; L.tube_h=th;
-    L.tube_x=edge+hous+inset*0.20f+spk;
+    L.tube_x=((float)W-tw)*0.5f;
     L.tube_y=hous+inset*0.22f;
     return L;
 }
@@ -290,43 +470,6 @@ dxm_layout chassis_layout(int W,int H){
  * shader samples in (crt.h), so the opening follows the glass curvature and
  * carries a realistic corner radius at the same time. */
 
-/* One light, from above and slightly left, as in the reference photo.  y runs
- * DOWN in canvas space, so "up" is negative y. */
-#define LIGHT_X (-0.42f)
-#define LIGHT_Y (-0.91f)
-
-/* signed distance to a rounded rect; negative inside */
-static float rr_sd(float px,float py,float cx,float cy,float hw,float hh,float r){
-    float qx=fabsf(px-cx)-(hw-r), qy=fabsf(py-cy)-(hh-r);
-    float ax=fmaxf(qx,0.0f), ay=fmaxf(qy,0.0f);
-    return sqrtf(ax*ax+ay*ay)+fminf(fmaxf(qx,qy),0.0f)-r;
-}
-/* read-modify-write: scale a pixel and add a specular term */
-static void px_shade(canvas *c,int x,int y,float mul,float spec){
-    if(x<0||y<0||x>=c->w||y>=c->h) return;
-    uint8_t *p=c->px+((size_t)y*c->w+x)*4;
-    for(int k=0;k<3;k++){
-        float v=p[k]*mul+spec*255.0f;
-        p[k]=(uint8_t)(v<0?0:v>255?255:v);
-    }
-}
-
-/* Rounded box evaluated in the warped space, with its own corner radius and
- * an outward offset.  Two of these define the band: the aperture at offset 0,
- * and the band's outer boundary at offset = band width.  Giving that second
- * curve its own radius is the point - deriving it as a uniform offset of the
- * aperture forces its corner to be R_IN + BAND, which is far too round. */
-static float warped_rr_sd(const dxm_layout *L,float px,float py,
-                          float r,float grow){
-    float tx=(px-L->tube_x)/L->tube_w, ty=(py-L->tube_y)/L->tube_h;
-    float bx,by; barrel_cpu(tx,ty,DXM_WARP,&bx,&by);
-    float ax=fabsf(bx*2.0f-1.0f)*L->tube_w*0.5f;   /* px from centre */
-    float ay=fabsf(by*2.0f-1.0f)*L->tube_h*0.5f;
-    float hw=L->tube_w*0.5f+grow, hh=L->tube_h*0.5f+grow;
-    float qx=ax-(hw-r), qy=ay-(hh-r);
-    if(qx>0.0f && qy>0.0f) return sqrtf(qx*qx+qy*qy)-r;
-    return fmaxf(ax-hw, ay-hh);
-}
 /* signed distance to the aperture, in pixels; <=0 is glass */
 static float aperture_sd(const dxm_layout *L,float px,float py,float rin){
     return warped_rr_sd(L,px,py,rin,0.0f);
@@ -337,7 +480,7 @@ static float aperture_sd(const dxm_layout *L,float px,float py,float rin){
  * a soft contact shadow onto the flat case beneath it.  This is what gives
  * the monitor its depth against the rest of the machine. */
 static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
-                         float ew,float shadow,int raised){
+                         float ew,float shadow,int raised,float gain){
     float cx=x+w*0.5f, cy=y+h*0.5f, hw=w*0.5f, hh=h*0.5f;
     float m=ew+shadow+2.0f;
     for(int j=(int)(y-m);j<(int)(y+h+m);j++)
@@ -355,15 +498,15 @@ static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
             /* the rolled lip itself */
             float t=-sd/ew;                     /* 0 at the very edge */
             float prof=(1.0f-t)*(1.0f-t);
-            float mul=1.0f+lam*prof*0.50f;
+            float mul=1.0f+lam*prof*0.50f*gain;
             float sp=fmaxf(lam,0.0f);
             /* the shine: a hard, narrow catch along the top of the roll */
-            px_shade(c,i,j,mul,powf(sp,10.0f)*prof*0.52f);
+            px_shade(c,i,j,mul,powf(sp,10.0f)*prof*0.52f*gain);
         } else {
             /* contact shadow cast onto the case, opposite the light */
             float t=sd/shadow;
             float occl=fmaxf(raised?-lam:lam,0.0f);
-            px_shade(c,i,j,1.0f-occl*(1.0f-t)*(1.0f-t)*0.46f,0.0f);
+            px_shade(c,i,j,1.0f-occl*(1.0f-t)*(1.0f-t)*0.46f*gain,0.0f);
         }
       }
 }
@@ -397,15 +540,36 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
                 float nx=-gx/gl, ny=-gy/gl;
                 lam=nx*LIGHT_X+ny*LIGHT_Y;
             }
-            /* Measured off the reference: its moulding is essentially the
-             * SAME tone on all four sides (~160-175 of 255), with the depth
-             * carried almost entirely by a dark contact band at the glass.
-             * A strong directional term makes the top read as a recess and
-             * the other three sides read wrong, because it darkens one side
-             * while brightening the opposite one. Keep it subtle. */
-            sh = 1.00f + lam*0.07f;
+            /* Measured off the reference, per side (glass -> shoulder):
+             *   top    : reveal LIT well above face tone (~180-206), with a
+             *            dark groove right at the shoulder
+             *   bottom : face tone, plus a bright catch just off the glass
+             *   sides  : darker than the face all the way up
+             * i.e. overhead light pours INTO the dish and lands on the wall
+             * you see along the top edge; the side walls rake away from it.
+             * That asymmetry is what makes the dish read deep. */
+            float niy = (gl>1e-4f)? -gy/gl : 0.0f;   /* inward normal, y */
+            float nix = (gl>1e-4f)? -gx/gl : 0.0f;
             float k=1.0f-t;                   /* 1 at the glass, 0 at shoulder */
-            sh *= 1.0f - 0.52f*k*k*(0.55f+0.45f*k);
+            sh = 1.00f + lam*0.05f;
+            sh += fmaxf(niy,0.0f)*0.40f;                   /* top wall lit,
+                                                              evenly - the ref
+                                                              is bright right
+                                                              off the glass  */
+            sh -= fabsf(nix)*0.32f;                        /* side walls dark,
+                                                              FLAT like the ref
+                                                              (~90-115 held)  */
+            /* groove where the lit top wall meets the shoulder */
+            if(t>0.80f) sh -= fmaxf(niy,0.0f)*0.55f*(t-0.80f)/0.20f;
+            /* contact shadow at the glass: narrow on the bottom (the ref
+             * jumps from 102 to 155 in one step there), fuller elsewhere */
+            float cs = 0.46f*(1.0f-0.62f*fmaxf(-niy,0.0f));
+            float kc = k*k*k*k;              /* NARROW: the ref jumps from
+                                                contact-dark to lit in one
+                                                sample, not a long ramp */
+            sh *= 1.0f - cs*kc;
+            /* bottom: bright catch just off the glass (fillet facing up) */
+            spec += fmaxf(-niy,0.0f)*k*k*k*0.30f;
         }
         float n=plastic_tex(i,j);
         float a=(d<1.3f)?d/1.3f:1.0f;
@@ -468,106 +632,95 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
     seam(c,edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
     seam(c,W-edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
 
-    /* monitor housing -> bezel band -> aperture -> glass */
-    float rin=L->tube_h*BEZEL_R_IN, rout=L->tube_h*BEZEL_R_OUT;
-    float sx=L->tube_x-hous, sy=L->tube_y-hous;
-    float sw=L->tube_w+hous*2.0f, sh2=L->tube_h+hous*2.0f;
-    rrect(c,sx,sy,sw,sh2,rout,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.00f,0.96f);
-    /* The shine belongs on the REVEAL SHOULDER, not out here where the
-     * moulding meets the flat chassis - that boundary is nearly flush and
-     * should barely register.  bezel() lights the shoulder itself. */
+    /* bezel band -> aperture -> glass.  The housing face itself is NOT
+     * repainted: it is flush with the case, and giving it its own plate with
+     * its own shade ramp left a visible tone step against the surrounding
+     * plastic.  The base coat IS the housing face. */
+    float rin=L->tube_h*BEZEL_R_IN;
     bezel(c,L,bz,rin,L->tube_h*BEZEL_R_MID);
     for(int j=(int)(L->tube_y-hous);j<(int)(L->tube_y+L->tube_h+hous);j++)
       for(int i=(int)(L->tube_x-hous);i<(int)(L->tube_x+L->tube_w+hous);i++)
         if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) px_set(c,i,j,5,6,5);
 
-    if(L->variant==LAY_STEREO){
-        float sw2=L->tube_x-edge-inset*0.55f;
-        if(sw2>inset*0.8f){
-            grille_panel(c,edge+inset*0.30f,L->tube_y,sw2*0.74f,L->tube_h,H*0.021f);
-            grille_panel(c,L->tube_x+L->tube_w+hous+inset*0.20f,L->tube_y,
-                         sw2*0.74f,L->tube_h,H*0.021f);
+    /* ---- speaker columns, one each side of the tube ---- */
+    {
+        float gl2=L->tube_x-hous-(edge+inset*0.45f);   /* space per side */
+        float gw=gl2-inset*0.35f;
+        if(gw>inset*0.5f){
+            float gh=L->tube_h*0.5f;
+            float gy=L->tube_y+(L->tube_h-gh)*0.5f;   /* centred on the tube */
+            grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
+            grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
         }
     }
 
-    /* ---- right bay ---- */
-    float bayx=L->tube_x+L->tube_w+hous+inset*0.35f;
-    if(L->variant==LAY_STEREO) bayx+=(L->tube_x-edge-inset*0.55f)*0.78f;
-    float bayw=W-edge-inset*0.70f-bayx;
-    if(bayw<inset*2.5f) bayw=inset*2.5f;
-    seam(c,bayx-inset*0.40f,inset*0.35f,H-inset*0.70f,1,fmaxf(1.0f,W*0.0010f));
+    /* ---- bottom band: badge | power+LEDs | volume/phones | floppy ---- */
+    float band_y=L->tube_y+L->tube_h+hous+inset*0.22f;
+    float band_h=(float)H-inset*0.55f-band_y;
+    if(band_h>inset*0.8f){
+        seam(c,edge,band_y-inset*0.26f,(float)W-2*edge,0,fmaxf(1.0f,H*0.0012f));
+        float mid=band_y+band_h*0.46f;
+        float mm=band_h/32.0f;          /* ONE physical scale: the band is a
+                                           ~32mm strip, and every module on it
+                                           is drawn in real millimetres so the
+                                           sizes agree with each other */
 
-    float pbh=fminf(L->tube_h*0.150f,bayw*0.30f);
-    rrect(c,bayx,inset*0.75f,bayw,pbh,pbh*0.10f,0x22,0x26,0x30,1.0f,0.82f);
-    housing_edge(c,bayx,inset*0.75f,bayw,pbh,pbh*0.10f,
-                 fmaxf(2.0f,pbh*0.09f),fmaxf(2.0f,pbh*0.08f),0);
-    { float s=fminf(fmaxf(1.0f,bayw/170.0f),pbh/30.0f);
-      text(c,bayx+bayw*0.08f,inset*0.75f+pbh*0.20f,"PC-486",s*1.45f,0xEC,0xE8,0xDC);
-      text(c,bayx+bayw*0.08f,inset*0.75f+pbh*0.60f,"MULTIMEDIA SYSTEM",s*0.62f,0xA8,0xB0,0xC6);
-      int cols[4][3]={{0x2E,0x4C,0xA8},{0x2E,0x8C,0x50},{0xC8,0x9A,0x28},{0xB8,0x3C,0x34}};
-      for(int k=0;k<4;k++)
-        rect(c,bayx+bayw*0.08f,inset*0.75f+pbh*(0.80f+k*0.042f),bayw*0.55f,
-             fmaxf(1.0f,pbh*0.026f),cols[k][0],cols[k][1],cols[k][2]); }
+        /* badge: the logo, kept, but narrow */
+        float pbw=fminf(W*0.115f,L->tube_h*0.34f);
+        float pbh=fminf(band_h*0.52f,pbw*0.42f);
+        float pbx=edge+inset*0.65f, pby=mid-pbh*0.5f;
+        rrect(c,pbx,pby,pbw,pbh,pbh*0.10f,0x22,0x26,0x30,1.0f,0.82f);
+        housing_edge(c,pbx,pby,pbw,pbh,pbh*0.10f,
+                     fmaxf(2.0f,pbh*0.09f),fmaxf(2.0f,pbh*0.08f),0,1.0f);
+        { float sc=fminf(fmaxf(1.0f,pbw/110.0f),pbh/30.0f);
+          text(c,pbx+pbw*0.10f,pby+pbh*0.16f,"PC-486",sc*1.35f,0xEC,0xE8,0xDC);
+          text(c,pbx+pbw*0.10f,pby+pbh*0.56f,"MULTIMEDIA",sc*0.60f,0xA8,0xB0,0xC6);
+          int cols[4][3]={{0x2E,0x4C,0xA8},{0x2E,0x8C,0x50},{0xC8,0x9A,0x28},{0xB8,0x3C,0x34}};
+          for(int k=0;k<4;k++)
+            rect(c,pbx+pbw*0.10f,pby+pbh*(0.78f+k*0.048f),pbw*0.52f,
+                 fmaxf(1.0f,pbh*0.030f),cols[k][0],cols[k][1],cols[k][2]); }
 
-    vents(c,bayx+bayw*0.04f,inset*0.75f+pbh+inset*0.45f,bayw*0.92f,L->tube_h*0.075f,6,0);
+        /* power button + status LEDs */
+        float px0=pbx+pbw+inset*0.85f;
+        float pw=16.0f*mm;                       /* a 16mm power cap */
+        text(c,px0,mid-pw*0.39f-g_lbl*11,"POWER",g_lbl,86,82,74);
+        rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,88,85,78,0.62f,0.70f);
+        housing_edge(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,
+                     fmaxf(2.0f,pw*0.08f),fmaxf(2.0f,pw*0.07f),0,1.0f);
+        rrect(c,px0+pw*0.10f,mid-pw*0.39f+pw*0.08f,pw*0.80f,pw*0.62f,pw*0.08f,
+              PLASTIC_R,PLASTIC_G,PLASTIC_B,1.16f,0.84f);
+        bevel(c,px0+pw*0.10f,mid-pw*0.39f+pw*0.08f,pw*0.80f,pw*0.62f,
+              fmaxf(1.0f,pw*0.06f),1);
+        { float lx=px0+pw+inset*0.75f;
+          float lstep=fmaxf(band_h*0.16f,13.0f*g_lbl);
+          float ly=mid-lstep*1.35f;
+          const char *lab[3]={"POWER","H.D.D.","FLOPPY"};
+          int lc[3][3]={{60,255,90},{255,175,40},{60,255,90}};
+          for(int k=0;k<3;k++){
+              text(c,lx,ly+k*lstep,lab[k],g_lbl,86,82,74);
+              led(c,lx+8.0f*g_lbl*8.2f,ly+k*lstep+4*g_lbl,
+                  fmaxf(2.0f,inset*0.070f),lc[k][0],lc[k][1],lc[k][2]);
+          } }
 
-    float py=inset*0.75f+pbh+L->tube_h*0.20f;
-    float pw=fminf(bayw*0.34f,L->tube_h*0.125f);
-    text(c,bayx,py-g_lbl*11,"POWER",g_lbl,86,82,74);
-    rrect(c,bayx,py,pw,pw*0.78f,pw*0.10f,88,85,78,0.62f,0.70f);
-    bevel(c,bayx,py,pw,pw*0.78f,fmaxf(1.5f,pw*0.08f),0);
-    rrect(c,bayx+pw*0.10f,py+pw*0.08f,pw*0.80f,pw*0.62f,pw*0.08f,
-          PLASTIC_R,PLASTIC_G,PLASTIC_B,1.16f,0.84f);
-    bevel(c,bayx+pw*0.10f,py+pw*0.08f,pw*0.80f,pw*0.62f,fmaxf(1.0f,pw*0.07f),1);
-
-    float ly=py+pw*0.78f+L->tube_h*0.055f;
-    float lstep=fmaxf(L->tube_h*0.050f,13.0f*g_lbl);
-    const char *lab[3]={"POWER","H.D.D.","FLOPPY"};
-    int lc[3][3]={{60,255,90},{255,175,40},{60,255,90}};
-    for(int k=0;k<3;k++){
-        text(c,bayx,ly+k*lstep,lab[k],g_lbl,86,82,74);
-        led(c,bayx+fminf(bayw*0.62f,L->tube_h*0.26f),ly+k*lstep+4*g_lbl,
-            fmaxf(2.0f,inset*0.070f),lc[k][0],lc[k][1],lc[k][2]);
-    }
-    float fy=ly+3*lstep+L->tube_h*0.055f;
-    float fw=fminf(bayw*0.96f,L->tube_h*0.66f), fh=fw*0.21f;
-    floppy_drive(c,bayx,fy,fw,fh);
-    float cy0=fy+fh+L->tube_h*0.040f, chh=fw*0.30f;
-    cd_drive(c,bayx,cy0,fw,chh,g_lbl);
-    text(c,bayx,cy0+chh+5*g_lbl,"CD-ROM",g_lbl,92,88,80);
-    { float vy=cy0+chh+L->tube_h*0.090f, vh=((float)H-inset*0.70f)-vy;
-      if(vh>inset*0.5f) vents(c,bayx,vy,bayw*0.92f,vh,(int)fmaxf(4.0f,vh/(H*0.018f)),0); }
-
-    /* ---- bottom band ---- */
-    float band_y=L->tube_y+L->tube_h+hous+inset*0.20f;
-    float band_h=H-inset*0.55f-band_y;
-    if(band_h>inset*0.6f){
-        seam(c,edge,band_y-inset*0.22f,bayx-inset*0.40f-edge,0,fmaxf(1.0f,H*0.0012f));
-        if(L->variant!=LAY_STEREO){
-            float gw=(bayx-edge)*0.26f;
-            grille_panel(c,edge+inset*0.55f,band_y+band_h*0.10f,gw,band_h*0.72f,H*0.017f);
-            grille_panel(c,bayx-inset*0.85f-gw,band_y+band_h*0.10f,gw,band_h*0.72f,H*0.017f);
-        }
-        float cxm=(edge+bayx)*0.5f;
+        /* centre: stereo sound, volume, phones */
+        float cxm=(float)W*0.5f;
         text(c,cxm-g_lbl*8*6.0f,band_y+band_h*0.12f,"STEREO SOUND",g_lbl,96,92,84);
         rect(c,cxm-g_lbl*8*6.0f,band_y+band_h*0.12f+g_lbl*11,g_lbl*8*7.0f,
              fmaxf(1.0f,g_lbl*1.6f),0x2E,0x4C,0xA8);
-        slider(c,cxm-g_lbl*8*5.0f,band_y+band_h*0.42f,g_lbl*8*10.0f,band_h*0.30f,0.62f);
-        text(c,cxm-g_lbl*8*2.0f,band_y+band_h*0.80f,"VOLUME",g_lbl,96,92,84);
+        slider(c,cxm-g_lbl*8*5.0f,band_y+band_h*0.42f,g_lbl*8*10.0f,band_h*0.28f,0.62f);
+        text(c,cxm-g_lbl*8*2.0f,band_y+band_h*0.78f,"VOLUME",g_lbl,96,92,84);
         float jx=cxm+g_lbl*8*8.0f;
-        rrect(c,jx,band_y+band_h*0.38f,band_h*0.26f,band_h*0.26f,band_h*0.13f,64,61,56,0.7f,0.8f);
-        bevel(c,jx,band_y+band_h*0.38f,band_h*0.26f,band_h*0.26f,fmaxf(1.0f,band_h*0.03f),0);
-        led(c,jx+band_h*0.13f,band_y+band_h*0.51f,band_h*0.070f,18,17,16);
-        text(c,jx-g_lbl*8*1.0f,band_y+band_h*0.80f,"PHONES",g_lbl,96,92,84);
+        float js=9.0f*mm;                        /* 9mm jack surround */
+        rrect(c,jx,mid-js*0.5f,js,js,js*0.5f,64,61,56,0.7f,0.8f);
+        bevel(c,jx,mid-js*0.5f,js,js,fmaxf(1.0f,js*0.12f),0);
+        led(c,jx+js*0.5f,mid,3.2f*mm,14,13,12);  /* 6.35mm hole */
+        text(c,jx-g_lbl*8*1.0f,band_y+band_h*0.78f,"PHONES",g_lbl,96,92,84);
+
+        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm */
+        float fh=25.4f*mm, fw2=101.6f*mm;
+        float fx=(float)W-edge-inset*0.65f-fw2;
+        floppy_drive(c,fx,mid-fh*0.5f,fw2,fh);
     }
-    { float twx=L->tube_x+L->tube_w-inset*3.6f;
-      float twy=L->tube_y+L->tube_h+hous*0.34f;
-      float tww=inset*1.30f, twh=inset*0.44f;
-      if(twy+twh<band_y){
-        thumbwheel(c,twx,twy,tww,twh);
-        thumbwheel(c,twx+tww*1.22f,twy,tww,twh);
-        text(c,twx,twy+twh+3*g_lbl,"BRIGHT",g_lbl,100,96,88);
-        text(c,twx+tww*1.22f,twy+twh+3*g_lbl,"CONTR",g_lbl,100,96,88);
-      } }
+
     return C.px;
 }

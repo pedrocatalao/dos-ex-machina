@@ -42,6 +42,12 @@ static void h_present(const dxm_frame *f){
     } else memcpy(d,f->pixels,(size_t)n*3);
     fw[back]=m->w; fh[back]=m->h; flines[back]=m->crt_lines;
     pthread_mutex_lock(&mu); front=back; back=1-back; pthread_mutex_unlock(&mu);
+    /* SPEC 4.1: pace at the present boundary.  The game's wait-loops spin on
+     * the 36.4Hz tick calling present each iteration; without this they
+     * busy-burn a core publishing hundreds of identical frames.  A short
+     * sleep keeps tick resolution (27ms period) while cooling the loop.
+     * Game SPEED is unaffected either way - it is wall-clock tick driven. */
+    usleep(2500);
 }
 static int    h_key_down(int sc){ return sc>=0&&sc<NKEYS ? keys[sc] : 0; }
 static int    h_getch(void){

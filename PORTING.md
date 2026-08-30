@@ -151,7 +151,8 @@ extra buffer and its latency, bought for nothing.
 So the core exports a render function and never opens a device:
 
 ```c
-void <game>_audio_render(int16_t *out, int nframes);   /* s16 stereo, 48k */
+void <game>_audio_render(int16_t *out, int nframes);   /* s16 stereo, at
+                                          the core's declared sample rate */
 ```
 
 The host owns the one device and calls this from its own callback (SPEC §9).
