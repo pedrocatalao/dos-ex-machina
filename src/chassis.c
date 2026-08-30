@@ -16,8 +16,11 @@
 #define TUBE_H_FRAC 0.66f
 
 #define BEZEL_BAND    0.056f   /* dished part, next to the glass          */
-#define BEZEL_HOUSING 0.135f   /* full surround depth beyond the picture   */
-#define BEZEL_R_OUT   0.036f   /* housing outer corner - tighter than the  */
+#define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
+#define BEZEL_R_MID   0.022f   /* where the dished band meets the flat     */
+                               /* moulding face - its OWN radius, not      */
+                               /* R_IN + BAND, which forced a huge curve   */
+#define BEZEL_R_OUT   0.006f   /* housing outer corner - tighter than the  */
                                /* aperture, so the moulding reads crisp    */
 #define BEZEL_R_IN    0.018f   /* aperture corner ON TOP of the barrel:    */
                                /* the curvature already rounds the corners, */
@@ -125,9 +128,11 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
 
 /* A grille is a recessed WELL with a moulded lip, and slots inside it with
  * real cross-section: dark trough, lit lower lip, shadowed upper lip. */
+static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
+                         float ew,float shadow,int raised);
 static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
-    rrect(c,x,y,w,h,h*0.045f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.88f,0.95f);
-    bevel(c,x,y,w,h,fmaxf(1.5f,h*0.030f),0);
+    rrect(c,x,y,w,h,h*0.045f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.90f,0.96f);
+    housing_edge(c,x,y,w,h,h*0.045f,fmaxf(2.0f,h*0.055f),fmaxf(2.0f,h*0.05f),0);
     float ix=x+w*0.045f, iy=y+h*0.075f, iw=w*0.91f, ih=h*0.85f;
     if(pitch<3.0f) pitch=3.0f;
     float slot=fmaxf(1.5f,pitch*0.46f);
@@ -201,8 +206,8 @@ static void thumbwheel(canvas *c,float x,float y,float w,float h){
 /* 3.5" drive: face plate, slotted door with a steel shutter lip, sprung
  * eject button in its own recess, activity LED in a moulded well. */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
-    rrect(c,x,y,w,h,h*0.09f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.97f,1.03f);
-    bevel(c,x,y,w,h,fmaxf(1.5f,h*0.08f),0);
+    rrect(c,x,y,w,h,h*0.09f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.99f,1.04f);
+    housing_edge(c,x,y,w,h,h*0.09f,fmaxf(2.0f,h*0.10f),fmaxf(2.0f,h*0.09f),0);
     seam(c,x+w*0.02f,y+h*0.06f,w*0.96f,0,fmaxf(1.0f,h*0.02f));
     /* the disk slot: recess, then the drive door behind it */
     float sx=x+w*0.055f, sy=y+h*0.30f, sw=w*0.63f, sh=h*0.19f;
@@ -225,8 +230,8 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
 /* CD-ROM: taller face, tray seam with a finger recess, its own volume and
  * headphone jack — which is exactly what these drives had. */
 static void cd_drive(canvas *c,float x,float y,float w,float h,float lbl){
-    rrect(c,x,y,w,h,h*0.07f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.97f,1.03f);
-    bevel(c,x,y,w,h,fmaxf(1.5f,h*0.055f),0);
+    rrect(c,x,y,w,h,h*0.07f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.99f,1.04f);
+    housing_edge(c,x,y,w,h,h*0.07f,fmaxf(2.0f,h*0.075f),fmaxf(2.0f,h*0.07f),0);
     float tx=x+w*0.045f, ty=y+h*0.14f, tw=w*0.91f, th=h*0.34f;
     rrect(c,tx,ty,tw,th,th*0.12f,PLASTIC_R,PLASTIC_G,PLASTIC_B,0.92f,1.00f);
     bevel(c,tx,ty,tw,th,fmaxf(1.0f,th*0.10f),0);
@@ -285,45 +290,165 @@ dxm_layout chassis_layout(int W,int H){
  * shader samples in (crt.h), so the opening follows the glass curvature and
  * carries a realistic corner radius at the same time. */
 
-/* signed distance to the aperture, in pixels; <=0 is glass */
-static float aperture_sd(const dxm_layout *L,float px,float py,float rin){
+/* One light, from above and slightly left, as in the reference photo.  y runs
+ * DOWN in canvas space, so "up" is negative y. */
+#define LIGHT_X (-0.42f)
+#define LIGHT_Y (-0.91f)
+
+/* signed distance to a rounded rect; negative inside */
+static float rr_sd(float px,float py,float cx,float cy,float hw,float hh,float r){
+    float qx=fabsf(px-cx)-(hw-r), qy=fabsf(py-cy)-(hh-r);
+    float ax=fmaxf(qx,0.0f), ay=fmaxf(qy,0.0f);
+    return sqrtf(ax*ax+ay*ay)+fminf(fmaxf(qx,qy),0.0f)-r;
+}
+/* read-modify-write: scale a pixel and add a specular term */
+static void px_shade(canvas *c,int x,int y,float mul,float spec){
+    if(x<0||y<0||x>=c->w||y>=c->h) return;
+    uint8_t *p=c->px+((size_t)y*c->w+x)*4;
+    for(int k=0;k<3;k++){
+        float v=p[k]*mul+spec*255.0f;
+        p[k]=(uint8_t)(v<0?0:v>255?255:v);
+    }
+}
+
+/* Rounded box evaluated in the warped space, with its own corner radius and
+ * an outward offset.  Two of these define the band: the aperture at offset 0,
+ * and the band's outer boundary at offset = band width.  Giving that second
+ * curve its own radius is the point - deriving it as a uniform offset of the
+ * aperture forces its corner to be R_IN + BAND, which is far too round. */
+static float warped_rr_sd(const dxm_layout *L,float px,float py,
+                          float r,float grow){
     float tx=(px-L->tube_x)/L->tube_w, ty=(py-L->tube_y)/L->tube_h;
     float bx,by; barrel_cpu(tx,ty,DXM_WARP,&bx,&by);
     float ax=fabsf(bx*2.0f-1.0f)*L->tube_w*0.5f;   /* px from centre */
     float ay=fabsf(by*2.0f-1.0f)*L->tube_h*0.5f;
-    float hw=L->tube_w*0.5f, hh=L->tube_h*0.5f;
-    float qx=ax-(hw-rin), qy=ay-(hh-rin);
-    if(qx>0.0f && qy>0.0f) return sqrtf(qx*qx+qy*qy)-rin;
+    float hw=L->tube_w*0.5f+grow, hh=L->tube_h*0.5f+grow;
+    float qx=ax-(hw-r), qy=ay-(hh-r);
+    if(qx>0.0f && qy>0.0f) return sqrtf(qx*qx+qy*qy)-r;
     return fmaxf(ax-hw, ay-hh);
 }
+/* signed distance to the aperture, in pixels; <=0 is glass */
+static float aperture_sd(const dxm_layout *L,float px,float py,float rin){
+    return warped_rr_sd(L,px,py,rin,0.0f);
+}
 
-static void bezel(canvas *c,const dxm_layout *L,float bz,float rin){
-    float m=bz*2.6f;
+/* The housing's outer edge: a rolled lip that catches a hard specular line
+ * along the top and upper-left, falls into shadow along the bottom, and casts
+ * a soft contact shadow onto the flat case beneath it.  This is what gives
+ * the monitor its depth against the rest of the machine. */
+static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
+                         float ew,float shadow,int raised){
+    float cx=x+w*0.5f, cy=y+h*0.5f, hw=w*0.5f, hh=h*0.5f;
+    float m=ew+shadow+2.0f;
+    for(int j=(int)(y-m);j<(int)(y+h+m);j++)
+      for(int i=(int)(x-m);i<(int)(x+w+m);i++){
+        float sd=rr_sd((float)i,(float)j,cx,cy,hw,hh,r);
+        if(sd<-ew || sd>shadow) continue;
+        float gx=rr_sd((float)i+1,(float)j,cx,cy,hw,hh,r)
+                -rr_sd((float)i-1,(float)j,cx,cy,hw,hh,r);
+        float gy=rr_sd((float)i,(float)j+1,cx,cy,hw,hh,r)
+                -rr_sd((float)i,(float)j-1,cx,cy,hw,hh,r);
+        float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
+        float nx=gx/gl, ny=gy/gl;              /* points OUT of the housing */
+        float lam=(nx*LIGHT_X+ny*LIGHT_Y)*(raised?1.0f:-1.0f);
+        if(sd<=0.0f){
+            /* the rolled lip itself */
+            float t=-sd/ew;                     /* 0 at the very edge */
+            float prof=(1.0f-t)*(1.0f-t);
+            float mul=1.0f+lam*prof*0.50f;
+            float sp=fmaxf(lam,0.0f);
+            /* the shine: a hard, narrow catch along the top of the roll */
+            px_shade(c,i,j,mul,powf(sp,10.0f)*prof*0.52f);
+        } else {
+            /* contact shadow cast onto the case, opposite the light */
+            float t=sd/shadow;
+            float occl=fmaxf(raised?-lam:lam,0.0f);
+            px_shade(c,i,j,1.0f-occl*(1.0f-t)*(1.0f-t)*0.46f,0.0f);
+        }
+      }
+}
+
+static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
+    float m=bz*1.20f;   /* the band only - see below */
     for(int j=(int)(L->tube_y-m);j<(int)(L->tube_y+L->tube_h+m);j++)
       for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
         float d=aperture_sd(L,(float)i,(float)j,rin);
         if(d<=0.0f) continue;                    /* glass: the shader owns it */
-        float t=d/bz;
-        float sh;
-        if(t<1.0f){
-            /* the band is a distinctly darker grey ring than the housing
-             * face, sloping up out of the glass - in the reference it reads
-             * as its own surface, not as a shadow */
-            sh=0.66f+0.34f*t*t*(0.55f+0.45f*t);
-            if(t<0.14f) sh-=0.24f*(1.0f-t/0.14f);
-            if(t>0.92f) sh+=0.10f*(t-0.92f)/0.08f;   /* lit lip at the housing */
-        } else sh=1.00f;
+        float dout=warped_rr_sd(L,(float)i,(float)j,rmid,bz);
+        if(dout>=0.0f) continue;                 /* past the band: flat face */
+        float t=d/fmaxf(d-dout,1e-3f);           /* 0 at glass, 1 at the edge */
+        float sh, spec=0.0f;
+        {
+            /* The reveal is a WALL, not a dome.  Every point on it faces the
+             * light at the same angle, so its tone is essentially CONSTANT
+             * across the wall - dark all the way down on the shadowed side,
+             * light all the way down on the lit side.  Shading it as a ramp
+             * from the shoulder to the glass is what made it read as a raised
+             * rounded lip instead of a deep recess. */
+            float gx=aperture_sd(L,(float)i+1,(float)j,rin)
+                    -aperture_sd(L,(float)i-1,(float)j,rin);
+            float gy=aperture_sd(L,(float)i,(float)j+1,rin)
+                    -aperture_sd(L,(float)i,(float)j-1,rin);
+            float gl=sqrtf(gx*gx+gy*gy);
+            float lam=0.0f;
+            if(gl>1e-4f){
+                /* the wall climbs away from the glass, so it faces back
+                 * toward the aperture: normal = -gradient */
+                float nx=-gx/gl, ny=-gy/gl;
+                lam=nx*LIGHT_X+ny*LIGHT_Y;
+            }
+            /* Measured off the reference: its moulding is essentially the
+             * SAME tone on all four sides (~160-175 of 255), with the depth
+             * carried almost entirely by a dark contact band at the glass.
+             * A strong directional term makes the top read as a recess and
+             * the other three sides read wrong, because it darkens one side
+             * while brightening the opposite one. Keep it subtle. */
+            sh = 1.00f + lam*0.07f;
+            float k=1.0f-t;                   /* 1 at the glass, 0 at shoulder */
+            sh *= 1.0f - 0.52f*k*k*(0.55f+0.45f*k);
+        }
         float n=plastic_tex(i,j);
         float a=(d<1.3f)?d/1.3f:1.0f;
-        px_blend(c,i,j,(int)(PLASTIC_R*(sh+n)),(int)(PLASTIC_G*(sh+n)),
-                 (int)(PLASTIC_B*(sh+n)),a);
+        px_blend(c,i,j,(int)(PLASTIC_R*(sh+n)+spec*255.0f),
+                     (int)(PLASTIC_G*(sh+n)+spec*255.0f),
+                     (int)(PLASTIC_B*(sh+n)+spec*255.0f),a);
         /* the glass sits below the moulding: a real shadow, scaled to the
          * bezel so it survives at any resolution instead of being 2px */
         float rw=fmaxf(2.0f,bz*0.13f);
         if(d<rw) px_blend(c,i,j,8,8,7,0.70f*(1.0f-d/rw));
-        /* crisp step where the band meets the housing face */
-        float lw=fmaxf(1.0f,bz*0.045f);
-        if(fabsf(d-bz)<lw) px_blend(c,i,j,60,57,51,0.40f*(1.0f-fabsf(d-bz)/lw));
+
+      }
+    /* ---- the reveal SHOULDER ----
+     * Where the dished reveal rolls back up onto the flat moulding face.
+     * It is a convex fillet, so with the light above it takes a hard catch
+     * along the top and drops into shadow along the bottom.  This is the
+     * edge that gives the bezel its depth; putting the highlight out at the
+     * chassis boundary instead was simply the wrong edge. */
+    float fw=fmaxf(2.0f,bz*0.30f);
+    for(int j=(int)(L->tube_y-m);j<(int)(L->tube_y+L->tube_h+m);j++)
+      for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
+        if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) continue;
+        float dq=warped_rr_sd(L,(float)i,(float)j,rmid,bz);
+        /* ONLY between the shoulder and the glass.  This used to run to
+         * +fw as well, putting the highlight on the flat moulding face
+         * outside the reveal - the flat face must stay uniform. */
+        if(dq>0.0f || dq<-fw) continue;
+        float gx=warped_rr_sd(L,(float)i+1,(float)j,rmid,bz)
+                -warped_rr_sd(L,(float)i-1,(float)j,rmid,bz);
+        float gy=warped_rr_sd(L,(float)i,(float)j+1,rmid,bz)
+                -warped_rr_sd(L,(float)i,(float)j-1,rmid,bz);
+        float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
+        /* A recessed shoulder catches the light on the side FACING the
+         * light source - the BOTTOM shoulder, whose fillet tilts up toward
+         * it.  The top shoulder shades itself.  So the shine follows the
+         * inward normal, not the outward one. */
+        float nx=-gx/gl, ny=-gy/gl;        /* inward, toward the glass */
+        float lam=nx*LIGHT_X+ny*LIGHT_Y;
+        float prof=1.0f+dq/fw;          /* 1 at the shoulder, 0 into the wall */
+        prof*=prof;
+        float sp=fmaxf(lam,0.0f);
+        /* the shoulder is a soft break, not a chrome edge */
+        px_shade(c,i,j,1.0f+lam*prof*0.10f,powf(sp,9.0f)*prof*0.10f);
       }
 }
 
@@ -347,9 +472,11 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
     float rin=L->tube_h*BEZEL_R_IN, rout=L->tube_h*BEZEL_R_OUT;
     float sx=L->tube_x-hous, sy=L->tube_y-hous;
     float sw=L->tube_w+hous*2.0f, sh2=L->tube_h+hous*2.0f;
-    rrect(c,sx,sy,sw,sh2,rout,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.00f,0.95f);
-    bevel(c,sx,sy,sw,sh2,fmaxf(1.5f,hous*0.10f),1);
-    bezel(c,L,bz,rin);
+    rrect(c,sx,sy,sw,sh2,rout,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.00f,0.96f);
+    /* The shine belongs on the REVEAL SHOULDER, not out here where the
+     * moulding meets the flat chassis - that boundary is nearly flush and
+     * should barely register.  bezel() lights the shoulder itself. */
+    bezel(c,L,bz,rin,L->tube_h*BEZEL_R_MID);
     for(int j=(int)(L->tube_y-hous);j<(int)(L->tube_y+L->tube_h+hous);j++)
       for(int i=(int)(L->tube_x-hous);i<(int)(L->tube_x+L->tube_w+hous);i++)
         if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) px_set(c,i,j,5,6,5);
@@ -372,7 +499,8 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
 
     float pbh=fminf(L->tube_h*0.150f,bayw*0.30f);
     rrect(c,bayx,inset*0.75f,bayw,pbh,pbh*0.10f,0x22,0x26,0x30,1.0f,0.82f);
-    bevel(c,bayx,inset*0.75f,bayw,pbh,fmaxf(1.5f,pbh*0.06f),0);
+    housing_edge(c,bayx,inset*0.75f,bayw,pbh,pbh*0.10f,
+                 fmaxf(2.0f,pbh*0.09f),fmaxf(2.0f,pbh*0.08f),0);
     { float s=fminf(fmaxf(1.0f,bayw/170.0f),pbh/30.0f);
       text(c,bayx+bayw*0.08f,inset*0.75f+pbh*0.20f,"PC-486",s*1.45f,0xEC,0xE8,0xDC);
       text(c,bayx+bayw*0.08f,inset*0.75f+pbh*0.60f,"MULTIMEDIA SYSTEM",s*0.62f,0xA8,0xB0,0xC6);

@@ -7,6 +7,11 @@ find_package(SDL3 REQUIRED CONFIG)
 set(DXM_SKYROADS "/Users/pedro/Git/skyroads-mac" CACHE PATH "skyroads-sdl checkout")
 
 # The game core: built from the game repo with SKY_CORE=ON.  No SDL in it.
+# Set the subproject's options here so a plain `cmake -S . -B build` works —
+# these are DXM's business, not something the user should have to remember.
+set(SKY_CORE ON CACHE BOOL "Build skyroads as a DXM core" FORCE)
+set(SKY_DXM_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE PATH
+    "Path to dxm_core.h" FORCE)
 add_subdirectory(${DXM_SKYROADS} ${CMAKE_BINARY_DIR}/skyroads EXCLUDE_FROM_ALL)
 
 add_executable(dxm
