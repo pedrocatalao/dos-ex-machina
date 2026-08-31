@@ -10,6 +10,8 @@
 #include "corehost.h"
 #include "dxm_core.h"
 #include "crt.h"
+#include "sound.h"
+#include <math.h>
 
 static int sc_from_sdl(SDL_Scancode s){
     switch(s){
@@ -24,12 +26,16 @@ static int sc_from_sdl(SDL_Scancode s){
         default: return 0;
     }
 }
+static FILE *g_audio_dump;   /* --dump-audio, dev verification */
+
 static void audio_cb(void *ud,SDL_AudioStream *st,int add,int total){
     (void)ud;(void)total;
     if(add<=0) return;
     static int16_t buf[4096];
     int frames=add/4; if(frames>2048) frames=2048;
     corehost_audio(buf,frames);
+    snd_mix(buf,frames);
+    if(g_audio_dump){ fwrite(buf,4,(size_t)frames,g_audio_dump); }
     SDL_PutAudioStreamData(st,buf,frames*4);
 }
 static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
@@ -53,7 +59,9 @@ int main(int argc,char **argv){
     float ambient=0.4f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
-        if(!strcmp(argv[i],"--windowed")) windowed=1;
+        if(!strcmp(argv[i],"--dump-audio")&&i+1<argc)
+            g_audio_dump=fopen(argv[++i],"wb");
+        else if(!strcmp(argv[i],"--windowed")) windowed=1;
         else if(!strcmp(argv[i],"--selftest")){ selftest=1; windowed=1; }
         else if(!strcmp(argv[i],"--shot")&&i+1<argc) shot=argv[++i];   /* honours fullscreen */
         else if(!strcmp(argv[i],"--frames")&&i+1<argc) shot_frames=atoi(argv[++i]);
@@ -99,6 +107,9 @@ int main(int argc,char **argv){
     SDL_AudioStream *ast=SDL_OpenAudioDeviceStream(
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&as,audio_cb,NULL);
     if(ast) SDL_ResumeAudioStreamDevice(ast);
+    snd_init(44100);
+    snd_power(1);                 /* fans and spindle spin up */
+    snd_disk(2.4);                /* boot-time drive chatter  */
 
     dos_init();
 
@@ -183,13 +194,15 @@ int main(int argc,char **argv){
         if(req){
             const dxm_core_info *info=sky_core_info();
             const char *dd=getenv("DXM_DATA");
+            snd_disk(1.6);        /* the drive works while it loads */
             corehost_start(info, dd?dd:"/Users/pedro/Git/skyroads-mac/data");
         }
+        if(dos_take_beep()) snd_beep(240.0);  /* after the RAM check */
         if(autocmd && dos_update(t)==DOS_PROMPT){       /* wait for the prompt */
             for(const char *q=autocmd;*q;q++) dos_key(*q,0);
             dos_key('\r',0); autocmd=NULL;
         }
-        if(dos_update(t)==DOS_OFF) quit=1;
+        if(dos_update(t)==DOS_OFF){ snd_power(0); quit=1; }
 
         /* pick the tube source: the running core, or the DOS text screen */
         int cw,ch,cl;

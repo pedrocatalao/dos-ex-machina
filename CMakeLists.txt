@@ -15,7 +15,7 @@ set(SKY_DXM_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE PATH
 add_subdirectory(${DXM_SKYROADS} ${CMAKE_BINARY_DIR}/skyroads EXCLUDE_FROM_ALL)
 
 add_executable(dxm
-    src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c
+    src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c src/sound.c
     src/corehost.c src/platform_dxm.c)
 target_include_directories(dxm PRIVATE src ${DXM_SKYROADS}/src)
 target_link_libraries(dxm PRIVATE SDL3::SDL3 skyroads_core m)

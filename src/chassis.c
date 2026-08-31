@@ -86,7 +86,11 @@ static float plastic_height(float x,float y){
 }
 /* Returns a shading offset: lit facets brighten, facets turned away darken,
  * and the pits between grains pick up a little occlusion. */
+/* Printed labels are smooth: they are ink on a flat substrate, not moulded
+ * plastic, so the embossed grain must not run under them. */
+static int g_grain = 1;
 static float plastic_tex(int x,int y){
+    if(!g_grain) return 0.0f;
     float h  = plastic_height((float)x,      (float)y);
     float hx = plastic_height((float)x+1.0f, (float)y);
     float hy = plastic_height((float)x,      (float)y+1.0f);
@@ -273,36 +277,36 @@ static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
      * lighter at its bottom, an overhang shadow inside the top edge, a
      * faint lit lip on the plastic below, soft anti-aliased rim. */
     float ccx=x+w*0.5f, ccy=y+h*0.5f;
-    float hw=w*0.40f, hh=h*0.42f;
-    float crad=fminf(hw,hh);
-    float hp=fmaxf(3.0f,pitch*0.40f);            /* hole pitch  */
-    float hr=hp*0.28f;                           /* hole radius */
+    float hw=w*0.40f, hh=h*0.44f;
+    float crad=fminf(hw,hh)*0.09f;      /* rectangular, corners just eased */
+    float hp=fmaxf(2.0f,pitch*0.21f);            /* hole pitch  */
+    float hr=hp*0.25f;                           /* hole radius */
     int row=0;
     for(float cy2=y+hp; cy2<y+h-hp*0.5f; cy2+=hp*0.87f,row++){
         float ox=(row&1)? hp*0.5f : 0.0f;
         for(float cx2=x+hp+ox; cx2<x+w-hp*0.5f; cx2+=hp){
             /* only holes fully inside the capsule */
             if(rr_sd(cx2,cy2,ccx,ccy,hw,hh,crad) > -hr*1.2f) continue;
-            for(int j2=(int)(cy2-hr-2);j2<=(int)(cy2+hr+3);j2++)
-                for(int i2=(int)(cx2-hr-2);i2<=(int)(cx2+hr+3);i2++){
-                    float dx=(i2-cx2)/hr, dy=(j2-cy2)/hr;
-                    float d=sqrtf(dx*dx+dy*dy);
-                    if(d<=1.0f){
-                        /* interior: dark, lighter toward the bottom, with
-                         * the overhang shadow filling the top */
-                        float v=16.0f+10.0f*fmaxf(0.0f,dy);
-                        if(dy<-0.2f) v*=0.62f;
-                        float a=fminf(1.0f,(1.0f-d)/0.18f);   /* AA rim */
-                        px_blend(c,i2,j2,(int)v,(int)v,(int)(v*1.04f),
-                                 0.35f+0.65f*a);
-                    } else if(d<=1.55f){
-                        float t=(d-1.0f)/0.55f;
-                        if(dy>0.3f)          /* lit lip below the hole */
-                            px_shade(c,i2,j2,1.0f+0.14f*(1.0f-t)*dy/d,
-                                     (1.0f-t)*0.03f);
-                        else if(dy<-0.3f)    /* soft shadow above */
-                            px_shade(c,i2,j2,1.0f-0.10f*(1.0f-t)*(-dy/d),0.0f);
+            /* At this pitch a hole spans only a few pixels, so shade it by
+             * ANALYTIC COVERAGE rather than discrete zones - otherwise the
+             * rim aliases and the grid reads as ragged dots. */
+            for(int j2=(int)(cy2-hr-2);j2<=(int)(cy2+hr+2);j2++)
+                for(int i2=(int)(cx2-hr-2);i2<=(int)(cx2+hr+2);i2++){
+                    float dxp=i2+0.5f-cx2, dyp=j2+0.5f-cy2;
+                    float d=sqrtf(dxp*dxp+dyp*dyp);
+                    float cov=hr-d+0.5f;              /* pixel coverage */
+                    if(cov<=0.0f){
+                        /* just outside: a whisper of lit lip below the hole */
+                        if(cov>-1.2f && dyp>0.0f)
+                            px_shade(c,i2,j2,1.0f+0.10f*(1.2f+cov)/1.2f
+                                     *(dyp/fmaxf(d,0.001f)),0.0f);
+                        continue;
                     }
+                    if(cov>1.0f) cov=1.0f;
+                    float u=dyp/fmaxf(hr,0.001f);     /* -1 top .. +1 bottom */
+                    float v=15.0f+11.0f*fmaxf(0.0f,u);/* floor lit at bottom */
+                    if(u<-0.15f) v*=0.60f;            /* overhang shadow     */
+                    px_blend(c,i2,j2,(int)v,(int)v,(int)(v*1.04f),cov);
                 }
         }
     }
@@ -709,6 +713,7 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
         float pbw=fminf(W*0.115f,L->tube_h*0.34f);
         float pbh=fminf(band_h*0.52f,pbw*0.42f);
         float pbx=edge+inset*0.65f, pby=mid-pbh*0.5f;
+        g_grain=0;                       /* the badge is a printed label */
         rrect(c,pbx,pby,pbw,pbh,pbh*0.10f,0x22,0x26,0x30,1.0f,0.82f);
         housing_edge(c,pbx,pby,pbw,pbh,pbh*0.10f,
                      fmaxf(2.0f,pbh*0.09f),fmaxf(2.0f,pbh*0.08f),0,1.0f);
@@ -719,6 +724,7 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
           for(int k=0;k<4;k++)
             rect(c,pbx+pbw*0.10f,pby+pbh*(0.78f+k*0.048f),pbw*0.52f,
                  fmaxf(1.0f,pbh*0.030f),cols[k][0],cols[k][1],cols[k][2]); }
+        g_grain=1;
 
         /* power button + status LEDs */
         float px0=pbx+pbw+inset*0.85f;

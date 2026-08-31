@@ -16,6 +16,11 @@ static uint8_t fb[DOS_W*DOS_H*3];
 static char   launch[32];
 static int    launch_pending;
 static int    sky_installed = 1;   /* v0: data ships with the dev checkout */
+static int    beep_pending;        /* POST beep, fired after the RAM count */
+static int    mem_counting;        /* the memory test is spinning          */
+static double mem_next;            /* next number update                   */
+static long   mem_shown;           /* KB counted so far                    */
+static int    mem_row, mem_col;    /* where to overwrite the digits        */
 
 static void scroll(void){
     memmove(scr[0],scr[1],(DOS_ROWS-1)*DOS_COLS);
@@ -35,7 +40,7 @@ static const char *BOOT[] = {
   "DXM BIOS v1.0  (C) 2026 DOS ex Machina",
   "",
   "Main Processor  : 80486DX2  66 MHz",
-  "Memory Test     : 655360 OK",
+  "Memory Test     : ",          /* counted live, see dos_update */
   "",
   "Fixed Disk 0    : DXM-VIRTUAL  512 MB",
   "Floppy Disk A   : 1.44 MB, 3.5 in.",
@@ -48,6 +53,7 @@ static const char *BOOT[] = {
 void dos_init(void){
     memset(scr,' ',sizeof scr);
     cur_r=cur_c=0; line_n=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
+    beep_pending=0; mem_counting=0; mem_shown=0;
 }
 void dos_core_exited(void){
     put('\n'); prompt(); st=DOS_PROMPT; line_n=0;
@@ -126,10 +132,57 @@ void dos_key(int ch,int sc){
     (void)sc;
 }
 
+/* The PC speaker POST beep: taken once, at power-on. */
+int dos_take_beep(void){ int b=beep_pending; beep_pending=0; return b; }
+
+/* The RAM count spins in place: the BIOS printed the running total and
+ * overwrote it, so we hold the cursor at the digits and rewrite them. */
+#define MEM_TOTAL_KB 655360L
+#define MEM_STEP_KB  8192L          /* the count visibly steps, not smooth */
+
+static void mem_draw(long kb){
+    char buf[24];
+    snprintf(buf,sizeof buf,"%ld KB",kb);
+    int c=mem_col;
+    for(const char *p=buf;*p&&c<DOS_COLS;p++) scr[mem_row][c++]=*p;
+    while(c<DOS_COLS && c<mem_col+12) scr[mem_row][c++]=' ';
+}
+
 dos_state dos_update(double t){
     if(t0<0){ t0=t; next_boot=t+0.35; }
+
+    if(mem_counting){
+        if(t>=mem_next){
+            mem_shown+=MEM_STEP_KB;
+            if(mem_shown>=MEM_TOTAL_KB){
+                mem_shown=MEM_TOTAL_KB;
+                mem_draw(mem_shown);
+                { int c=mem_col+11; const char *ok=" OK";
+                  for(const char *p=ok;*p&&c<DOS_COLS;p++) scr[mem_row][c++]=*p; }
+                mem_counting=0;
+                cur_c=0; if(++cur_r>=DOS_ROWS) scroll();   /* close the line */
+                beep_pending=1;           /* POST beep AFTER the RAM check */
+                next_boot=t+0.45;
+            } else {
+                mem_draw(mem_shown);
+                mem_next=t+0.010;
+            }
+        }
+        return st;                        /* boot text pauses while counting */
+    }
+
     if(st==DOS_BOOT && t>=next_boot){
-        if(BOOT[boot_step]){ sayln(BOOT[boot_step++]); next_boot=t+0.16; }
+        if(BOOT[boot_step]){
+            const char *ln=BOOT[boot_step++];
+            say(ln);
+            if(strstr(ln,"Memory Test")){ /* start the live count here */
+                mem_row=cur_r; mem_col=cur_c;
+                mem_counting=1; mem_shown=0; mem_next=t;
+                return st;
+            }
+            put('\n');
+            next_boot=t+0.16;
+        }
         else { st=DOS_PROMPT; prompt(); }
     }
     return st;
