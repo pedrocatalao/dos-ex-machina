@@ -21,7 +21,11 @@
 
 #define BEZEL_BAND    0.076f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
-#define BEZEL_R_MID   0.042f   /* where the dished band meets the flat     */
+#define BEZEL_R_MID   0.042f   /* shoulder corner radius                    */
+#define BEZEL_R_MID_WARP 0.45f /* the shoulder follows the tube's curvature  */
+                               /* only PARTLY - the moulding flattens as it  */
+                               /* moves out from the glass, but it does not  */
+                               /* go straight.                               */
                                /* moulding face - its OWN radius, not      */
                                /* R_IN + BAND, which forced a huge curve   */
 #define BEZEL_R_OUT   0.006f   /* housing outer corner - tighter than the  */
@@ -126,9 +130,9 @@ static void px_shade(canvas *c,int x,int y,float mul,float spec){
  * curve its own radius is the point - deriving it as a uniform offset of the
  * aperture forces its corner to be R_IN + BAND, which is far too round. */
 static float warped_rr_sd(const dxm_layout *L,float px,float py,
-                          float r,float grow){
+                          float r,float grow,float warp){
     float tx=(px-L->tube_x)/L->tube_w, ty=(py-L->tube_y)/L->tube_h;
-    float bx,by; barrel_cpu(tx,ty,DXM_WARP,&bx,&by);
+    float bx,by; barrel_cpu(tx,ty,warp,&bx,&by);
     float ax=fabsf(bx*2.0f-1.0f)*L->tube_w*0.5f;   /* px from centre */
     float ay=fabsf(by*2.0f-1.0f)*L->tube_h*0.5f;
     float hw=L->tube_w*0.5f+grow, hh=L->tube_h*0.5f+grow;
@@ -519,7 +523,12 @@ dxm_layout chassis_layout(int W,int H){
 
 /* signed distance to the aperture, in pixels; <=0 is glass */
 static float aperture_sd(const dxm_layout *L,float px,float py,float rin){
-    return warped_rr_sd(L,px,py,rin,0.0f);
+    return warped_rr_sd(L,px,py,rin,0.0f,DXM_WARP);
+}
+/* the shoulder: same construction, gentler curvature */
+static float shoulder_sd(const dxm_layout *L,float px,float py,
+                         float rmid,float bz){
+    return warped_rr_sd(L,px,py,rmid,bz,DXM_WARP*BEZEL_R_MID_WARP);
 }
 
 /* The housing's outer edge: a rolled lip that catches a hard specular line
@@ -564,7 +573,7 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
       for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
         float d=aperture_sd(L,(float)i,(float)j,rin);
         if(d<=0.0f) continue;                    /* glass: the shader owns it */
-        float dout=warped_rr_sd(L,(float)i,(float)j,rmid,bz);
+        float dout=shoulder_sd(L,(float)i,(float)j,rmid,bz);
         if(dout>=0.0f) continue;                 /* past the band: flat face */
         float t=d/fmaxf(d-dout,1e-3f);           /* 0 at glass, 1 at the edge */
         float sh, spec=0.0f;
@@ -639,15 +648,17 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
     for(int j=(int)(L->tube_y-m);j<(int)(L->tube_y+L->tube_h+m);j++)
       for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
         if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) continue;
-        float dq=warped_rr_sd(L,(float)i,(float)j,rmid,bz);
+        /* same shoulder the band is cut against, or the highlight sits
+         * off the edge it is lighting */
+        float dq=shoulder_sd(L,(float)i,(float)j,rmid,bz);
         /* ONLY between the shoulder and the glass.  This used to run to
          * +fw as well, putting the highlight on the flat moulding face
          * outside the reveal - the flat face must stay uniform. */
         if(dq>0.0f || dq<-fw) continue;
-        float gx=warped_rr_sd(L,(float)i+1,(float)j,rmid,bz)
-                -warped_rr_sd(L,(float)i-1,(float)j,rmid,bz);
-        float gy=warped_rr_sd(L,(float)i,(float)j+1,rmid,bz)
-                -warped_rr_sd(L,(float)i,(float)j-1,rmid,bz);
+        float gx=shoulder_sd(L,(float)i+1,(float)j,rmid,bz)
+                -shoulder_sd(L,(float)i-1,(float)j,rmid,bz);
+        float gy=shoulder_sd(L,(float)i,(float)j+1,rmid,bz)
+                -shoulder_sd(L,(float)i,(float)j-1,rmid,bz);
         float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
         /* A recessed shoulder catches the light on the side FACING the
          * light source - the BOTTOM shoulder, whose fillet tilts up toward
