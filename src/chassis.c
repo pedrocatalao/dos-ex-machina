@@ -241,38 +241,44 @@ static void led_rect(canvas *c,float cx,float cy,float w,float h,
 static void housing_edge(canvas *c,float x,float y,float w,float h,float r,
                          float ew,float shadow,int raised,float gain);
 static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
-    /* Flat, like the real thing: slats moulded straight into the case face -
-     * no recessed well, no raised frame.  Through the slots you glimpse the
-     * driver: a darker disc behind the middle of the panel, near-black at
-     * the cone, dark grey where the slot only shows backing plastic. */
-    float ccx=x+w*0.5f;
-    float wy=y+h*0.640f, wr=fminf(w*0.470f,h*0.30f);   /* woofer, low  */
-    float ty=y+h*0.215f, tr=wr*0.42f;                  /* tweeter, high */
-    if(pitch<3.0f) pitch=3.0f;
-    float slot=fmaxf(1.5f,pitch*0.50f);
-    for(float sy=y+pitch*0.5f; sy<y+h-slot; sy+=pitch){
-        for(int t=0;t<(int)slot;t++){
-            float yy=sy+t;
-            for(int i2=(int)x;i2<(int)(x+w);i2++){
-                float e=1.0f;                       /* rounded slot ends */
-                float dl=(i2-x)/(slot*1.3f), dr=((x+w)-i2)/(slot*1.3f);
-                if(dl<1.0f) e=dl;
-                if(dr<1.0f) e=fminf(e,dr);
-                if(e<=0.0f) continue;
-                float dx=i2-ccx;
-                float dw=sqrtf(dx*dx+(yy-wy)*(yy-wy));
-                float dt=sqrtf(dx*dx+(yy-ty)*(yy-ty));
-                float cone=fmaxf(
-                    1.0f-fminf(fmaxf((dw-wr)/(wr*0.10f),0.0f),1.0f),
-                    1.0f-fminf(fmaxf((dt-tr)/(tr*0.16f),0.0f),1.0f));
-                int v=(int)(46.0f-36.0f*cone);      /* backing vs cone */
-                v+=(int)(9.0f*((float)t/slot));     /* slot depth shading */
-                px_blend(c,i2,(int)yy,v,v-1,v-2,0.86f*e);
-            }
+    /* Perforated speaker area: a hex-packed grid of small punched holes
+     * confined to a capsule-shaped zone.  The case face stays flush and
+     * plain; each hole gets the full treatment - dark interior slightly
+     * lighter at its bottom, an overhang shadow inside the top edge, a
+     * faint lit lip on the plastic below, soft anti-aliased rim. */
+    float ccx=x+w*0.5f, ccy=y+h*0.5f;
+    float hw=w*0.40f, hh=h*0.42f;
+    float crad=fminf(hw,hh);
+    float hp=fmaxf(3.0f,pitch*0.40f);            /* hole pitch  */
+    float hr=hp*0.28f;                           /* hole radius */
+    int row=0;
+    for(float cy2=y+hp; cy2<y+h-hp*0.5f; cy2+=hp*0.87f,row++){
+        float ox=(row&1)? hp*0.5f : 0.0f;
+        for(float cx2=x+hp+ox; cx2<x+w-hp*0.5f; cx2+=hp){
+            /* only holes fully inside the capsule */
+            if(rr_sd(cx2,cy2,ccx,ccy,hw,hh,crad) > -hr*1.2f) continue;
+            for(int j2=(int)(cy2-hr-2);j2<=(int)(cy2+hr+3);j2++)
+                for(int i2=(int)(cx2-hr-2);i2<=(int)(cx2+hr+3);i2++){
+                    float dx=(i2-cx2)/hr, dy=(j2-cy2)/hr;
+                    float d=sqrtf(dx*dx+dy*dy);
+                    if(d<=1.0f){
+                        /* interior: dark, lighter toward the bottom, with
+                         * the overhang shadow filling the top */
+                        float v=16.0f+10.0f*fmaxf(0.0f,dy);
+                        if(dy<-0.2f) v*=0.62f;
+                        float a=fminf(1.0f,(1.0f-d)/0.18f);   /* AA rim */
+                        px_blend(c,i2,j2,(int)v,(int)v,(int)(v*1.04f),
+                                 0.35f+0.65f*a);
+                    } else if(d<=1.55f){
+                        float t=(d-1.0f)/0.55f;
+                        if(dy>0.3f)          /* lit lip below the hole */
+                            px_shade(c,i2,j2,1.0f+0.14f*(1.0f-t)*dy/d,
+                                     (1.0f-t)*0.03f);
+                        else if(dy<-0.3f)    /* soft shadow above */
+                            px_shade(c,i2,j2,1.0f-0.10f*(1.0f-t)*(-dy/d),0.0f);
+                    }
+                }
         }
-        /* the thinnest lit line under each rib, or the slats read as paint */
-        for(int i2=(int)(x+slot);i2<(int)(x+w-slot);i2++)
-            px_blend(c,i2,(int)(sy+slot),252,250,244,0.15f);
     }
 }
 static void seam(canvas *c,float x,float y,float len,int vertical,float w){
@@ -445,7 +451,7 @@ dxm_layout chassis_layout(int W,int H){
     float edge=W*0.024f, inset=H*0.052f;
     /* the monitor housing is chunky: it wraps the picture by BEZEL_HOUSING
      * on every side, and the layout has to budget for it */
-    float th=((float)H-inset)*0.735f, tw=th*4.0f/3.0f;   /* slimmer band */
+    float th=((float)H-inset)*0.765f, tw=th*4.0f/3.0f;   /* slimmer band */
     float hous=th*BEZEL_HOUSING;
     /* The CRT sits in the CENTRE, a speaker column on each side; the drive
      * and controls all live in the bottom band.  One arrangement for every
@@ -666,12 +672,12 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
     float band_y=L->tube_y+L->tube_h+hous+inset*0.22f;
     float band_h=(float)H-inset*0.55f-band_y;
     if(band_h>inset*0.8f){
-        seam(c,edge,band_y-inset*0.26f,(float)W-2*edge,0,fmaxf(1.0f,H*0.0012f));
+        seam(c,edge,band_y-inset*0.26f,(float)W-2*edge,0,fmaxf(1.0f,W*0.0012f));
         float mid=band_y+band_h*0.46f;
-        float mm=band_h/32.0f;          /* ONE physical scale: the band is a
-                                           ~32mm strip, and every module on it
-                                           is drawn in real millimetres so the
-                                           sizes agree with each other */
+        float mm=H/268.0f;              /* ONE physical scale, tied to the
+                                           DISPLAY, not the band - so slimming
+                                           the band does not shrink the
+                                           devices mounted on it */
 
         /* badge: the logo, kept, but narrow */
         float pbw=fminf(W*0.115f,L->tube_h*0.34f);
@@ -716,10 +722,12 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
         led(c,jx+js*0.5f,mid,3.2f*mm,14,13,12);  /* 6.35mm hole */
         text(c,jx-g_lbl*8*1.0f,band_y+band_h*0.78f,"PHONES",g_lbl,96,92,84);
 
-        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm */
+        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
+         * vertically between the divider ridge and the case bottom */
         float fh=25.4f*mm, fw2=101.6f*mm;
         float fx=(float)W-edge-inset*0.65f-fw2;
-        floppy_drive(c,fx,mid-fh*0.5f,fw2,fh);
+        float fmid=((band_y-inset*0.26f)+(float)H)*0.5f;
+        floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
     }
 
     return C.px;
