@@ -427,20 +427,20 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUseProgram(g->prog_blur);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
     glUniform1i(glGetUniformLocation(g->prog_blur,"src"),0);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.4f/BLOOM_W,0);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.9f/BLOOM_W,0);
     pass(g,g->prog_blur,g->fbo_bloom,BLOOM_W,BLOOM_H);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,1.4f/BLOOM_H);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.9f/BLOOM_H);
     pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
     /* A single pass at this resolution still carries the glyph shapes - a
      * character is a few bloom texels across, so the kernel cannot round it
      * off.  Two more, wider passes turn the glow into a soft halo that no
      * longer traces the letterforms. */
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.9f/BLOOM_W,0);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.55f/BLOOM_W,0);
     pass(g,g->prog_blur,g->fbo_bloom,BLOOM_W,BLOOM_H);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.9f/BLOOM_H);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.55f/BLOOM_H);
     pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
     /* spill: downsample hard, then blur again — soft enough not to streak */
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);

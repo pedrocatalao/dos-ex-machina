@@ -3,6 +3,7 @@
  * it is one texture. */
 #include "chassis.h"
 #include "font.h"
+#include "dxm_road.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -725,7 +726,11 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
             float nix = (gl>1e-4f)? -gx/gl : 0.0f;
             float k=1.0f-t;                   /* 1 at the glass, 0 at shoulder */
             sh = 1.00f + lam*0.05f;
-            sh += fmaxf(niy,0.0f)*0.40f;                   /* top wall lit,
+            /* The top wall was lit at 0.40 from a reading of the reference,
+             * but it faces DOWN, away from an overhead light - it should
+             * only catch a little bounce, not read as the brightest part of
+             * the moulding. */
+            sh += fmaxf(niy,0.0f)*0.13f;                   /* top wall,
                                                               evenly - the ref
                                                               is bright right
                                                               off the glass  */
@@ -733,7 +738,7 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
                                                               FLAT like the ref
                                                               (~90-115 held)  */
             /* groove where the lit top wall meets the shoulder */
-            if(t>0.80f) sh -= fmaxf(niy,0.0f)*0.55f*(t-0.80f)/0.20f;
+            if(t>0.80f) sh -= fmaxf(niy,0.0f)*0.30f*(t-0.80f)/0.20f;
             /* contact shadow at the glass: narrow on the bottom (the ref
              * jumps from 102 to 155 in one step there), fuller elsewhere */
             float cs = 0.46f*(1.0f-0.62f*fmaxf(-niy,0.0f));
@@ -876,6 +881,22 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           text(c,pbx+pbw*0.10f,pby+pbh*0.16f,"PC-486",sc*1.35f,0xEC,0xE8,0xDC);
           text(c,pbx+pbw*0.10f,pby+pbh*0.56f,"MULTIMEDIA",sc*0.60f,0xA8,0xB0,0xC6);
           int cols[4][3]={{0x2E,0x4C,0xA8},{0x2E,0x8C,0x50},{0xC8,0x9A,0x28},{0xB8,0x3C,0x34}};
+          /* the road mark fills the empty right-hand end of the label,
+           * scaled to the badge and vertically centred in it */
+          { float availw=pbw*0.34f, availh=pbh*0.80f;
+            float sc2=fminf(availw/(float)DXM_ROAD_W, availh/(float)DXM_ROAD_HT);
+            int rw=(int)(DXM_ROAD_W*sc2), rh=(int)(DXM_ROAD_HT*sc2);
+            int rx=(int)(pbx+pbw-pbw*0.07f-rw), ry=(int)(pby+(pbh-rh)*0.5f);
+            for(int y2=0;y2<rh;y2++)
+              for(int x2=0;x2<rw;x2++){
+                int sxp=(int)(x2/sc2), syp=(int)(y2/sc2);
+                if(sxp>=DXM_ROAD_W||syp>=DXM_ROAD_HT) continue;
+                const uint8_t *sp=dxm_road+((size_t)syp*DXM_ROAD_W+sxp)*4;
+                float al=sp[3]/255.0f;
+                if(al<=0.01f) continue;
+                px_blend(c,rx+x2,ry+y2,sp[0],sp[1],sp[2],al);
+              }
+          }
           for(int k=0;k<4;k++)
             rect(c,pbx+pbw*0.10f,pby+pbh*(0.78f+k*0.048f),pbw*0.52f,
                  fmaxf(1.0f,pbh*0.030f),cols[k][0],cols[k][1],cols[k][2]); }
@@ -922,6 +943,51 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         float fx=(float)W-edge-inset*0.65f-fw2;
         float fmid=((band_y-inset*0.26f)+(float)H)*0.5f;
         floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
+    }
+
+    /* ---- finishing pass: what makes it a photographed object ------------
+     * Everything above draws PARTS.  This pass treats the finished case as
+     * one object: a light with a POSITION (so illumination falls across the
+     * panel instead of being uniform), a grazing-angle sheen, and thirty
+     * years of uneven yellowing with dust settled into the recesses.  A
+     * purely directional light lights every point on a flat face equally,
+     * which is exactly what reads as a cartoon cutout. */
+    { float lx=(float)W*0.16f, ly=-(float)H*0.40f;   /* key, above and left */
+      float inv=1.0f/(float)(W>H?W:H);
+      for(int j=0;j<H;j++){
+        for(int i=0;i<W;i++){
+            uint8_t *p=C.px+((size_t)j*W+i)*4;
+            float dx=((float)i-lx)*inv, dy=((float)j-ly)*inv;
+            float d2=dx*dx+dy*dy;
+            /* inverse-square-ish falloff across the whole panel */
+            float key=1.0f/(1.0f+1.35f*d2);
+            /* broad specular lobe - plastic is satin, not matte */
+            float sheen=expf(-d2*2.6f)*0.05f;
+            /* grazing sheen: the case brightens toward its outer edges */
+            float ex=fabsf(((float)i/(float)W)-0.5f)*2.0f;
+            float ey=fabsf(((float)j/(float)H)-0.5f)*2.0f;
+            float graze=powf(fmaxf(ex,ey),3.5f)*0.07f;
+            /* uneven yellowing: large, slow, and never uniform */
+            float age=vnoise((float)i*0.0032f,(float)j*0.0032f,11);
+            float age2=vnoise((float)i*0.0009f,(float)j*0.0011f,12);
+            float yellow=(0.45f*age+0.55f*age2);
+            /* dust: settles low and in the corners */
+            float low=(float)j/(float)H;
+            float dust=vnoise((float)i*0.006f,(float)j*0.006f,13)*low*low*0.05f;
+
+            float m=0.72f+0.26f*key;
+            for(int k=0;k<3;k++){
+                float v=p[k]*m + (sheen+graze)*255.0f;
+                /* warm the reds, hold the greens, pull the blues down */
+                float tint = (k==0)? 1.0f+0.055f*yellow
+                           : (k==1)? 1.0f+0.022f*yellow
+                                   : 1.0f-0.075f*yellow;
+                v*=tint;
+                v*=1.0f-dust;
+                p[k]=(uint8_t)(v<0?0:v>255?255:v);
+            }
+        }
+      }
     }
 
     /* Encode how strongly each pixel FACES THE TUBE into the alpha channel,
