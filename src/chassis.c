@@ -684,8 +684,31 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
 
     rrect(c,0,0,(float)W,(float)H,0.0f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.03f,0.90f);
 
-    /* Edge strips: plain plastic, separated from the face by a seam. */
+    /* Edge strips: the case turning away from the viewer.  They are the
+     * SIDES of the box, so they fall off in shade toward each outer edge -
+     * darker plastic, never black - which is what reads as roundness.  A
+     * thin lit line sits where the side meets the front face, the way a
+     * moulded corner catches the light. */
     {
+      for(int side=0;side<2;side++){
+        float x0 = side ? (float)W-edge : 0.0f;
+        for(int i2=0;i2<(int)edge;i2++){
+            /* u: 0 at the front face, 1 at the outer edge of the machine */
+            float u = side ? (float)i2/edge : 1.0f-(float)i2/edge;
+            /* cosine falloff - a cylinder turning away from the light */
+            float sh = 0.42f + 0.58f*cosf(u*1.28f);
+            /* the corner catches a highlight just off the face */
+            float lit = expf(-((u-0.10f)*(u-0.10f))/0.0075f)*0.16f;
+            int x = (int)x0 + i2;
+            for(int j2=0;j2<H;j2++){
+                uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
+                for(int k=0;k<3;k++){
+                    float v=q[k]*sh + lit*255.0f;
+                    q[k]=(uint8_t)(v<0?0:v>255?255:v);
+                }
+            }
+        }
+      }
       seam(c,edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
       seam(c,(float)W-edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
     }
