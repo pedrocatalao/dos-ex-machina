@@ -921,6 +921,40 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
     }
 
+    /* Encode how strongly each pixel FACES THE TUBE into the alpha channel,
+     * which is otherwise unused.  The reveal dish is angled toward the glass
+     * and so catches far more of the screen's light than the flat front of
+     * the case; the shader has no other way to tell them apart. */
+    { float rin2=L->tube_h*BEZEL_R_IN, rmid2=L->tube_h*BEZEL_R_MID;
+      float reach=bz*5.0f;                 /* how far the falloff carries */
+      for(int j=0;j<H;j++)
+        for(int i=0;i<W;i++){
+            uint8_t *p=C.px+((size_t)j*W+i)*4;
+            /* EXACTLY the test bezel() uses to cut the dish: inside the
+             * shoulder and outside the aperture.  A uniform offset from the
+             * aperture is a different curve - the shoulder has its own
+             * radius and only part of the barrel - so the mask drifted off
+             * the moulding at the corners. */
+            float din =aperture_sd(L,(float)i,(float)j,rin2);
+            float dout=shoulder_sd(L,(float)i,(float)j,rmid2,bz);
+            float f;
+            if(din<=0.0f)        f=0.0f;                 /* glass          */
+            else if(dout<0.0f){
+                /* Across the dish itself the light FADES OUTWARD: the wall
+                 * is brightest where it meets the glass and turns away as it
+                 * climbs to the shoulder.  A flat mask lit the whole dish
+                 * evenly, which read as far too hot. */
+                float t = din/fmaxf(din-dout,1e-3f);     /* 0 glass, 1 edge */
+                float e = 1.0f-t;
+                f = 0.30f + 0.70f*e*e;
+            }
+            else {
+                float t=dout/reach;                      /* onto the face  */
+                f = (t>=1.0f) ? 0.0f : (1.0f-t)*(1.0f-t)*0.30f;
+            }
+            p[3]=(uint8_t)(f*255.0f);
+        }
+    }
     for(int k=0;k<4;k++){ L->fdd_led[k]=g_fdd_led[k]; L->pwr_led[k]=g_pwr_led[k]; }
     return C.px;
 }

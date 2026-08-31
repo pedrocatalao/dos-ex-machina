@@ -26,6 +26,11 @@
  * tube and clamping streaks the bright rows sideways across the room. */
 #define SPILL_W    24
 #define SPILL_H    15
+/* A near-average of the whole picture: how much light the tube is
+ * actually throwing into the room, regardless of where you are on the
+ * chassis.  The edge-local spill alone cannot express that. */
+#define ROOM_W      3
+#define ROOM_H      2
 
 struct gpu {
     int out_w, out_h;
@@ -36,6 +41,7 @@ struct gpu {
     GLuint fbo_persist[2], tex_persist[2];  int persist_cur;
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_spill, tex_spill;
+    GLuint fbo_room, tex_room;
     double last_t; int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2];
 };
@@ -76,7 +82,7 @@ static const char *FS_BLUR =
 static const char *FS_COMPOSITE =
 "#version 330 core\n"
 "in vec2 uv; out vec4 o;\n"
-"uniform sampler2D tube, bloom, chassis, spillsrc;\n"
+"uniform sampler2D tube, bloom, chassis, spillsrc, roomsrc;\n"
 "uniform vec4  rect;        // tube x,y,w,h in 0..1 output space\n"
 "uniform vec2  outsize;\n"
 "uniform float warp, bright, contrast, ambient, glow, scan, margin;\n"
@@ -115,7 +121,11 @@ static const char *FS_COMPOSITE =
 "  return mix(1.0, g, vgrid);\n"
 "}\n"
 "void main(){\n"
-"  vec3 plastic = texture(chassis, vec2(uv.x, 1.0-uv.y)).rgb;\n"
+"  vec4 chas = texture(chassis, vec2(uv.x, 1.0-uv.y));\n"
+"  vec3 plastic = chas.rgb;\n"
+"  // alpha carries how much this surface faces the tube: the reveal dish\n"
+"  // is angled at the glass and catches far more light than the flat case\n"
+"  float facing = 0.22 + 1.55*chas.a;\n"
 "  plastic = pow(plastic, vec3(2.2));\n"
 "  vec2 t = (uv - rect.xy) / rect.zw;\n"
 "  vec3 col = vec3(0.0);\n"
@@ -173,14 +183,21 @@ static const char *FS_COMPOSITE =
 "  vec2 outv = max(max(rect.xy-uv, uv-(rect.xy+rect.zw)), vec2(0.0));\n"
 "  outv.x *= outsize.x/outsize.y;   // uv.x and uv.y are not the same distance\n"
 "  float d = length(outv)/max(rect.w,1e-4);      // in tube-heights\n"
-"  float fall = exp(-d*9.0);      // tight: spill lights the moulding,\n"
-"                                 // it must not wash it out\n"
+"  float fall = exp(-d*5.0);      // reaches further across the moulding\n"
 "  // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear\n"
 "  // factors toward 1, so a linear ramp here looks nearly flat.  Define\n"
 "  // the ramp in gamma space and convert: 0 -> visually dark room,\n"
 "  // 1 -> visually bright room.\n"
 "  float amb = pow(0.16 + 0.98*ambient, 2.2);\n"
-"  vec3 lit = plastic*amb + spill*fall*glow*(0.13+0.14*(1.0-ambient));\n"
+"  // What the tube throws into the ROOM: a near-average of the whole\n"
+"  // picture, lighting the entire chassis and falling off only slowly.\n"
+"  // Edge-local spill alone could never express a bright screen washing\n"
+"  // the case - it only ever lit the moulding nearest that edge.\n"
+"  vec3 room = texture(roomsrc, vec2(0.5,0.5)).rgb;\n"
+"  float roomfall = exp(-d*1.1);\n"
+"  vec3 lit = plastic*amb\n"
+"           + spill*fall*glow*facing*(0.30+0.26*(1.0-ambient))\n"
+"           + room*roomfall*glow*facing*(0.34+0.40*(1.0-ambient));\n"
 "  vec3 fin = mix(lit, col, inside);\n"
 "  // Live activity LED painted over the baked chassis: the lens itself\n"
 "  // plus a soft bloom onto the surrounding plastic.\n"
@@ -251,6 +268,7 @@ gpu *gpu_create(int w,int h){
     mktarget(&g->fbo_bloom,&g->tex_bloom,BLOOM_W,BLOOM_H);
     mktarget(&g->fbo_bloom2,&g->tex_bloom2,BLOOM_W,BLOOM_H);
     mktarget(&g->fbo_spill,&g->tex_spill,SPILL_W,SPILL_H);
+    mktarget(&g->fbo_room,&g->tex_room,ROOM_W,ROOM_H);
     return g;
 }
 void gpu_destroy(gpu *g){ if(g) free(g); }
@@ -318,6 +336,10 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
     glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.6f/SPILL_W,0);
     pass(g,g->prog_blur,g->fbo_spill,SPILL_W,SPILL_H);
+    /* down again to almost nothing: the room-light term */
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_spill);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.0f/ROOM_W,0);
+    pass(g,g->prog_blur,g->fbo_room,ROOM_W,ROOM_H);
     /* composite */
     glBindFramebuffer(GL_FRAMEBUFFER,0);
     glViewport(0,0,g->out_w,g->out_h);
@@ -331,6 +353,8 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1i(glGetUniformLocation(p,"chassis"),2);
     glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D,g->tex_spill);
     glUniform1i(glGetUniformLocation(p,"spillsrc"),3);
+    glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D,g->tex_room);
+    glUniform1i(glGetUniformLocation(p,"roomsrc"),4);
     glUniform4f(glGetUniformLocation(p,"rect"),tx,ty,tw,th);
     glUniform2f(glGetUniformLocation(p,"outsize"),(float)g->out_w,(float)g->out_h);
     glUniform1f(glGetUniformLocation(p,"warp"),k->warp);
