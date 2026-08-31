@@ -13,9 +13,11 @@
 #define LIGHT_X (-0.42f)
 #define LIGHT_Y (-0.91f)
 
-#define PLASTIC_R 0xC9
-#define PLASTIC_G 0xC2
-#define PLASTIC_B 0xAC
+/* The warm taupe the floppy faceplate used to be - promoted to the whole
+ * case, with the drive now going the other way (darker and greyer). */
+#define PLASTIC_R 0xBF
+#define PLASTIC_G 0xAF
+#define PLASTIC_B 0x8A
 #define BEZEL_INSET 0.055f      /* of tube height */
 #define TUBE_H_FRAC 0.66f
 
@@ -407,7 +409,8 @@ static float g_fdd_led[4], g_pwr_led[4];   /* recorded LED placeholders */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float mm=h/25.4f; (void)w;
     float fw=101.6f*mm;
-    int pr=(int)(PLASTIC_R*0.95f),pg=(int)(PLASTIC_G*0.90f),pb=(int)(PLASTIC_B*0.80f);
+    /* the drive is a separate moulding: darker and greyer than the case */
+    int pr=(int)(PLASTIC_R*0.74f),pg=(int)(PLASTIC_G*0.72f),pb=(int)(PLASTIC_B*0.76f);
     /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
     rrect(c,x-0.5f*mm,y-0.5f*mm,fw+1.0f*mm,h+1.0f*mm,2.2f*mm,
           (int)(PLASTIC_R*0.38f),(int)(PLASTIC_G*0.38f),(int)(PLASTIC_B*0.38f),
