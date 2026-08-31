@@ -420,16 +420,26 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
     for(int k=0;k<2;k++){
         float cx0=cut[k].cx, cw0=cut[k].cw, y0=cut[k].y0, y1=cut[k].y1;
         float ch0=y1-y0, rr=1.6f*mm;
-        if(k==0) rrect(c,cx0,y0,cw0,ch0+rr,rr,pr,pg,pb,0.62f,0.80f);
-        else     rrect(c,cx0,y0-rr,cw0,ch0+rr,rr,pr,pg,pb,0.46f,0.84f);
-        /* eased side walls */
-        soft_vedge(c,y0+rr*0.4f,y1-((k==1)?rr*0.4f:0.0f),cx0+0.2f*mm,1.1f*mm,0.62f,1);
-        soft_vedge(c,y0+rr*0.4f,y1-((k==1)?rr*0.4f:0.0f),cx0+cw0-0.2f*mm,1.1f*mm,0.72f,0);
-        /* eased overhang shadow at the top of the cut */
-        soft_hedge(c,cx0,cx0+cw0,y0,1.8f*mm,0.42f,0.0f,1);
-        /* eased lit lip at the bottom inner wall */
+        if(k==0){
+            /* With a diskette inserted the spring door has swung INWARD, so
+             * the top cut is an empty hole into the drive - not a moulded
+             * floor.  Near-black, lifting a little at the bottom where light
+             * from the room reaches in past the lip. */
+            rrect(c,cx0,y0,cw0,ch0+rr,rr,17,17,19,0.55f,1.55f);
+        }
+        else rrect(c,cx0,y0-rr,cw0,ch0+rr,rr,pr,pg,pb,0.46f,0.84f);
+        /* eased side walls (the hole needs no lit walls - it is open) */
+        if(k==1){
+            soft_vedge(c,y0+rr*0.4f,y1-rr*0.4f,cx0+0.2f*mm,1.1f*mm,0.62f,1);
+            soft_vedge(c,y0+rr*0.4f,y1-rr*0.4f,cx0+cw0-0.2f*mm,1.1f*mm,0.72f,0);
+        }
+        /* eased overhang shadow at the top of the cut - deeper on the hole */
+        soft_hedge(c,cx0,cx0+cw0,y0,(k==0)?2.4f*mm:1.8f*mm,
+                   (k==0)?0.22f:0.42f,0.0f,1);
+        /* lit lip at the bottom inner wall; on the hole this is the front
+         * face catching light at the opening's edge, so it stays subtle */
         soft_hedge(c,cx0+0.8f*mm,cx0+cw0-0.8f*mm,y1-1,1.3f*mm,
-                   (k==1)?1.34f:1.20f,(k==1)?0.05f:0.02f,0);
+                   (k==1)?1.34f:1.12f,(k==1)?0.05f:0.0f,0);
     }
 
     /* slot: chamfered opening, eased interior faces */
