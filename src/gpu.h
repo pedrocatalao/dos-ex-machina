@@ -22,6 +22,7 @@ typedef struct gpu_knobs {
     float brightness, contrast, ambient, glow, persistence, scan;
     float warp;              /* barrel curvature                            */
     float margin;            /* unlit ring inside the aperture (0..0.1)     */
+    float aperture_r;        /* aperture corner radius in output px         */
     int   crt_lines;         /* physical scanlines for this mode (§2.2)     */
 } gpu_knobs;
 

@@ -80,6 +80,7 @@ static const char *FS_COMPOSITE =
 "uniform vec4  rect;        // tube x,y,w,h in 0..1 output space\n"
 "uniform vec2  outsize;\n"
 "uniform float warp, bright, contrast, ambient, glow, scan, margin;\n"
+"uniform float aper_r;     // aperture corner radius, output px\n"
 "uniform vec4  led[2];\n"
 "uniform vec3  ledcol[2];\n"
 "uniform float ledon[2];\n"
@@ -110,7 +111,15 @@ static const char *FS_COMPOSITE =
 "  float inside = 0.0;\n"
 "  if (t.x>-0.15 && t.x<1.15 && t.y>-0.15 && t.y<1.15) {\n"
 "    vec2 b = barrel(t);\n"
-"    if (b.x>=0.0 && b.x<=1.0 && b.y>=0.0 && b.y<=1.0) {\n"
+"    // The glass must be cut to the SAME rounded box the chassis carved,\n"
+"    // evaluated in the same warped space.  Testing a plain rectangle here\n"
+"    // let the corners of the picture spill over the moulding.\n"
+"    vec2 halfpx = rect.zw*outsize*0.5;\n"
+"    vec2 apx    = abs(b*2.0-1.0)*halfpx;\n"
+"    vec2 qq     = apx - (halfpx - aper_r);\n"
+"    float asd   = (qq.x>0.0 && qq.y>0.0) ? length(qq)-aper_r\n"
+"                                         : max(apx.x-halfpx.x, apx.y-halfpx.y);\n"
+"    if (asd <= 0.0) {\n"
 "      inside = 1.0;\n"
 "      // The raster is inset inside the aperture.  The ring around it is\n"
 "      // UNLIT GLASS, not black: it is the same sheet of phosphor, so it\n"
@@ -309,6 +318,7 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1f(glGetUniformLocation(p,"glow"),k->glow);
     glUniform1f(glGetUniformLocation(p,"scan"),k->scan);
     glUniform1f(glGetUniformLocation(p,"margin"),k->margin);
+    glUniform1f(glGetUniformLocation(p,"aper_r"),k->aperture_r);
     glUniform4fv(glGetUniformLocation(p,"led"),2,&g->led[0][0]);
     glUniform3fv(glGetUniformLocation(p,"ledcol"),2,&g->led_col[0][0]);
     glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);

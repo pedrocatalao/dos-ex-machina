@@ -113,7 +113,11 @@ int main(int argc,char **argv){
 
     dos_init();
 
-    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.85f,DXM_WARP,0.015f,400};
+    /* bright, contrast, ambient, glow, persistence, scan, warp,
+     * margin (0: no gap between the moulding and the picture),
+     * aperture_r (set per frame from the layout), crt_lines */
+    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.85f,DXM_WARP,
+                 0.0f, 0.0f, 400};
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=0;
     while(!quit){
@@ -234,6 +238,7 @@ int main(int argc,char **argv){
           gpu_set_led(g,1, L.pwr_led[0]/W, 1.0f-(L.pwr_led[1]+L.pwr_led[3])/H,
                       L.pwr_led[2]/W, L.pwr_led[3]/H,
                       pwr, 0.20f,1.0f,0.26f, 1); }
+        k.aperture_r = L.aperture_r;      /* match the chassis hole */
         gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
                     L.tube_w/W, L.tube_h/H, &k, t);
         SDL_GL_SwapWindow(win);

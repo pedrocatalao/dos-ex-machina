@@ -6,6 +6,9 @@ typedef struct {
     dxm_variant variant;
     float tube_x, tube_y, tube_w, tube_h;   /* output pixels */
     float cx, cy, cw, ch;                   /* chassis rect  */
+    float aperture_r;                       /* corner radius of the hole the
+                                             * chassis cut, in output px -
+                                             * the shader must match it     */
     /* LED placeholders: drawn UNLIT in the baked chassis; all emission is
      * added live by the shader (SPEC §6.1 - live elements on top). */
     float fdd_led[4];                       /* x,y,w,h, output px  */

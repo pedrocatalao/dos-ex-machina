@@ -9,7 +9,7 @@
 #include "crt.h"
 
 /* ---- chassis_params: every dimension and colour in one place (SPEC §5) --- */
-#define RELIEF  4.0f          /* embossed grain depth */
+#define RELIEF  2.5f          /* embossed grain depth */
 #define LIGHT_X (-0.42f)
 #define LIGHT_Y (-0.91f)
 
@@ -835,6 +835,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
      * its own shade ramp left a visible tone step against the surrounding
      * plastic.  The base coat IS the housing face. */
     float rin=L->tube_h*BEZEL_R_IN;
+    L->aperture_r=rin;   /* the shader cuts its glass to the same shape */
     bezel(c,L,bz,rin,L->tube_h*BEZEL_R_MID);
     for(int j=(int)(L->tube_y-hous);j<(int)(L->tube_y+L->tube_h+hous);j++)
       for(int i=(int)(L->tube_x-hous);i<(int)(L->tube_x+L->tube_w+hous);i++)
