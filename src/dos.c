@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 static char  scr[DOS_ROWS][DOS_COLS];
 static int   cur_r, cur_c;
@@ -19,6 +20,7 @@ static double launch_at;      /* hold the launch until the drive is done */
 static int    sky_installed = 1;   /* v0: data ships with the dev checkout */
 static int    beep_pending;        /* POST beep, fired after the RAM count */
 static double floppy_req;          /* seconds of drive activity wanted    */
+static double now_t;               /* last dos_update time, for the logo  */
 static int    mem_counting;        /* the memory test is spinning          */
 static double mem_next;            /* next number update                   */
 static long   mem_shown;           /* KB counted so far                    */
@@ -157,6 +159,7 @@ static void mem_draw(long kb){
 }
 
 dos_state dos_update(double t){
+    now_t=t;
     if(t0<0){ t0=t; next_boot=t+0.35; }
 
     /* loading pause between the command and the game taking over */
@@ -204,6 +207,30 @@ dos_state dos_update(double t){
     return st;
 }
 
+/* The DXM mark, shown top-right during POST the way a 486 showed its BIOS
+ * or power-management badge.  Baked in by tools/mklogo.py with the white
+ * background keyed to alpha so it composites onto the black screen. */
+#include "dxm_logo.h"
+static void draw_badge(double t){
+    if(t0<0) return;
+    float a=(float)((t-t0-0.55)/1.2);            /* fade in */
+    if(a<=0.0f) return;
+    if(a>1.0f) a=1.0f;
+    int x0=DOS_W-DXM_LOGO_W-14, y0=10;
+    for(int y=0;y<DXM_LOGO_HT;y++){
+        int dy=y0+y; if(dy<0||dy>=DOS_H) continue;
+        for(int x=0;x<DXM_LOGO_W;x++){
+            int dx=x0+x; if(dx<0||dx>=DOS_W) continue;
+            const uint8_t *sp=dxm_logo+((size_t)y*DXM_LOGO_W+x)*4;
+            float al=sp[3]/255.0f*a;
+            if(al<=0.004f) continue;
+            uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
+            for(int k=0;k<3;k++)
+                q[k]=(uint8_t)(q[k]*(1.0f-al)+sp[k]*al);
+        }
+    }
+}
+
 const uint8_t *dos_render(void){
     memset(fb,0,sizeof fb);
     static double blink; blink+=1.0;
@@ -221,6 +248,7 @@ const uint8_t *dos_render(void){
             }
         }
       }
+    if(st==DOS_BOOT) draw_badge(now_t);      /* POST only */
     if(st==DOS_PROMPT && ((int)(blink/28)&1)){
         for(int j=0;j<14;j++) for(int i=0;i<8;i++){
             int y=cur_r*16+j, x=cur_c*8+i;
