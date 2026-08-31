@@ -15,7 +15,7 @@
 #define BEZEL_INSET 0.055f      /* of tube height */
 #define TUBE_H_FRAC 0.66f
 
-#define BEZEL_BAND    0.056f   /* dished part, next to the glass          */
+#define BEZEL_BAND    0.076f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
 #define BEZEL_R_MID   0.042f   /* where the dished band meets the flat     */
                                /* moulding face - its OWN radius, not      */
@@ -60,14 +60,26 @@ static float hash2(int x,int y,int s){
     h=(h^(h>>13))*1274126177u; h^=h>>16;
     return (float)(h&1023)/1023.0f;
 }
-/* Moulded ABS is not flat: fine grain, a coarser blotch from the mould, and
- * faint flow lines.  Without this the case reads as vector art. */
+/* Smoothly interpolated value noise - the blocky nearest-neighbour hash it
+ * replaces is what made the plastic look mushy. */
+static float vnoise(float x,float y,int seed){
+    int xi=(int)floorf(x), yi=(int)floorf(y);
+    float fx=x-xi, fy=y-yi;
+    fx=fx*fx*(3.0f-2.0f*fx); fy=fy*fy*(3.0f-2.0f*fy);
+    float a=hash2(xi,yi,seed),   b=hash2(xi+1,yi,seed);
+    float c=hash2(xi,yi+1,seed), d=hash2(xi+1,yi+1,seed);
+    return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy;
+}
+/* Moulded ABS: a crisp per-pixel matte grain over two octaves of SMOOTH
+ * satin variation, plus the faintest directional tool texture.  The grain
+ * is what sells "textured plastic" at native resolution; the smooth octaves
+ * keep it from reading as noise. */
 static float plastic_tex(int x,int y){
-    float fine   = hash2(x,y,1)-0.5f;
-    float coarse = hash2(x>>3,y>>3,2)-0.5f;
-    float blotch = hash2(x>>6,y>>6,3)-0.5f;
-    float flow   = sinf((float)y*0.35f + hash2(x>>7,0,4)*6.28f)*0.5f;
-    return fine*0.052f + coarse*0.030f + blotch*0.018f + flow*0.006f;
+    float fine  = hash2(x,y,1)-0.5f;                       /* 1px grain   */
+    float med   = vnoise(x/5.5f, y/5.5f, 2)-0.5f;          /* satin       */
+    float broad = vnoise(x/26.0f,y/26.0f,3)-0.5f;          /* mould drift */
+    float tool  = sinf((float)y*0.31f + vnoise(x/90.0f,0.0f,4)*6.28f);
+    return fine*0.058f + med*0.030f + broad*0.020f + tool*0.004f;
 }
 /* One light, from above and slightly left, as in the reference photo.  y runs
  * DOWN in canvas space, so "up" is negative y. */

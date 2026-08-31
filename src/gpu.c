@@ -149,7 +149,12 @@ static const char *FS_COMPOSITE =
 "  float d = length(outv)/max(rect.w,1e-4);      // in tube-heights\n"
 "  float fall = exp(-d*9.0);      // tight: spill lights the moulding,\n"
 "                                 // it must not wash it out\n"
-"  vec3 lit = plastic*(0.46+0.66*ambient) + spill*fall*glow*0.20;\n"
+"  // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear\n"
+"  // factors toward 1, so a linear ramp here looks nearly flat.  Define\n"
+"  // the ramp in gamma space and convert: 0 -> visually dark room,\n"
+"  // 1 -> visually bright room.\n"
+"  float amb = pow(0.16 + 0.98*ambient, 2.2);\n"
+"  vec3 lit = plastic*amb + spill*fall*glow*(0.13+0.14*(1.0-ambient));\n"
 "  vec3 fin = mix(lit, col, inside);\n"
 "  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"   /* linear -> sRGB */
 "}\n";

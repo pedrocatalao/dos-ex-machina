@@ -50,6 +50,7 @@ static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
 
 int main(int argc,char **argv){
     int windowed=0, shot_frames=0, selftest=0; const char *shot=NULL; const char *autocmd=NULL;
+    float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
         if(!strcmp(argv[i],"--windowed")) windowed=1;
@@ -58,6 +59,8 @@ int main(int argc,char **argv){
         else if(!strcmp(argv[i],"--frames")&&i+1<argc) shot_frames=atoi(argv[++i]);
         else if(!strcmp(argv[i],"--type")&&i+1<argc) autocmd=argv[++i];
         else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&win_w,&win_h);
+        else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ ambient=(float)atof(argv[++i]);
+            if(ambient<0)ambient=0; if(ambient>1)ambient=1; }
     }
     if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)){
         fprintf(stderr,"SDL_Init: %s\n",SDL_GetError()); return 1; }
@@ -99,7 +102,7 @@ int main(int argc,char **argv){
 
     dos_init();
 
-    gpu_knobs k={0.5f,1.0f,0.22f,0.55f,0.45f,0.85f,DXM_WARP,0.015f,400};
+    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.85f,DXM_WARP,0.015f,400};
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=0;
     while(!quit){
@@ -127,7 +130,16 @@ int main(int argc,char **argv){
                     else if(sc) ch=0x100|sc;
                     corehost_push_key(sc,down,ch);
                 } else if(down){
-                    if(e.key.key=='\r') dos_key('\r',sc);
+                    /* dev-only room-light adjust while at the prompt:
+                     * F5 darker, F6 brighter (the real fiction control is a
+                     * chassis knob, SPEC 6.8 - this is for tuning taste) */
+                    if(e.key.key==SDLK_F5||e.key.key==SDLK_F6){
+                        k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
+                        if(k.ambient<0)k.ambient=0;
+                        if(k.ambient>1)k.ambient=1;
+                        fprintf(stderr,"[dxm] ambient = %.2f\n",k.ambient);
+                    }
+                    else if(e.key.key=='\r') dos_key('\r',sc);
                     else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);
                     else if(e.key.key>=32&&e.key.key<127) dos_key((int)e.key.key,sc);
                 }
