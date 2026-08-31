@@ -50,7 +50,7 @@ static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
 
 int main(int argc,char **argv){
     int windowed=0, shot_frames=0, selftest=0; const char *shot=NULL; const char *autocmd=NULL;
-    float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
+    float ambient=0.4f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
         if(!strcmp(argv[i],"--windowed")) windowed=1;

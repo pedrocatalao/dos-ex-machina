@@ -9,6 +9,10 @@
 #include "crt.h"
 
 /* ---- chassis_params: every dimension and colour in one place (SPEC §5) --- */
+#define RELIEF  4.0f          /* embossed grain depth */
+#define LIGHT_X (-0.42f)
+#define LIGHT_Y (-0.91f)
+
 #define PLASTIC_R 0xC9
 #define PLASTIC_G 0xC2
 #define PLASTIC_B 0xAC
@@ -70,21 +74,31 @@ static float vnoise(float x,float y,int seed){
     float c=hash2(xi,yi+1,seed), d=hash2(xi+1,yi+1,seed);
     return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy;
 }
-/* Moulded ABS: a crisp per-pixel matte grain over two octaves of SMOOTH
- * satin variation, plus the faintest directional tool texture.  The grain
- * is what sells "textured plastic" at native resolution; the smooth octaves
- * keep it from reading as noise. */
+/* The moulded pebble grain as a HEIGHT FIELD.  Real case plastic is
+ * embossed, so the only way it reads as rugged rather than as noise is to
+ * light it: sample the height, take its gradient, and shade by how each
+ * micro-facet faces the light.  Brightness noise alone always looks flat. */
+static float plastic_height(float x,float y){
+    float pebble = vnoise(x*0.42f, y*0.42f, 2);        /* main grain  */
+    float coarse = vnoise(x*0.14f, y*0.14f, 3);        /* clustering  */
+    float fine   = vnoise(x*1.05f, y*1.05f, 5);        /* speckle     */
+    return pebble*0.62f + coarse*0.24f + fine*0.14f;
+}
+/* Returns a shading offset: lit facets brighten, facets turned away darken,
+ * and the pits between grains pick up a little occlusion. */
 static float plastic_tex(int x,int y){
-    float fine  = hash2(x,y,1)-0.5f;                       /* 1px grain   */
-    float med   = vnoise(x/5.5f, y/5.5f, 2)-0.5f;          /* satin       */
-    float broad = vnoise(x/26.0f,y/26.0f,3)-0.5f;          /* mould drift */
-    float tool  = sinf((float)y*0.31f + vnoise(x/90.0f,0.0f,4)*6.28f);
-    return fine*0.058f + med*0.030f + broad*0.020f + tool*0.004f;
+    float h  = plastic_height((float)x,      (float)y);
+    float hx = plastic_height((float)x+1.0f, (float)y);
+    float hy = plastic_height((float)x,      (float)y+1.0f);
+    /* surface normal from the slope; LIGHT_* is the incoming direction */
+    float dx = (hx-h)*RELIEF, dy = (hy-h)*RELIEF;
+    float lam = -(dx*LIGHT_X + dy*LIGHT_Y);
+    float occl = (h-0.5f)*0.055f;            /* pits sit slightly darker */
+    float grit = (hash2(x,y,1)-0.5f)*0.016f; /* matte micro-speckle      */
+    return lam*0.115f + occl + grit;
 }
 /* One light, from above and slightly left, as in the reference photo.  y runs
  * DOWN in canvas space, so "up" is negative y. */
-#define LIGHT_X (-0.42f)
-#define LIGHT_Y (-0.91f)
 
 /* signed distance to a rounded rect; negative inside */
 static float rr_sd(float px,float py,float cx,float cy,float hw,float hh,float r){
