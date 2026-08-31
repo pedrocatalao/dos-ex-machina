@@ -399,17 +399,21 @@ static void soft_vedge(canvas *c,float y0,float y1,float x,float span,
  * until now, and a case with no moulded marks reads as a decal sheet. */
 static void moulded_text(canvas *c,float x,float y,const char *s,float sc,
                          int debossed){
-    float lit  = debossed ? -0.15f :  0.19f;
-    float dark = debossed ?  0.19f : -0.15f;
+    /* depth: a struck mark reads deeper than a raised one, so give the
+     * debossed case a stronger shadow above and a brighter lit lower lip */
+    float lit  = debossed ? -0.30f :  0.19f;
+    float dark = debossed ?  0.34f : -0.15f;
     for(int n=0;s[n];n++){
         const uint8_t *gl=font_glyph((unsigned char)s[n]);
         for(int j=0;j<8;j++) for(int i=0;i<8;i++){
             if(!(gl[j]&(0x80>>i))) continue;
             for(int sy=0;sy<(int)sc;sy++) for(int sx=0;sx<(int)sc;sx++){
                 int px2=(int)(x+(n*8+i)*sc)+sx, py2=(int)(y+j*sc)+sy;
-                px_shade(c,px2,py2,1.0f+dark*0.30f,0.0f);
-                px_shade(c,px2,py2-1,1.0f+lit,0.0f);
-                px_shade(c,px2,py2+(int)sc,1.0f+dark,0.0f);
+                px_shade(c,px2,py2,1.0f+dark*0.34f,0.0f);   /* the stroke */
+                px_shade(c,px2,py2-1,1.0f+lit,0.0f);        /* upper wall */
+                px_shade(c,px2,py2-2,1.0f+lit*0.55f,0.0f);
+                px_shade(c,px2,py2+(int)sc,1.0f+dark,0.0f); /* lower wall */
+                px_shade(c,px2,py2+(int)sc+1,1.0f+dark*0.55f,0.0f);
             }
         }
     }
@@ -932,11 +936,10 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         /* power button + status LEDs */
         float px0=pbx+pbw+inset*0.85f;
         float pw=16.0f*mm;                       /* a 16mm power cap */
-        /* moulded, and centred over the cap - it was painted and
-         * left-aligned to the button's edge */
+        /* painted, and centred over the cap */
         { const char *pl="POWER";
           float tw3=(float)strlen(pl)*8.0f*g_lbl;
-          moulded_text(c,px0+(pw-tw3)*0.5f, mid-pw*0.39f-g_lbl*11, pl, g_lbl, 0); }
+          text(c,px0+(pw-tw3)*0.5f, mid-pw*0.39f-g_lbl*11, pl, g_lbl, 86,82,74); }
         /* thin cut around the button, cap nearly filling it */
         rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,64,61,56,0.80f,0.92f);
         /* the cap is moulded in the same darker brown as the drive, not in
@@ -954,36 +957,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
           g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f; }
 
-        /* ---- centre: a styling panel, not more gadgets ---------------
-         * Late-80s and early-90s cases filled dead front-panel space with
-         * decorative moulded rib strips - a purely cosmetic flourish that
-         * cost nothing in the tool and made the box look designed.  It says
-         * more about the era than another button would, and it leaves the
-         * panel calm. */
-        float cxm=(float)W*0.5f;
-        { /* a shallow recessed strip carrying fine horizontal ribs */
-          float pw2=68.0f*mm, ph2=fminf(band_h*0.52f, 13.0f*mm);
-          float pxs=cxm-pw2*0.42f;              /* off-centre, deliberately */
-          float pys=mid-ph2*0.5f;
-          rrect(c,pxs,pys,pw2,ph2,1.2f*mm,
-                (int)(PLASTIC_R*0.97f),(int)(PLASTIC_G*0.97f),
-                (int)(PLASTIC_B*0.97f),0.97f,1.02f);
-          housing_edge(c,pxs,pys,pw2,ph2,1.2f*mm,1.0f*mm,0.8f*mm,0,1.1f);
-          /* the ribs: moulded, so they are shading only - lit on top, in
-           * shadow beneath, exactly like the lettering */
-          { float pitch=fmaxf(3.0f,ph2*0.155f);
-            for(float ry=pys+pitch; ry<pys+ph2-pitch*0.6f; ry+=pitch){
-              for(int i2=(int)(pxs+2.0f*mm);i2<(int)(pxs+pw2-2.0f*mm);i2++){
-                px_shade(c,i2,(int)ry,       1.16f,0.0f);   /* crest  */
-                px_shade(c,i2,(int)ry+1,     1.04f,0.0f);
-                px_shade(c,i2,(int)(ry+pitch*0.45f),0.88f,0.0f); /* trough */
-              }
-            }
-          }
-          /* and the machine's name pressed in beside it */
-          moulded_text(c,pxs+pw2+4.0f*mm, mid-g_lbl*4.0f,
-                       "DOS EX MACHINA", g_lbl, 0);
-        }        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
+        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
          * vertically between the divider ridge and the case bottom */
         float fh=25.4f*mm, fw2=101.6f*mm;
         float fx=(float)W-edge-inset*0.65f-fw2;
@@ -1023,6 +997,63 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             }
         }
       }
+    }
+
+    /* ---- wear ------------------------------------------------------
+     * Thirty years of being touched.  Scratches on plastic SCATTER light,
+     * so they read brighter than the surface around them, and they are not
+     * scattered evenly: they gather along the front edges, around the
+     * drive slot and on the buttons - wherever hands and diskettes went.
+     * Uniform scratching over the whole case looks like film grain; it is
+     * the CLUSTERING that tells the story. */
+    { float mmu=(float)H/268.0f;
+      /* places a hand actually goes, in normalised case coordinates */
+      float hot[4][3]={
+        {0.50f, 0.86f, 1.00f},      /* the front band, most handled     */
+        {0.86f, 0.86f, 0.85f},      /* around the floppy               */
+        {0.22f, 0.86f, 0.55f},      /* badge / power end               */
+        {0.50f, 0.06f, 0.40f},      /* the top edge, where it is lifted */
+      };
+      for(int n=0;n<230;n++){
+        /* pick a hotspot, then jitter around it */
+        float pick=hash2(n,17,31);
+        int   hs = (pick<0.42f)?0 : (pick<0.68f)?1 : (pick<0.88f)?2 : 3;
+        float sx2=(hash2(n,3,7)-0.5f), sy2=(hash2(n,5,11)-0.5f);
+        float spread=0.16f+0.22f*hash2(n,9,13);
+        float cx2=(hot[hs][0]+sx2*spread)*(float)W;
+        float cy2=(hot[hs][1]+sy2*spread*0.55f)*(float)H;
+        if(cx2<0||cy2<0||cx2>=W||cy2>=H) continue;
+        /* mostly shallow near-horizontal drags, a few random nicks */
+        float ang=(hash2(n,21,23)<0.72f)
+                    ? (hash2(n,15,19)-0.5f)*0.55f
+                    : (hash2(n,15,19)*6.28318f);
+        float len=(1.5f+22.0f*hash2(n,27,29)*hash2(n,28,37))*mmu;
+        /* Scratches are SPECULAR - they scatter light back at you - so
+         * they have to be added, not just multiplied.  A multiplier alone
+         * gets scaled down by the ambient term in the shader until it
+         * disappears, which is why the first pass was invisible. */
+        float amp=hot[hs][2]*(0.10f+0.22f*hash2(n,33,41));
+        float ca=cosf(ang), sa=sinf(ang);
+        int steps=(int)fmaxf(2.0f,len);
+        for(int t2=0;t2<steps;t2++){
+            float f=(float)t2/steps;
+            /* fade the ends so nothing starts or stops abruptly */
+            float e=sinf(f*3.14159f);
+            int i2=(int)(cx2+(f-0.5f)*len*ca);
+            int j2=(int)(cy2+(f-0.5f)*len*sa);
+            /* a scratch is a bright scatter with a faint dark edge */
+            px_shade(c,i2,j2,1.0f+amp*e*0.50f,amp*e*0.13f);
+            px_shade(c,i2,j2+1,1.0f-amp*e*0.20f,0.0f);
+        }
+      }
+      /* scuffs: broad patches where the sheen has been rubbed dull */
+      for(int j=0;j<H;j++)
+        for(int i=0;i<W;i++){
+            float s2=vnoise((float)i*0.0018f,(float)j*0.0021f,23);
+            float bias=((float)j/(float)H);          /* worse low down */
+            float scuff=fmaxf(0.0f,s2-0.58f)*bias*bias*0.20f;
+            if(scuff>0.0005f) px_shade(c,i,j,1.0f-scuff,0.0f);
+        }
     }
 
     /* ---- finishing pass: what makes it a photographed object ------------
