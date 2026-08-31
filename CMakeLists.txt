@@ -16,7 +16,7 @@ add_subdirectory(${DXM_SKYROADS} ${CMAKE_BINARY_DIR}/skyroads EXCLUDE_FROM_ALL)
 
 add_executable(dxm
     src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c src/sound.c
-    src/corehost.c src/platform_dxm.c)
+    src/corehost.c src/platform_dxm.c src/ui.c)
 target_include_directories(dxm PRIVATE src ${DXM_SKYROADS}/src)
 target_link_libraries(dxm PRIVATE SDL3::SDL3 skyroads_core m)
 if(APPLE)

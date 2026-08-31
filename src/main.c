@@ -11,6 +11,7 @@
 #include "dxm_core.h"
 #include "crt.h"
 #include "sound.h"
+#include "ui.h"
 #include <math.h>
 
 static int sc_from_sdl(SDL_Scancode s){
@@ -95,6 +96,10 @@ int main(int argc,char **argv){
     }
     /* HiDPI: size from the DRAWABLE, never the window (SPEC §6.3) */
     int W=0,H=0; SDL_GetWindowSizeInPixels(win,&W,&H);
+    /* mouse arrives in WINDOW units; the panel works in drawable px */
+    float win_wf=1,win_hf=1;
+    { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
+      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H); }
     gpu *g=gpu_create(W,H);
     dxm_layout L=chassis_layout(W,H);
     uint8_t *chas=chassis_render(&L,W,H);
@@ -111,26 +116,45 @@ int main(int argc,char **argv){
     snd_power(1);                 /* fans and spindle spin up */
 
 
+    /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
+     * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
+     * scan, vgrid, warp, margin, aperture_r, crt_lines, crt_cols */
+    /* The imperfection effects all default to ZERO: a machine in good
+     * repair.  Non-zero h-sync and RGB shift in particular put every
+     * character at a different sub-pixel phase, which reads as the same
+     * glyph having a thin left edge here and a thin right edge there. */
+    gpu_knobs k={0.5f, 1.0f, 0.55f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 ambient, 0.0f, 0.0f, 0.0f, 0.55f, 0.45f,
+                 0.62f, 0.20f, DXM_WARP, 0.0f, 0.0f, 400, DOS_W};
+
+    ui_init(&k);
+    static char cfgpath[1024];
+    { const char *pref=SDL_GetPrefPath("DOSexMachina","dxm");
+      snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
+      ui_load(cfgpath); }
     dos_init();
 
-    /* bright, contrast, ambient, glow, persistence, scan, warp,
-     * margin (0: no gap between the moulding and the picture),
-     * aperture_r (set per frame from the layout),
-     * vgrid, crt_lines, crt_cols */
-    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.62f,DXM_WARP,
-                 0.0f, 0.0f, 0.20f, 400, DOS_W};
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=0;
     while(!quit){
         SDL_Event e;
         while(SDL_PollEvent(&e)){
             if(e.type==SDL_EVENT_QUIT) quit=1;
+            else if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN)
+                ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),1,0);
+            else if(e.type==SDL_EVENT_MOUSE_BUTTON_UP)
+                ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),0,0);
+            else if(e.type==SDL_EVENT_MOUSE_MOTION)
+                ui_mouse((int)(e.motion.x*W/win_wf),(int)(e.motion.y*H/win_hf),
+                         (e.motion.state&SDL_BUTTON_LMASK)?1:0,1);
             else if(e.type==SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
                     e.type==SDL_EVENT_WINDOW_DISPLAY_CHANGED){
                 int nw,nh; SDL_GetWindowSizeInPixels(win,&nw,&nh);
                 if(nw>0 && nh>0 && (nw!=W || nh!=H)){
                     W=nw; H=nh;
                     gpu_resize(g,W,H);
+                    { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
+                      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H); }
                     L=chassis_layout(W,H);
                     free(chas); chas=chassis_render(&L,W,H);
                     gpu_set_chassis(g,chas,W,H);
@@ -149,7 +173,8 @@ int main(int argc,char **argv){
                     /* dev-only room-light adjust while at the prompt:
                      * F5 darker, F6 brighter (the real fiction control is a
                      * chassis knob, SPEC 6.8 - this is for tuning taste) */
-                    if(e.key.key==SDLK_F5||e.key.key==SDLK_F6){
+                    if(e.key.key==SDLK_F1){ ui_toggle(); }
+                    else if(e.key.key==SDLK_F5||e.key.key==SDLK_F6){
                         k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
                         if(k.ambient<0)k.ambient=0;
                         if(k.ambient>1)k.ambient=1;
@@ -243,6 +268,11 @@ int main(int argc,char **argv){
         k.aperture_r = L.aperture_r;      /* match the chassis hole */
         gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
                     L.tube_w/W, L.tube_h/H, &k, t);
+        { int ow,oh;
+          const uint8_t *ov=ui_render(W,H,&ow,&oh);
+          if(ov){ gpu_set_overlay(g,ov,ow,oh); gpu_draw_overlay(g); }
+
+          if(ui_visible()) SDL_ShowCursor(); else SDL_HideCursor(); }
         SDL_GL_SwapWindow(win);
         frame++;
         if(shot && frame>=(shot_frames?shot_frames:60)){
@@ -252,6 +282,7 @@ int main(int argc,char **argv){
             quit=1;
         }
     }
+    ui_save(cfgpath);
     corehost_stop();
     SDL_Quit();
     return 0;

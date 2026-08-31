@@ -18,19 +18,37 @@ void gpu_set_chassis(gpu *g, const uint8_t *rgba, int w, int h);
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h);
 
 /* knob values, 0..1 (SPEC §6.8) */
+/* The adjustable CRT parameters.  Ordered as they are presented in the
+ * on-screen panel; every one is 0..1 except where noted. */
 typedef struct gpu_knobs {
-    float brightness, contrast, ambient, glow, persistence, scan;
-    float warp;              /* barrel curvature                            */
-    float margin;            /* unlit ring inside the aperture (0..0.1)     */
-    float aperture_r;        /* aperture corner radius in output px         */
-    float vgrid;             /* vertical pixel-column division, 0..1        */
-    int   crt_lines;         /* physical scanlines for this mode (§2.2)     */
-    int   crt_cols;          /* source pixel columns, for the vertical grid */
+    float brightness, contrast;
+    float bloom;             /* light bleed between lit pixels             */
+    float burn_in;           /* slow ghost of static content               */
+    float noise;             /* static / snow                              */
+    float jitter;            /* frame-to-frame image instability           */
+    float glow_line;         /* the bright band drifting down the tube     */
+    float ambient;           /* room light on the chassis                  */
+    float flicker;           /* mains-rate brightness variation            */
+    float hsync;             /* horizontal sync instability                */
+    float rgb_shift;         /* convergence error between the guns         */
+    float chassis_glow;      /* screen light spilling onto the case        */
+    float persistence;       /* phosphor trail                             */
+    float scan;              /* scanline depth                             */
+    float vgrid;             /* vertical pixel-column division             */
+    float warp;              /* barrel curvature                           */
+    float margin;            /* unlit ring inside the aperture             */
+    float aperture_r;        /* aperture corner radius in output px        */
+    int   crt_lines;         /* physical scanlines for this mode           */
+    int   crt_cols;          /* source pixel columns                       */
 } gpu_knobs;
 
 /* tube rect in output pixels, and the whole composite */
 void gpu_draw(gpu *g, float tube_x, float tube_y, float tube_w, float tube_h,
               const gpu_knobs *k, double t);
+
+/* The settings panel, drawn on the CPU and composited last. */
+void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h);
+void gpu_draw_overlay(gpu *g);
 
 /* Live LED emission painted over the baked chassis, which contains only the
  * UNLIT lens.  idx 0 = floppy activity, 1 = power.  round!=0 uses a circular

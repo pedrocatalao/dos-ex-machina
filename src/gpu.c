@@ -42,6 +42,9 @@ struct gpu {
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_spill, tex_spill;
     GLuint fbo_room, tex_room;
+    GLuint fbo_burn[2], tex_burn[2]; int burn_cur;
+    GLuint prog_burn, prog_overlay, tex_overlay;
+    int    ov_w, ov_h;
     double last_t; int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2];
 };
@@ -82,16 +85,33 @@ static const char *FS_BLUR =
 static const char *FS_COMPOSITE =
 "#version 330 core\n"
 "in vec2 uv; out vec4 o;\n"
-"uniform sampler2D tube, bloom, chassis, spillsrc, roomsrc;\n"
+"uniform sampler2D tube, bloom, chassis, spillsrc, roomsrc, burnsrc;\n"
 "uniform vec4  rect;        // tube x,y,w,h in 0..1 output space\n"
 "uniform vec2  outsize;\n"
-"uniform float warp, bright, contrast, ambient, glow, scan, margin;\n"
-"uniform float aper_r;     // aperture corner radius, output px\n"
+"uniform float warp, bright, contrast, ambient, scan, margin;\n"
+"uniform float u_bloom, u_burn, u_noise, u_jitter, u_glowline;\n"
+"uniform float u_flicker, u_hsync, u_rgb, u_chassis;\n"
+"uniform float aper_r, time;\n"
 "uniform vec4  led[2];\n"
 "uniform vec3  ledcol[2];\n"
 "uniform float ledon[2];\n"
 "uniform float ledround[2];\n"
 "uniform float crt_lines, crt_cols, vgrid;\n"
+"uniform vec2  texsize;    // the tube texture, in texels\n"
+"\n"
+"float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\n"
+"\n"
+"// Sharp-bilinear: keep each source pixel flat across its interior but\n"
+"// give it an edge exactly ONE OUTPUT PIXEL wide, wherever it happens to\n"
+"// fall.  Nearest-neighbour cannot do this - it has to round each edge to\n"
+"// a whole output pixel, so stroke weights vary across the screen.\n"
+"vec2 sharp(vec2 c){\n"
+"  vec2 p = c*texsize;\n"
+"  vec2 i = floor(p) + 0.5;\n"
+"  vec2 d = p - i;\n"
+"  vec2 w = max(fwidth(p)*0.5, vec2(1e-5));\n"
+"  return (i + clamp(d/w, -1.0, 1.0)*0.5) / texsize;\n"
+"}\n"
 "\n"
 "vec2 barrel(vec2 p){\n"
 "  vec2 c = p*2.0-1.0;\n"
@@ -109,10 +129,6 @@ static const char *FS_COMPOSITE =
 "  float g = exp(-d*d*3.0/ (w*0.55));\n"
 "  return mix(1.0, g, scan);\n"
 "}\n"
-"// The same footprint-integrated profile applied ACROSS the line, so the\n"
-"// source pixel COLUMNS show as well as the scanlines.  Integrating over\n"
-"// the footprint is what stops it moireing when the tube width is not a\n"
-"// clean multiple of the source width.\n"
 "float column(float x, float px){\n"
 "  float c = x*crt_cols;\n"
 "  float d = abs(fract(c)-0.5)*2.0;\n"
@@ -131,10 +147,21 @@ static const char *FS_COMPOSITE =
 "  vec3 col = vec3(0.0);\n"
 "  float inside = 0.0;\n"
 "  if (t.x>-0.15 && t.x<1.15 && t.y>-0.15 && t.y<1.15) {\n"
+"    // ---- deflection errors, applied BEFORE the barrel so they behave\n"
+"    // like real deflection rather than like a moving texture ----\n"
+"    // JITTER: the whole raster twitching frame to frame\n"
+"    vec2 jit = vec2(hash(vec2(floor(time*60.0),1.0))-0.5,\n"
+"                    hash(vec2(floor(time*60.0),7.0))-0.5);\n"
+"    t += jit * u_jitter * 0.010;\n"
+"    // HSYNC: each LINE starts at slightly the wrong place, drifting\n"
+"    float lineno = floor(t.y*crt_lines);\n"
+"    float hs = (hash(vec2(lineno, floor(time*24.0)))-0.5)\n"
+"             + 0.6*sin(t.y*38.0 + time*5.0);\n"
+"    t.x += hs * u_hsync * 0.012;\n"
+"\n"
 "    vec2 b = barrel(t);\n"
 "    // The glass must be cut to the SAME rounded box the chassis carved,\n"
-"    // evaluated in the same warped space.  Testing a plain rectangle here\n"
-"    // let the corners of the picture spill over the moulding.\n"
+"    // evaluated in the same warped space.\n"
 "    vec2 halfpx = rect.zw*outsize*0.5;\n"
 "    vec2 apx    = abs(b*2.0-1.0)*halfpx;\n"
 "    vec2 qq     = apx - (halfpx - aper_r);\n"
@@ -142,10 +169,6 @@ static const char *FS_COMPOSITE =
 "                                         : max(apx.x-halfpx.x, apx.y-halfpx.y);\n"
 "    if (asd <= 0.0) {\n"
 "      inside = 1.0;\n"
-"      // The raster is inset inside the aperture.  The ring around it is\n"
-"      // UNLIT GLASS, not black: it is the same sheet of phosphor, so it\n"
-"      // carries the shadow mask, the glow bleeding past the raster edge,\n"
-"      // the ambient black-level lift and the sheen.\n"
 "      vec2 sb = (b - 0.5)/max(1.0 - 2.0*margin, 1e-3) + 0.5;\n"
 "      vec2 cb = clamp(sb, 0.0, 1.0);\n"
 "      vec2 od = max(max(-sb, sb - vec2(1.0)), vec2(0.0));\n"
@@ -154,27 +177,58 @@ static const char *FS_COMPOSITE =
 "      vec3 s = vec3(0.0);\n"
 "      float bm = 1.0;\n"
 "      if (outd < 1e-6) {\n"
-"        s = texture(tube, vec2(sb.x, 1.0-sb.y)).rgb;\n"
+"        // RGB SHIFT: the three guns landing at slightly different places,\n"
+"        // splayed outward from the centre the way real convergence errors\n"
+"        // grow toward the edges of the tube\n"
+"        vec2 ctr = sb - 0.5;\n"
+"        vec2 sep = ctr * u_rgb * 0.020;\n"
+"        s.r = texture(tube, sharp(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y)))).r;\n"
+"        s.g = texture(tube, sharp(vec2(sb.x,       1.0- sb.y      ))).g;\n"
+"        s.b = texture(tube, sharp(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y)))).b;\n"
 "        s = (s - 0.5)*contrast + 0.5 + (bright-0.5)*0.6;\n"
 "        bm = beam(sb.y, px);\n"
 "        bm *= column(sb.x, 1.0/max(rect.z*outsize.x,1.0));\n"
 "      }\n"
-"      // aperture-grille triad, pinned to OUTPUT pixels, across the whole\n"
-"      // faceplate - the phosphor grid does not stop at the raster edge\n"
-"      float gx = fract(uv.x*outsize.x/3.0);\n"
-"      vec3 mask = vec3(0.90);\n"
-"      mask.r += 0.28*step(gx,0.333); mask.g += 0.28*step(0.333,gx)*step(gx,0.666);\n"
-"      mask.b += 0.28*step(0.666,gx);\n"
+"      // Aperture-grille triad locked to the SOURCE pixel grid: one full\n"
+"      // R|G|B triad per source pixel.  Pinning it to output pixels on a\n"
+"      // 3px period meant every character cell landed on a different\n"
+"      // sub-phase of the stripes, so the same glyph came out with a\n"
+"      // bright left edge in one column and a bright right edge in the\n"
+"      // next, with colour fringing that changed across the screen.\n"
+"      float gx = fract(cb.x*crt_cols);\n"
+"      vec3 mask = vec3(0.94);\n"
+"      mask.r += 0.20*step(gx,0.333); mask.g += 0.20*step(0.333,gx)*step(gx,0.666);\n"
+"      mask.b += 0.20*step(0.666,gx);\n"
 "      col = max(s,0.0)*bm*mask;\n"
-"      // glow spills past the raster onto the unlit border, fading with\n"
-"      // distance - this is what stops the margin reading as dead black\n"
+"\n"
+"      // BURN-IN: the slow accumulator, added as a faint ghost\n"
+"      vec3 burn = texture(burnsrc, vec2(cb.x,1.0-cb.y)).rgb;\n"
+"      col += burn * u_burn * 0.55 * mask;\n"
+"\n"
+"      // BLOOM: light bleeding between lit pixels\n"
 "      vec3 bl = texture(bloom, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += bl*glow*0.34*exp(-outd*11.0)*mask;\n"
+"      col += bl*u_bloom*0.34*exp(-outd*11.0)*mask;\n"
+"\n"
+"      // GLOW LINE: the bright band drifting slowly down the tube, left by\n"
+"      // the refresh beating against the eye\n"
+"      float gl = fract(cb.y*0.5 - time*0.10);\n"
+"      col += vec3(0.55,0.85,1.0) * u_glowline * 0.055\n"
+"           * exp(-pow((gl-0.5)/0.06, 2.0));\n"
+"\n"
 "      vec2 c2 = b*2.0-1.0;\n"
 "      col *= 1.0 - 0.30*dot(c2,c2)*0.5;\n"
 "      col += ambient*0.016*vec3(0.9,0.95,1.0);\n"
 "      float sheen = smoothstep(0.42,0.0, distance(b, vec2(0.28,0.16)));\n"
 "      col += sheen*(0.008+0.022*ambient);\n"
+"\n"
+"      // STATIC NOISE: snow on the phosphor\n"
+"      float n = hash(uv*outsize + vec2(time*371.0, time*137.0)) - 0.5;\n"
+"      col += n * u_noise * 0.16;\n"
+"\n"
+"      // FLICKER: the mains-rate brightness wobble of an old set\n"
+"      float fl = 1.0 + u_flicker*0.10*(sin(time*47.0)*0.6 + sin(time*113.0)*0.4)\n"
+"               + u_flicker*0.05*(hash(vec2(floor(time*50.0),3.0))-0.5);\n"
+"      col *= fl;\n"
 "    }\n"
 "  }\n"
 "  // bezel spill: heavily blurred tube lights the surrounding plastic (6.6)\n"
@@ -185,35 +239,49 @@ static const char *FS_COMPOSITE =
 "  float d = length(outv)/max(rect.w,1e-4);      // in tube-heights\n"
 "  float fall = exp(-d*5.0);      // reaches further across the moulding\n"
 "  // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear\n"
-"  // factors toward 1, so a linear ramp here looks nearly flat.  Define\n"
-"  // the ramp in gamma space and convert: 0 -> visually dark room,\n"
-"  // 1 -> visually bright room.\n"
+"  // factors toward 1, so a linear ramp here looks nearly flat.\n"
 "  float amb = pow(0.16 + 0.98*ambient, 2.2);\n"
 "  // What the tube throws into the ROOM: a near-average of the whole\n"
 "  // picture, lighting the entire chassis and falling off only slowly.\n"
-"  // Edge-local spill alone could never express a bright screen washing\n"
-"  // the case - it only ever lit the moulding nearest that edge.\n"
 "  vec3 room = texture(roomsrc, vec2(0.5,0.5)).rgb;\n"
 "  float roomfall = exp(-d*1.1);\n"
 "  vec3 lit = plastic*amb\n"
-"           + spill*fall*glow*facing*(0.30+0.26*(1.0-ambient))\n"
-"           + room*roomfall*glow*facing*(0.34+0.40*(1.0-ambient));\n"
+"           + spill*fall*u_chassis*facing*(0.30+0.26*(1.0-ambient))\n"
+"           + room*roomfall*u_chassis*facing*(0.34+0.40*(1.0-ambient));\n"
 "  vec3 fin = mix(lit, col, inside);\n"
-"  // Live activity LED painted over the baked chassis: the lens itself\n"
-"  // plus a soft bloom onto the surrounding plastic.\n"
 "  for (int i = 0; i < 2; ++i) {\n"
 "    if (ledon[i] <= 0.001) continue;\n"
 "    vec2 lc = led[i].xy + led[i].zw*0.5;\n"
-"    vec2 d  = (uv - lc) / (led[i].zw*0.5);\n"
-"    // box lens for rectangular windows, radial for round ones\n"
-"    float m = mix(max(abs(d.x),abs(d.y)), length(d), ledround[i]);\n"
+"    vec2 dd  = (uv - lc) / (led[i].zw*0.5);\n"
+"    float m = mix(max(abs(dd.x),abs(dd.y)), length(dd), ledround[i]);\n"
 "    float lens = 1.0 - smoothstep(0.82, 1.02, m);\n"
-"    // the emitted light bleeds onto the surrounding plastic\n"
-"    float bleed = exp(-dot(d,d)*0.75);\n"
+"    float bleed = exp(-dot(dd,dd)*0.75);\n"
 "    fin += ledcol[i] * (lens*1.45 + bleed*0.22) * ledon[i];\n"
 "  }\n"
-"  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"   /* linear -> sRGB */
+"  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"
 "}\n";
+
+/* burn-in accumulator: a very slow exponential average of the picture.  Its
+ * time constant is in TENS OF SECONDS, which is what makes static content
+ * (a prompt, a HUD) etch in while moving content leaves nothing. */
+static const char *FS_BURN =
+"#version 330 core\n"
+"in vec2 uv; out vec4 o;\n"
+"uniform sampler2D src, prev;\n"
+"uniform float dt, rate;\n"
+"void main(){\n"
+"  vec3 cur = pow(texture(src, uv).rgb, vec3(2.2));\n"
+"  vec3 old = texture(prev, uv).rgb;\n"
+"  float k = 1.0 - exp(-dt/max(rate,0.001));   // seconds, time-based\n"
+"  o = vec4(mix(old, cur, k), 1.0);\n"
+"}\n";
+
+/* the settings panel, straight alpha over the finished frame */
+static const char *FS_OVERLAY =
+"#version 330 core\n"
+"in vec2 uv; out vec4 o;\n"
+"uniform sampler2D src;\n"
+"void main(){ o = texture(src, vec2(uv.x, 1.0-uv.y)); }\n";
 
 static GLuint mkshader(GLenum t, const char *src){
     GLuint s=glCreateShader(t); glShaderSource(s,1,&src,NULL); glCompileShader(s);
@@ -253,9 +321,16 @@ gpu *gpu_create(int w,int h){
     g->prog_persist=mkprog(FS_PERSIST);
     g->prog_blur=mkprog(FS_BLUR);
     g->prog_composite=mkprog(FS_COMPOSITE);
+    g->prog_burn=mkprog(FS_BURN);
+    g->prog_overlay=mkprog(FS_OVERLAY);
     glGenTextures(1,&g->tex_tube);   glBindTexture(GL_TEXTURE_2D,g->tex_tube);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    /* LINEAR, not NEAREST: the shader does its own pixel-edge shaping
+     * (see sharp() below).  With NEAREST the source grid lands unevenly on
+     * the output grid - one source pixel covering 3 output pixels and its
+     * neighbour 2 - so the same glyph came out with a fat left edge in one
+     * place and a fat right edge in another. */
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     glGenTextures(1,&g->tex_chassis);glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
@@ -269,6 +344,13 @@ gpu *gpu_create(int w,int h){
     mktarget(&g->fbo_bloom2,&g->tex_bloom2,BLOOM_W,BLOOM_H);
     mktarget(&g->fbo_spill,&g->tex_spill,SPILL_W,SPILL_H);
     mktarget(&g->fbo_room,&g->tex_room,ROOM_W,ROOM_H);
+    mktarget(&g->fbo_burn[0],&g->tex_burn[0],PERSIST_W,PERSIST_H);
+    mktarget(&g->fbo_burn[1],&g->tex_burn[1],PERSIST_W,PERSIST_H);
+    glGenTextures(1,&g->tex_overlay); glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     return g;
 }
 void gpu_destroy(gpu *g){ if(g) free(g); }
@@ -313,6 +395,18 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1f(glGetUniformLocation(g->prog_persist,"persist"),k->persistence);
     pass(g,g->prog_persist,g->fbo_persist[cur],PERSIST_W,PERSIST_H);
     g->persist_cur=cur;
+    /* burn-in: a much slower average of the same signal */
+    { int bp=g->burn_cur, bc=1-bp;
+      glUseProgram(g->prog_burn);
+      glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
+      glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D,g->tex_burn[bp]);
+      glUniform1i(glGetUniformLocation(g->prog_burn,"src"),0);
+      glUniform1i(glGetUniformLocation(g->prog_burn,"prev"),1);
+      glUniform1f(glGetUniformLocation(g->prog_burn,"dt"),dt);
+      glUniform1f(glGetUniformLocation(g->prog_burn,"rate"),28.0f);
+      pass(g,g->prog_burn,g->fbo_burn[bc],PERSIST_W,PERSIST_H);
+      g->burn_cur=bc;
+    }
     /* pass 4a: bloom downsample+blur (fixed internal res, SPEC §6.7) */
     glUseProgram(g->prog_blur);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
@@ -361,7 +455,6 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1f(glGetUniformLocation(p,"bright"),k->brightness);
     glUniform1f(glGetUniformLocation(p,"contrast"),k->contrast);
     glUniform1f(glGetUniformLocation(p,"ambient"),k->ambient);
-    glUniform1f(glGetUniformLocation(p,"glow"),k->glow);
     glUniform1f(glGetUniformLocation(p,"scan"),k->scan);
     glUniform1f(glGetUniformLocation(p,"margin"),k->margin);
     glUniform1f(glGetUniformLocation(p,"aper_r"),k->aperture_r);
@@ -371,7 +464,22 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
     glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
     glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
+    glUniform2f(glGetUniformLocation(p,"texsize"),
+                (float)g->tube_w,(float)g->tube_h);
     glUniform1f(glGetUniformLocation(p,"vgrid"),k->vgrid);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D,g->tex_burn[g->burn_cur]);
+    glUniform1i(glGetUniformLocation(p,"burnsrc"),5);
+    glUniform1f(glGetUniformLocation(p,"time"),(float)t);
+    glUniform1f(glGetUniformLocation(p,"u_bloom"),k->bloom);
+    glUniform1f(glGetUniformLocation(p,"u_burn"),k->burn_in);
+    glUniform1f(glGetUniformLocation(p,"u_noise"),k->noise);
+    glUniform1f(glGetUniformLocation(p,"u_jitter"),k->jitter);
+    glUniform1f(glGetUniformLocation(p,"u_glowline"),k->glow_line);
+    glUniform1f(glGetUniformLocation(p,"u_flicker"),k->flicker);
+    glUniform1f(glGetUniformLocation(p,"u_hsync"),k->hsync);
+    glUniform1f(glGetUniformLocation(p,"u_rgb"),k->rgb_shift);
+    glUniform1f(glGetUniformLocation(p,"u_chassis"),k->chassis_glow);
     glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
 }
 uint8_t *gpu_readback(gpu *g,int *w,int *h){
@@ -380,4 +488,24 @@ uint8_t *gpu_readback(gpu *g,int *w,int *h){
     glPixelStorei(GL_PACK_ALIGNMENT,1);
     glReadPixels(0,0,g->out_w,g->out_h,GL_RGB,GL_UNSIGNED_BYTE,px);
     return px;
+}
+
+void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h){
+    if(!rgba || w<=0 || h<=0){ g->ov_w=0; g->ov_h=0; return; }
+    g->ov_w=w; g->ov_h=h;
+    glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+}
+void gpu_draw_overlay(gpu *g){
+    if(g->ov_w<=0) return;
+    glBindFramebuffer(GL_FRAMEBUFFER,0);
+    glViewport(0,0,g->out_w,g->out_h);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(g->prog_overlay);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
+    glUniform1i(glGetUniformLocation(g->prog_overlay,"src"),0);
+    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glDisable(GL_BLEND);
 }
