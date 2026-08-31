@@ -241,7 +241,7 @@ const uint8_t *dos_render(void){
             uint8_t bits=g[j];
             for(int i=0;i<8;i++) if(bits&(0x80>>i)){
                 for(int d=0;d<2;d++){          /* 8x8 rendered at 8x16 */
-                    int y=r*16+j*2+d, x=c*8+i;
+                    int y=DOS_PAD_Y+r*16+j*2+d, x=DOS_PAD_X+c*8+i;
                     uint8_t *p=fb+((size_t)y*DOS_W+x)*3;
                     p[0]=0x33; p[1]=0xF0; p[2]=0x55;   /* P1 green phosphor */
                 }
@@ -251,7 +251,7 @@ const uint8_t *dos_render(void){
     if(st==DOS_BOOT) draw_badge(now_t);      /* POST only */
     if(st==DOS_PROMPT && ((int)(blink/28)&1)){
         for(int j=0;j<14;j++) for(int i=0;i<8;i++){
-            int y=cur_r*16+j, x=cur_c*8+i;
+            int y=DOS_PAD_Y+cur_r*16+j, x=DOS_PAD_X+cur_c*8+i;
             if(y<DOS_H&&x<DOS_W){ uint8_t *p=fb+((size_t)y*DOS_W+x)*3;
                                   p[0]=0x33;p[1]=0xF0;p[2]=0x55; }
         }
