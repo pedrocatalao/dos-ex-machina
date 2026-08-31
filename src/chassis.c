@@ -342,18 +342,6 @@ static void seam(canvas *c,float x,float y,float len,int vertical,float w){
         }
     }
 }
-static void slider(canvas *c,float x,float y,float w,float h,float pos){
-    rrect(c,x,y+h*0.34f,w,h*0.32f,h*0.16f,96,93,85,0.55f,0.72f);
-    bevel(c,x,y+h*0.34f,w,h*0.32f,fmaxf(1.0f,h*0.10f),0);
-    float tw=w*0.15f, tx=x+(w-tw)*pos;
-    rrect(c,tx,y,tw,h,h*0.14f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.14f,0.82f);
-    bevel(c,tx,y,tw,h,fmaxf(1.0f,h*0.12f),1);
-    for(float i=tx+tw*0.24f;i<tx+tw*0.80f;i+=fmaxf(2.0f,tw*0.20f))
-        for(int j=(int)(y+h*0.18f);j<(int)(y+h*0.82f);j++){
-            px_blend(c,(int)i,j,55,52,47,0.45f);
-            px_blend(c,(int)i+1,j,255,252,244,0.22f);
-        }
-}
 /* Chamfer ring around a recessed opening: a small dished slope from the
  * face down into the hole.  Lit from above, its top run falls dark and its
  * bottom run catches light. */
@@ -404,6 +392,29 @@ static void soft_vedge(canvas *c,float y0,float y1,float x,float span,
             px_shade(c,xx,j2,1.0f+(mul_peak-1.0f)*w2,0.0f);
     }
 }
+
+/* Text MOULDED INTO the plastic rather than printed on it: the same colour
+ * as the case, visible only by its shading - lit along the top of the
+ * raised stroke, shadowed beneath.  Every label on this machine was painted
+ * until now, and a case with no moulded marks reads as a decal sheet. */
+static void moulded_text(canvas *c,float x,float y,const char *s,float sc,
+                         int debossed){
+    float lit  = debossed ? -0.15f :  0.19f;
+    float dark = debossed ?  0.19f : -0.15f;
+    for(int n=0;s[n];n++){
+        const uint8_t *gl=font_glyph((unsigned char)s[n]);
+        for(int j=0;j<8;j++) for(int i=0;i<8;i++){
+            if(!(gl[j]&(0x80>>i))) continue;
+            for(int sy=0;sy<(int)sc;sy++) for(int sx=0;sx<(int)sc;sx++){
+                int px2=(int)(x+(n*8+i)*sc)+sx, py2=(int)(y+j*sc)+sy;
+                px_shade(c,px2,py2,1.0f+dark*0.30f,0.0f);
+                px_shade(c,px2,py2-1,1.0f+lit,0.0f);
+                px_shade(c,px2,py2+(int)sc,1.0f+dark,0.0f);
+            }
+        }
+    }
+}
+
 
 /* 3.5" drive: same geometry as before (recessed plate, finger cuts, slot
  * through them, protruding eject, inserted diskette), but every edge is now
@@ -921,7 +932,11 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         /* power button + status LEDs */
         float px0=pbx+pbw+inset*0.85f;
         float pw=16.0f*mm;                       /* a 16mm power cap */
-        text(c,px0,mid-pw*0.39f-g_lbl*11,"POWER",g_lbl,86,82,74);
+        /* moulded, and centred over the cap - it was painted and
+         * left-aligned to the button's edge */
+        { const char *pl="POWER";
+          float tw3=(float)strlen(pl)*8.0f*g_lbl;
+          moulded_text(c,px0+(pw-tw3)*0.5f, mid-pw*0.39f-g_lbl*11, pl, g_lbl, 0); }
         /* thin cut around the button, cap nearly filling it */
         rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,64,61,56,0.80f,0.92f);
         /* the cap is moulded in the same darker brown as the drive, not in
@@ -939,26 +954,75 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
           g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f; }
 
-        /* centre: stereo sound, volume, phones */
+        /* ---- centre: a styling panel, not more gadgets ---------------
+         * Late-80s and early-90s cases filled dead front-panel space with
+         * decorative moulded rib strips - a purely cosmetic flourish that
+         * cost nothing in the tool and made the box look designed.  It says
+         * more about the era than another button would, and it leaves the
+         * panel calm. */
         float cxm=(float)W*0.5f;
-        text(c,cxm-g_lbl*8*6.0f,band_y+band_h*0.12f,"STEREO SOUND",g_lbl,96,92,84);
-        rect(c,cxm-g_lbl*8*6.0f,band_y+band_h*0.12f+g_lbl*11,g_lbl*8*7.0f,
-             fmaxf(1.0f,g_lbl*1.6f),0x2E,0x4C,0xA8);
-        slider(c,cxm-g_lbl*8*5.0f,band_y+band_h*0.42f,g_lbl*8*10.0f,band_h*0.28f,0.62f);
-        text(c,cxm-g_lbl*8*2.0f,band_y+band_h*0.78f,"VOLUME",g_lbl,96,92,84);
-        float jx=cxm+g_lbl*8*8.0f;
-        float js=9.0f*mm;                        /* 9mm jack surround */
-        rrect(c,jx,mid-js*0.5f,js,js,js*0.5f,64,61,56,0.7f,0.8f);
-        bevel(c,jx,mid-js*0.5f,js,js,fmaxf(1.0f,js*0.12f),0);
-        led(c,jx+js*0.5f,mid,3.2f*mm,14,13,12);  /* 6.35mm hole */
-        text(c,jx-g_lbl*8*1.0f,band_y+band_h*0.78f,"PHONES",g_lbl,96,92,84);
-
-        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
+        { /* a shallow recessed strip carrying fine horizontal ribs */
+          float pw2=68.0f*mm, ph2=fminf(band_h*0.52f, 13.0f*mm);
+          float pxs=cxm-pw2*0.42f;              /* off-centre, deliberately */
+          float pys=mid-ph2*0.5f;
+          rrect(c,pxs,pys,pw2,ph2,1.2f*mm,
+                (int)(PLASTIC_R*0.97f),(int)(PLASTIC_G*0.97f),
+                (int)(PLASTIC_B*0.97f),0.97f,1.02f);
+          housing_edge(c,pxs,pys,pw2,ph2,1.2f*mm,1.0f*mm,0.8f*mm,0,1.1f);
+          /* the ribs: moulded, so they are shading only - lit on top, in
+           * shadow beneath, exactly like the lettering */
+          { float pitch=fmaxf(3.0f,ph2*0.155f);
+            for(float ry=pys+pitch; ry<pys+ph2-pitch*0.6f; ry+=pitch){
+              for(int i2=(int)(pxs+2.0f*mm);i2<(int)(pxs+pw2-2.0f*mm);i2++){
+                px_shade(c,i2,(int)ry,       1.16f,0.0f);   /* crest  */
+                px_shade(c,i2,(int)ry+1,     1.04f,0.0f);
+                px_shade(c,i2,(int)(ry+pitch*0.45f),0.88f,0.0f); /* trough */
+              }
+            }
+          }
+          /* and the machine's name pressed in beside it */
+          moulded_text(c,pxs+pw2+4.0f*mm, mid-g_lbl*4.0f,
+                       "DOS EX MACHINA", g_lbl, 0);
+        }        /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
          * vertically between the divider ridge and the case bottom */
         float fh=25.4f*mm, fw2=101.6f*mm;
         float fx=(float)W-edge-inset*0.65f-fw2;
         float fmid=((band_y-inset*0.26f)+(float)H)*0.5f;
         floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
+    }
+
+    /* ---- moulded marks and manufacturing traces -------------------------
+     * Text pressed INTO the tool, not printed on the part, plus the traces
+     * every injection moulding carries: the parting line where the two tool
+     * halves met, and the ejector-pin circles that pushed the part out. */
+    { float mmu=(float)H/268.0f;                    /* same mm as the band */
+      float ms=fmaxf(1.0f,g_lbl*0.72f);
+      /* the compliance block, low and to the left, where nobody looks */
+      moulded_text(c,edge+inset*0.9f, (float)H-inset*0.95f,
+                   "MADE IN PORTUGAL",ms,0);
+      moulded_text(c,edge+inset*0.9f, (float)H-inset*0.95f+9.0f*ms,
+                   "MODEL DXM-486DX2  TYPE 4B",ms,0);
+      /* and the model number moulded near the top right, larger */
+      moulded_text(c,(float)W-edge-inset*0.9f-8.0f*ms*11.0f, inset*0.55f,
+                   "SERIES 4000",ms,0);
+
+      /* ejector pin marks: faint discs on the broad flat areas */
+      { float pr2=3.6f*mmu;
+        float pts[6][2]={{0.20f,0.16f},{0.20f,0.86f},{0.80f,0.16f},
+                         {0.80f,0.86f},{0.50f,0.07f},{0.34f,0.93f}};
+        for(int k=0;k<6;k++){
+          float ex2=edge+(W-2*edge)*pts[k][0], ey2=H*pts[k][1];
+          for(int j2=(int)(ey2-pr2-1);j2<=(int)(ey2+pr2+1);j2++)
+            for(int i2=(int)(ex2-pr2-1);i2<=(int)(ex2+pr2+1);i2++){
+              float dx2=i2-ex2, dy2=j2-ey2, dd=sqrtf(dx2*dx2+dy2*dy2);
+              if(dd>pr2) continue;
+              /* very slightly proud, so it catches the light at its rim */
+              float rim=1.0f-fabsf(dd-pr2*0.86f)/(pr2*0.16f);
+              if(rim<0.0f) rim=0.0f;
+              px_shade(c,i2,j2,1.0f-0.018f+0.030f*rim*(-dy2/pr2),0.0f);
+            }
+        }
+      }
     }
 
     /* ---- finishing pass: what makes it a photographed object ------------
