@@ -164,12 +164,24 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
         for(int i2=(int)(cx-rad*1.25f);i2<=(int)(cx+rad*1.25f);i2++){
             float dx=(i2-cx)/rad, dy=(j2-cy)/rad;
             float d=sqrtf(dx*dx+dy*dy);
-            if(d>1.22f) continue;
-            if(d>0.92f){                          /* thin outline */
-                float a=1.0f-fmaxf(0.0f,(d-1.05f)/0.17f);
-                a*=fminf(1.0f,(d-0.86f)/0.10f);
-                float top=(dy<0.0f)?1.0f:0.72f;   /* heavier above */
-                px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+            if(d>1.50f) continue;
+            if(d>0.94f){
+                /* The lens sits in a HOLE, and the hole is what reads 3D:
+                 * dark ring, a soft shadow on the plastic above it, and a
+                 * lit chamfer lip on the plastic below it. */
+                if(d<=1.18f){                      /* the ring itself */
+                    float a=1.0f-fmaxf(0.0f,(d-1.06f)/0.12f);
+                    a*=fminf(1.0f,(d-0.90f)/0.06f);
+                    float top=(dy<0.0f)?1.0f:0.66f;
+                    px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+                } else {
+                    float t=(d-1.18f)/0.32f;       /* 0 at ring, 1 outside */
+                    if(dy<-0.15f)                  /* shadow above the hole */
+                        px_shade(c,i2,j2,1.0f-0.16f*(1.0f-t)*(-dy/d),0.0f);
+                    else if(dy>0.15f)              /* lit lip below it */
+                        px_shade(c,i2,j2,1.0f+0.20f*(1.0f-t)*(dy/d),
+                                 (1.0f-t)*(dy/d)*0.06f);
+                }
                 continue;
             }
             /* body: uniform, deepening to lower-right */
@@ -182,6 +194,43 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
             int gg=(int)(g*f+(255-g*f)*w2);
             int bb=(int)(b*f+(255-b*f)*w2*0.9f);
             px_blend(c,i2,j2,rr,gg,bb,1.0f);
+        }
+}
+
+/* Rectangular LED window, same construction as the round one: thin outline
+ * heavier on top, body deepening lower-right, soft hot spot up-left, the
+ * recess shadow above and lit lip below.  This is what the reference's
+ * floppy activity light is. */
+static void led_rect(canvas *c,float cx,float cy,float w,float h,
+                     int r,int g,int b){
+    float hw=w*0.5f, hh=h*0.5f, rad=h*0.30f;
+    float ring=fmaxf(1.2f,h*0.16f);
+    for(int j2=(int)(cy-hh-ring*3);j2<=(int)(cy+hh+ring*3);j2++)
+        for(int i2=(int)(cx-hw-ring*3);i2<=(int)(cx+hw+ring*3);i2++){
+            float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad);
+            float dy=(j2-cy)/hh;
+            if(sd<=0.0f){
+                /* lens body */
+                float dx=(i2-cx)/hw;
+                float f=0.94f-0.20f*fmaxf(0.0f,(dx+dy)*0.5f);
+                float e=-sd/h;                     /* depth into the lens */
+                if(e<0.20f) f*=0.70f+1.5f*e;       /* darker at the frame */
+                float hx=(dx+0.35f)/0.55f, hy=(dy+0.40f)/0.60f;
+                float w2=expf(-(hx*hx+hy*hy));
+                px_blend(c,i2,j2,(int)(r*f+(255-r*f)*w2),
+                         (int)(g*f+(255-g*f)*w2),
+                         (int)(b*f+(255-b*f)*w2*0.9f),1.0f);
+            } else if(sd<=ring){
+                float a=1.0f-sd/ring;
+                float top=(dy<0.0f)?1.0f:0.66f;
+                px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+            } else if(sd<=ring*3.0f){
+                float t=(sd-ring)/(ring*2.0f);
+                if(dy<-0.15f)
+                    px_shade(c,i2,j2,1.0f-0.15f*(1.0f-t),0.0f);
+                else if(dy>0.15f)
+                    px_shade(c,i2,j2,1.0f+0.18f*(1.0f-t),(1.0f-t)*0.05f);
+            }
         }
 }
 
@@ -272,59 +321,57 @@ static void chamfer_ring(canvas *c,float x,float y,float w,float h,float r,
       }
 }
 
-/* 3.5" drive, the geometry of the reference understood properly:
- *  - the faceplate sits slightly RECESSED into the chassis surface, in a
- *    warmer, browner plastic than the case, with a moulded ridge running
- *    around it just inside its edge
- *  - the slot and the two finger CUTS all get a small dished chamfer where
- *    they break the face
- *  - the eject button protrudes through its own cut opening
- * Millimetres of a 101.6 x 25.4 face. */
+/* Soft horizontal edge: shade/spec eased over a span of rows, so the
+ * transition reads as a moulded curve rather than a drawn line.  This is
+ * the difference between the LED (which looks real) and hard 1px lips
+ * (which look like a cartoon). */
+static void soft_hedge(canvas *c,float x0,float x1,float y,float span,
+                       float mul_peak,float spec_peak,int downward){
+    int n=(int)fmaxf(2.0f,span);
+    for(int k=0;k<n;k++){
+        float t=(float)k/n;
+        float w2=sinf((1.0f-t)*1.5708f); w2*=w2;         /* eased falloff */
+        int yy=downward? (int)y+k : (int)y-k;
+        for(int i2=(int)x0;i2<(int)x1;i2++)
+            px_shade(c,i2,yy,1.0f+(mul_peak-1.0f)*w2,spec_peak*w2);
+    }
+}
+/* soft vertical edge, same idea */
+static void soft_vedge(canvas *c,float y0,float y1,float x,float span,
+                       float mul_peak,int rightward){
+    int n=(int)fmaxf(2.0f,span);
+    for(int k=0;k<n;k++){
+        float t=(float)k/n;
+        float w2=sinf((1.0f-t)*1.5708f); w2*=w2;
+        int xx=rightward? (int)x+k : (int)x-k;
+        for(int j2=(int)y0;j2<(int)y1;j2++)
+            px_shade(c,xx,j2,1.0f+(mul_peak-1.0f)*w2,0.0f);
+    }
+}
+
+/* 3.5" drive: same geometry as before (recessed plate, finger cuts, slot
+ * through them, protruding eject, inserted diskette), but every edge is now
+ * an eased ramp at the LED's fidelity - no hard 1px lines anywhere. */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float mm=h/25.4f; (void)w;
     float fw=101.6f*mm;
-    /* warmer, browner than the case */
     int pr=(int)(PLASTIC_R*0.95f),pg=(int)(PLASTIC_G*0.90f),pb=(int)(PLASTIC_B*0.80f);
-    /* the chassis has a cut-out for the drive: chamfered case edge, a dark
-     * mounting gap all round, then the drive's own faceplate inside it */
+    /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
     rrect(c,x-0.5f*mm,y-0.5f*mm,fw+1.0f*mm,h+1.0f*mm,2.2f*mm,
           (int)(PLASTIC_R*0.38f),(int)(PLASTIC_G*0.38f),(int)(PLASTIC_B*0.38f),
           0.92f,1.04f);
     chamfer_ring(c,x-0.5f*mm,y-0.5f*mm,fw+1.0f*mm,h+1.0f*mm,2.2f*mm,0.5f*mm);
     rrect(c,x,y,fw,h,2.0f*mm,pr,pg,pb,0.97f,1.01f);
     housing_edge(c,x,y,fw,h,2.0f*mm,1.2f*mm,0.0f,0,1.3f);
-    /* moulded ridge just inside the plate edge: a raised bead, lit on top,
-     * shadowed underneath */
-    { float rx=x+1.8f*mm, ry=y+1.8f*mm, rw=fw-3.6f*mm, rh=h-3.6f*mm;
-      float rcx=rx+rw*0.5f, rcy=ry+rh*0.5f;
-      float bw=0.55f*mm;
-      for(int j2=(int)ry;j2<(int)(ry+rh);j2++)
-        for(int i2=(int)rx;i2<(int)(rx+rw);i2++){
-          float sd=rr_sd((float)i2,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
-          if(fabsf(sd)>bw) continue;
-          float gx=rr_sd((float)i2+1,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm)
-                  -rr_sd((float)i2-1,(float)j2,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
-          float gy=rr_sd((float)i2,(float)j2+1,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm)
-                  -rr_sd((float)i2,(float)j2-1,rcx,rcy,rw*0.5f,rh*0.5f,1.6f*mm);
-          float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
-          float lam=(gx/gl)*LIGHT_X+(gy/gl)*LIGHT_Y;   /* raised bead */
-          float prof=1.0f-fabsf(sd)/bw;
-          px_shade(c,i2,j2,1.0f+lam*prof*0.34f,
-                   powf(fmaxf(lam,0.0f),8.0f)*prof*0.18f);
-        }
-    }
 
-    float sly=y+8.6f*mm, slh=4.8f*mm;   /* taller, like the reference */
+    float sly=y+8.6f*mm, slh=4.8f*mm;
     float slx=x+5.0f*mm, slw=fw-10.0f*mm;
     float tcw=36.0f*mm, tcx=x+(fw-tcw)*0.5f, tcy0=y+3.4f*mm;
     float bcw=41.0f*mm, bcx=x+(fw-bcw)*0.5f, bcy1=y+21.2f*mm;
-
-    /* dished chamfers where the openings break the face - BEFORE the floors,
-     * so the floors and slot overwrite the inner overlap */
     chamfer_ring(c,tcx,tcy0,tcw,sly-tcy0,1.6f*mm,0.9f*mm);
     chamfer_ring(c,bcx,sly+slh,bcw,bcy1-(sly+slh),1.6f*mm,0.9f*mm);
 
-    /* finger cuts: deep wells with rounded floors */
+    /* finger cuts: floors with smooth gradients, eased walls */
     struct { float cx,cw,y0,y1; } cut[2] = {
         { tcx, tcw, tcy0,   sly },
         { bcx, bcw, sly+slh, bcy1 },
@@ -334,62 +381,49 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
         float ch0=y1-y0, rr=1.6f*mm;
         if(k==0) rrect(c,cx0,y0,cw0,ch0+rr,rr,pr,pg,pb,0.62f,0.80f);
         else     rrect(c,cx0,y0-rr,cw0,ch0+rr,rr,pr,pg,pb,0.46f,0.84f);
-        for(int j2=(int)(y0+rr*0.5f);j2<(int)(y1-((k==1)?rr*0.5f:0.0f));j2++)
-            for(int t3=0;t3<(int)fmaxf(1.0f,0.5f*mm);t3++){
-                px_blend(c,(int)cx0+t3,j2,30,29,27,0.50f);
-                px_blend(c,(int)(cx0+cw0)-1-t3,j2,30,29,27,0.36f);
-            }
-        for(int t3=0;t3<(int)(1.1f*mm);t3++){
-            float a2=0.55f*(1.0f-t3/(1.1f*mm));
-            for(int i2=(int)cx0;i2<(int)(cx0+cw0);i2++)
-                px_blend(c,i2,(int)y0+t3,18,17,16,a2);
-        }
-        for(int i2=(int)(cx0+0.8f*mm);i2<(int)(cx0+cw0-0.8f*mm);i2++){
-            px_blend(c,i2,(int)y1-1,255,253,247,(k==1)?0.40f:0.26f);
-            px_blend(c,i2,(int)y1,252,250,244,0.18f);
-        }
+        /* eased side walls */
+        soft_vedge(c,y0+rr*0.4f,y1-((k==1)?rr*0.4f:0.0f),cx0+0.2f*mm,1.1f*mm,0.62f,1);
+        soft_vedge(c,y0+rr*0.4f,y1-((k==1)?rr*0.4f:0.0f),cx0+cw0-0.2f*mm,1.1f*mm,0.72f,0);
+        /* eased overhang shadow at the top of the cut */
+        soft_hedge(c,cx0,cx0+cw0,y0,1.8f*mm,0.42f,0.0f,1);
+        /* eased lit lip at the bottom inner wall */
+        soft_hedge(c,cx0+0.8f*mm,cx0+cw0-0.8f*mm,y1-1,1.3f*mm,
+                   (k==1)?1.34f:1.20f,(k==1)?0.05f:0.02f,0);
     }
 
-    /* the slot: chamfered opening, drawn AFTER the cut floors so the
-     * chamfer survives (it was being painted over before) */
+    /* slot: chamfered opening, eased interior faces */
     chamfer_ring(c,slx,sly,slw,slh,slh*0.24f,1.2f*mm);
     rrect(c,slx,sly,slw,slh,slh*0.24f,12,11,10,1.0f,1.0f);
-    { float ch1=1.1f*mm;                     /* chamfer faces INSIDE the slot */
+    { float ch1=1.4f*mm;
       for(int j2=0;j2<(int)ch1;j2++){
         float t2=(float)j2/ch1;
-        int vt=(int)(66.0f-46.0f*t2);        /* top face: shadowed slope    */
-        int vb=(int)(30.0f+70.0f*(1.0f-t2)); /* bottom face: catches light  */
+        float e=sinf((1.0f-t2)*1.5708f); e*=e;
+        int vt=(int)(14.0f+52.0f*e);
+        int vb=(int)(14.0f+86.0f*e);
         for(int i2=(int)(slx+1.2f*mm);i2<(int)(slx+slw-1.2f*mm);i2++){
             px_blend(c,i2,(int)sly+j2,vt,vt-2,vt-4,1.0f);
             px_blend(c,i2,(int)(sly+slh)-1-j2,(int)(vb*1.05f),vb,(int)(vb*0.88f),1.0f);
         }
       }
-      for(int i2=(int)(slx+1.5f*mm);i2<(int)(slx+slw-1.5f*mm);i2++)
-        px_blend(c,i2,(int)(sly+slh),255,253,247,0.38f);   /* lit break edge */
+      soft_hedge(c,slx+1.5f*mm,slx+slw-1.5f*mm,sly+slh,1.0f*mm,1.30f,0.04f,1);
     }
-    /* a diskette IS inserted: its back edge fills the slot - 90mm of dark
-     * charcoal shell plastic, a lit top edge where the light grazes it,
-     * black gaps left and right where the slot is wider than the disk */
+    /* inserted diskette: eased grazing light, soft seam */
     { float dkw=90.0f*mm, dkx=x+(fw-dkw)*0.5f;
-      float dky=sly+1.2f*mm, dkh=slh-2.3f*mm;
+      float dky=sly+1.4f*mm, dkh=slh-2.6f*mm;
       for(int j2=(int)dky;j2<(int)(dky+dkh);j2++){
         float t2=(float)(j2-dky)/dkh;
-        int v=(int)(64.0f-26.0f*t2);              /* shell, darker downward */
+        int v=(int)(62.0f-24.0f*t2);
         for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
-            float n=hash2(i2,j2,7)*6.0f;
+            float n=hash2(i2,j2,7)*5.0f;
             px_blend(c,i2,j2,(int)(v+n),(int)(v+n),(int)(v+n+4),1.0f);
         }
       }
-      for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
-        px_blend(c,i2,(int)dky,168,170,176,0.55f);          /* grazing light */
-        px_blend(c,i2,(int)dky+1,110,112,118,0.35f);
-      }
-      /* the shell's centre seam, faint */
+      soft_hedge(c,dkx,dkx+dkw,dky,1.0f*mm,1.85f,0.10f,1);
       for(int i2=(int)(dkx+2.0f*mm);i2<(int)(dkx+dkw-2.0f*mm);i2++)
-        px_blend(c,i2,(int)(dky+dkh*0.55f),20,20,22,0.35f);
+        px_blend(c,i2,(int)(dky+dkh*0.55f),20,20,22,0.22f);
     }
 
-    /* eject: a CUT opening in the face, the button protruding through it */
+    /* eject: cut opening + protruding cap, eased shine */
     float ew=13.0f*mm, eh=6.0f*mm;
     float ex=x+fw-ew-9.0f*mm, ey=y+16.4f*mm;
     rrect(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,
@@ -397,38 +431,11 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
     chamfer_ring(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,0.7f*mm);
     rrect(c,ex,ey,ew,eh,1.2f*mm,
           (int)(pr*1.08f),(int)(pg*1.08f),(int)(pb*1.08f),1.12f,0.86f);
-    housing_edge(c,ex,ey,ew,eh,1.2f*mm,1.0f*mm,0.6f*mm,1,1.8f);
-    for(int i2=(int)(ex+1.2f*mm);i2<(int)(ex+ew-1.2f*mm);i2++)
-        px_blend(c,i2,(int)(ey+0.6f*mm),255,254,250,0.38f);
+    housing_edge(c,ex,ey,ew,eh,1.2f*mm,1.0f*mm,0.6f*mm,1,1.6f);
+    soft_hedge(c,ex+1.2f*mm,ex+ew-1.2f*mm,ey+0.5f*mm,1.0f*mm,1.16f,0.08f,1);
 
-    /* activity LED: a lens sitting RECESSED in its own hole - dark well
-     * with an overhang shadow, the lens below the face, a soft green glow
-     * bleeding onto the well walls, and a gloss glint on the lens */
-    float lx=x+14.5f*mm, ly=y+17.4f*mm, lw=5.0f*mm, lh=2.4f*mm;
-    rrect(c,lx-0.8f*mm,ly-0.8f*mm,lw+1.6f*mm,lh+1.6f*mm,0.9f*mm,
-          (int)(pr*0.40f),(int)(pg*0.40f),(int)(pb*0.40f),0.80f,1.10f);
-    chamfer_ring(c,lx-0.8f*mm,ly-0.8f*mm,lw+1.6f*mm,lh+1.6f*mm,0.9f*mm,0.5f*mm);
-    for(int i2=(int)(lx-0.8f*mm);i2<(int)(lx+lw+0.8f*mm);i2++)
-        px_blend(c,i2,(int)(ly-0.8f*mm),12,12,11,0.6f);      /* overhang     */
-    for(int j2=(int)ly;j2<(int)(ly+lh);j2++)
-        for(int i2=(int)lx;i2<(int)(lx+lw);i2++){
-            float t2=(float)(j2-ly)/lh;
-            float u2=(float)(i2-lx)/lw;
-            float ctr=1.0f-1.6f*((u2-0.5f)*(u2-0.5f)+(t2-0.45f)*(t2-0.45f));
-            if(ctr<0.55f) ctr=0.55f;
-            px_blend(c,i2,j2,(int)(50*ctr+30),(int)(215*ctr+20),(int)(60*ctr),1.0f);
-        }
-    /* glow bleeding out of the recess onto the well */
-    for(int j2=(int)(ly-0.8f*mm);j2<(int)(ly+lh+0.8f*mm);j2++)
-        for(int i2=(int)(lx-0.8f*mm);i2<(int)(lx+lw+0.8f*mm);i2++){
-            float ddx=(i2-(lx+lw*0.5f))/(lw*0.9f);
-            float ddy=(j2-(ly+lh*0.5f))/(lh*1.4f);
-            float g2=1.0f-(ddx*ddx+ddy*ddy);
-            if(g2>0.0f && (i2<lx||i2>=lx+lw||j2<ly||j2>=ly+lh))
-                px_blend(c,i2,j2,40,190,60,g2*0.28f);
-        }
-    for(int i2=(int)(lx+0.7f*mm);i2<(int)(lx+lw-0.7f*mm);i2++)
-        px_blend(c,i2,(int)(ly+0.35f*mm),235,255,235,0.5f);  /* lens glint  */
+    /* activity light: rectangular window, as in the reference */
+    led_rect(c,x+16.5f*mm,y+18.6f*mm,4.6f*mm,2.2f*mm,70,225,60);
 }
 
 dxm_layout chassis_layout(int W,int H){
