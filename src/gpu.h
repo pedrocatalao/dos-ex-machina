@@ -35,6 +35,7 @@ typedef struct gpu_knobs {
     float persistence;       /* phosphor trail                             */
     float scan;              /* scanline depth                             */
     float vgrid;             /* vertical pixel-column division             */
+    float sharp_text;        /* 1 for the DOS screen, 0 while a game runs  */
     float warp;              /* barrel curvature                           */
     float margin;            /* unlit ring inside the aperture             */
     float aperture_r;        /* aperture corner radius in output px        */

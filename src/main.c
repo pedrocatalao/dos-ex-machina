@@ -118,14 +118,15 @@ int main(int argc,char **argv){
 
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
-     * scan, vgrid, warp, margin, aperture_r, crt_lines, crt_cols */
+     * scan, vgrid, sharp_text, warp, margin, aperture_r,
+     * crt_lines, crt_cols */
     /* The imperfection effects all default to ZERO: a machine in good
      * repair.  Non-zero h-sync and RGB shift in particular put every
      * character at a different sub-pixel phase, which reads as the same
      * glyph having a thin left edge here and a thin right edge there. */
     gpu_knobs k={0.5f, 1.0f, 0.55f, 0.0f, 0.0f, 0.0f, 0.0f,
                  ambient, 0.0f, 0.0f, 0.0f, 0.55f, 0.45f,
-                 0.62f, 0.20f, DXM_WARP, 0.0f, 0.0f, 400, DOS_W};
+                 0.62f, 0.20f, 1.0f, DXM_WARP, 0.0f, 0.0f, 400, DOS_W};
 
     ui_init(&k);
     static char cfgpath[1024];
@@ -246,9 +247,11 @@ int main(int argc,char **argv){
         /* pick the tube source: the running core, or the DOS text screen */
         int cw,ch,cl;
         const uint8_t *src=corehost_running()?corehost_frame(&cw,&ch,&cl):NULL;
-        if(src){ gpu_set_tube(g,src,cw,ch); k.crt_lines=cl; k.crt_cols=cw; }
+        if(src){ gpu_set_tube(g,src,cw,ch); k.crt_lines=cl; k.crt_cols=cw;
+                 k.sharp_text=0.0f; }        /* game art: hard pixels */
         else   { gpu_set_tube(g,dos_render(),DOS_W,DOS_H);
-                 k.crt_lines=400; k.crt_cols=DOS_W; }
+                 k.crt_lines=400; k.crt_cols=DOS_W;
+                 k.sharp_text=1.0f; }        /* text: even stroke weights */
 
         /* GL's origin is bottom-left; chassis_render draws top-down. */
         /* the activity LED follows the drive, with a little flicker so it

@@ -97,19 +97,25 @@ static const char *FS_COMPOSITE =
 "uniform float ledon[2];\n"
 "uniform float ledround[2];\n"
 "uniform float crt_lines, crt_cols, vgrid;\n"
-"uniform vec2  texsize;    // the tube texture, in texels\n"
+"uniform vec2  texsize, texelpx;   // tube texture, and one output pixel\n"
+"uniform float u_sharp;            // 1 on the DOS screen, 0 in a game\n"
 "\n"
 "float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\n"
 "\n"
-"// Sharp-bilinear: keep each source pixel flat across its interior but\n"
-"// give it an edge exactly ONE OUTPUT PIXEL wide, wherever it happens to\n"
-"// fall.  Nearest-neighbour cannot do this - it has to round each edge to\n"
-"// a whole output pixel, so stroke weights vary across the screen.\n"
-"vec2 sharp(vec2 c){\n"
+"// Two sampling regimes, because the two sources want opposite things.\n"
+"// TEXT (8x16 glyphs at ~3x) needs each source pixel to have an edge\n"
+"// exactly one OUTPUT pixel wide, or nearest-neighbour rounds strokes to\n"
+"// whole pixels unevenly and the same glyph gets a fat left edge here\n"
+"// and a fat right edge there.  GAME ART (320x200 at ~6x) wants honest\n"
+"// hard pixels - any smoothing there just reads as lost resolution.\n"
+"// The edge width is passed in rather than taken from fwidth(), which is\n"
+"// undefined inside the non-uniform control flow this runs in.\n"
+"vec2 tap(vec2 c){\n"
 "  vec2 p = c*texsize;\n"
 "  vec2 i = floor(p) + 0.5;\n"
+"  if (u_sharp < 0.5) return i/texsize;      // exactly nearest\n"
 "  vec2 d = p - i;\n"
-"  vec2 w = max(fwidth(p)*0.5, vec2(1e-5));\n"
+"  vec2 w = max(texelpx*0.5, vec2(1e-5));\n"
 "  return (i + clamp(d/w, -1.0, 1.0)*0.5) / texsize;\n"
 "}\n"
 "\n"
@@ -182,9 +188,9 @@ static const char *FS_COMPOSITE =
 "        // grow toward the edges of the tube\n"
 "        vec2 ctr = sb - 0.5;\n"
 "        vec2 sep = ctr * u_rgb * 0.020;\n"
-"        s.r = texture(tube, sharp(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y)))).r;\n"
-"        s.g = texture(tube, sharp(vec2(sb.x,       1.0- sb.y      ))).g;\n"
-"        s.b = texture(tube, sharp(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y)))).b;\n"
+"        s.r = texture(tube, tap(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y)))).r;\n"
+"        s.g = texture(tube, tap(vec2(sb.x,       1.0- sb.y      ))).g;\n"
+"        s.b = texture(tube, tap(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y)))).b;\n"
 "        s = (s - 0.5)*contrast + 0.5 + (bright-0.5)*0.6;\n"
 "        bm = beam(sb.y, px);\n"
 "        bm *= column(sb.x, 1.0/max(rect.z*outsize.x,1.0));\n"
@@ -327,11 +333,9 @@ gpu *gpu_create(int w,int h){
     g->prog_burn=mkprog(FS_BURN);
     g->prog_overlay=mkprog(FS_OVERLAY);
     glGenTextures(1,&g->tex_tube);   glBindTexture(GL_TEXTURE_2D,g->tex_tube);
-    /* LINEAR, not NEAREST: the shader does its own pixel-edge shaping
-     * (see sharp() below).  With NEAREST the source grid lands unevenly on
-     * the output grid - one source pixel covering 3 output pixels and its
-     * neighbour 2 - so the same glyph came out with a fat left edge in one
-     * place and a fat right edge in another. */
+    /* LINEAR, but the shader snaps to texel centres when sharp() is off,
+     * which reproduces NEAREST exactly - so the filter never has to change
+     * between the DOS screen and a running game. */
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
@@ -469,6 +473,10 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
     glUniform2f(glGetUniformLocation(p,"texsize"),
                 (float)g->tube_w,(float)g->tube_h);
+    glUniform2f(glGetUniformLocation(p,"texelpx"),
+                (float)g->tube_w /fmaxf(tw*(float)g->out_w,1.0f),
+                (float)g->tube_h /fmaxf(th*(float)g->out_h,1.0f));
+    glUniform1f(glGetUniformLocation(p,"u_sharp"),k->sharp_text);
     glUniform1f(glGetUniformLocation(p,"vgrid"),k->vgrid);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D,g->tex_burn[g->burn_cur]);
