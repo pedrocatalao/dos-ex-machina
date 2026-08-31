@@ -745,7 +745,7 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
             sh = 1.00f + dev*roll;
             /* contact shadow at the glass: narrow on the bottom (the ref
              * jumps from 102 to 155 in one step there), fuller elsewhere */
-            float cs = 0.46f*(1.0f-0.62f*fmaxf(-niy,0.0f));
+            float cs = 0.30f*(1.0f-0.62f*fmaxf(-niy,0.0f));
             float kc = k*k*k*k;              /* NARROW: the ref jumps from
                                                 contact-dark to lit in one
                                                 sample, not a long ramp */
@@ -758,10 +758,12 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
         px_blend(c,i,j,(int)(PLASTIC_R*(sh+n)+spec*255.0f),
                      (int)(PLASTIC_G*(sh+n)+spec*255.0f),
                      (int)(PLASTIC_B*(sh+n)+spec*255.0f),a);
-        /* the glass sits below the moulding: a real shadow, scaled to the
-         * bezel so it survives at any resolution instead of being 2px */
-        float rw=fmaxf(2.0f,bz*0.13f);
-        if(d<rw) px_blend(c,i,j,8,8,7,0.70f*(1.0f-d/rw));
+        /* The glass sits below the moulding, so there IS a contact line -
+         * but it should be exactly that.  At 0.13 of the bezel it was ~10px
+         * of near-black, which together with the contact-shadow term above
+         * read as a dark blurry band rather than an edge. */
+        float rw=fmaxf(1.5f,bz*0.045f);
+        if(d<rw) px_blend(c,i,j,14,14,13,0.50f*(1.0f-d/rw));
 
       }
     /* ---- the reveal SHOULDER ----
