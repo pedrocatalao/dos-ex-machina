@@ -458,32 +458,106 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
       }
       soft_hedge(c,slx+1.5f*mm,slx+slw-1.5f*mm,sly+slh,1.0f*mm,1.30f,0.04f,1);
     }
-    /* inserted diskette: eased grazing light, soft seam */
+    /* ---- the inserted diskette --------------------------------------
+     * A 3.5" disk is a square with rounded corners; inserted, we see its
+     * trailing edge end-on, so those corners round in from LEFT and RIGHT.
+     * The shell is thicker at the two ends than in the middle, because the
+     * centre section is recessed to take the label - and that label wraps
+     * around the bottom edge, so a pale band shows along the lower half of
+     * the middle. */
     { float dkw=90.0f*mm, dkx=x+(fw-dkw)*0.5f;
-      float dky=sly+1.4f*mm, dkh=slh-2.6f*mm;
-      for(int j2=(int)dky;j2<(int)(dky+dkh);j2++){
-        float t2=(float)(j2-dky)/dkh;
-        int v=(int)(62.0f-24.0f*t2);
-        for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
+      float dky=sly+1.2f*mm, dkh=slh-2.4f*mm;
+      float corner=2.6f*mm;                  /* the shell's rounded corners */
+      float recess=0.5f*mm;                  /* label recess in the middle  */
+      float lab_x0=dkx+11.0f*mm, lab_x1=dkx+dkw-11.0f*mm;
+      for(int i2=(int)dkx;i2<(int)(dkx+dkw);i2++){
+        float fx=(float)i2-dkx;
+        /* The shell's rounded ends curve AWAY from the viewer, so they
+         * shade off toward each end exactly as the chassis side bars do -
+         * a cosine falloff, not a change in height. */
+        float ce = fminf(fx, dkw-1.0f-fx);
+        float u  = (ce<corner) ? (1.0f-ce/corner) : 0.0f;   /* 0 flat, 1 end */
+        float curve = 0.40f + 0.60f*cosf(u*1.30f);
+        /* the ends are FULL height; the middle is recessed for the label */
+        int inLabel = (i2>=(int)lab_x0 && i2<(int)lab_x1);
+        float top = dky + (inLabel? recess : 0.0f);
+        float bot = dky + dkh - (inLabel? recess*0.5f : 0.0f);
+        for(int j2=(int)top;j2<(int)bot;j2++){
+            float t2=(bot>top)?((float)j2-top)/(bot-top):0.0f;
             float n=hash2(i2,j2,7)*5.0f;
-            px_blend(c,i2,j2,(int)(v+n),(int)(v+n),(int)(v+n+4),1.0f);
+            int r2,g2,b2;
+            if(inLabel && t2>0.42f){
+                /* the paper label, wrapped around the bottom edge */
+                float lt=(t2-0.42f)/0.58f;
+                int v=(int)(196.0f-46.0f*lt);
+                r2=v; g2=(int)(v*0.985f); b2=(int)(v*0.92f);   /* warm paper */
+            } else {
+                int v=(int)(60.0f-22.0f*t2);                   /* dark shell */
+                r2=v; g2=v; b2=v+4;
+            }
+            px_blend(c,i2,j2,(int)((r2+n)*curve),(int)((g2+n)*curve),
+                     (int)((b2+n)*curve),1.0f);
         }
+        /* grazing light along the disk's top edge */
+        px_blend(c,i2,(int)top,   (int)(210*curve),(int)(210*curve),
+                 (int)(216*curve),0.55f);
+        px_blend(c,i2,(int)top+1, (int)(150*curve),(int)(150*curve),
+                 (int)(156*curve),0.30f);
+        /* and the shadow it casts into the slot below itself */
+        px_blend(c,i2,(int)bot-1, 12,12,14,0.45f);
       }
-      soft_hedge(c,dkx,dkx+dkw,dky,1.0f*mm,1.85f,0.10f,1);
-      for(int i2=(int)(dkx+2.0f*mm);i2<(int)(dkx+dkw-2.0f*mm);i2++)
-        px_blend(c,i2,(int)(dky+dkh*0.55f),20,20,22,0.22f);
+      /* the step where the recessed label area meets the thicker ends */
+      for(int e=0;e<2;e++){
+        float ex2 = e? lab_x1 : lab_x0;
+        for(int j2=(int)(dky);j2<(int)(dky+dkh);j2++)
+            px_blend(c,(int)ex2,j2,18,18,20,0.35f);
+      }
     }
 
     /* eject: cut opening + protruding cap, eased shine */
-    float ew=13.0f*mm, eh=6.0f*mm;
-    float ex=x+fw-ew-9.0f*mm, ey=y+16.4f*mm;
-    rrect(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,
-          (int)(pr*0.48f),(int)(pg*0.48f),(int)(pb*0.48f),0.90f,1.02f);
-    chamfer_ring(c,ex-0.8f*mm,ey-0.8f*mm,ew+1.6f*mm,eh+1.6f*mm,1.5f*mm,0.7f*mm);
-    rrect(c,ex,ey,ew,eh,1.2f*mm,
-          (int)(pr*1.08f),(int)(pg*1.08f),(int)(pb*1.08f),1.12f,0.86f);
-    housing_edge(c,ex,ey,ew,eh,1.2f*mm,1.0f*mm,0.6f*mm,1,1.6f);
-    soft_hedge(c,ex+1.2f*mm,ex+ew-1.2f*mm,ey+0.5f*mm,1.0f*mm,1.16f,0.08f,1);
+    /* Eject button, matched to a photograph of a real drive: a rounded cap
+     * standing in its opening, outlined by a THIN dark gap all round - a
+     * fine line, not a frame - with the cap face LIGHTER than the
+     * surrounding plastic and carrying a soft top-to-bottom gradient.
+     * There is no cast shadow and no exposed stem: the whole cue is that
+     * hairline gap plus the cap being brighter than its surroundings. */
+    float ew=11.6f*mm, eh=5.3f*mm;
+    float ex=x+fw-ew-9.0f*mm, ey=y+16.2f*mm;
+    float gap=0.40f*mm;                       /* the dark outline */
+
+    float top=1.45f*mm;                       /* how far it stands proud */
+
+    /* the opening, taller than the cap so the recess shows above it */
+    /* square corners: a rounded cap never lined up cleanly with the
+     * trapezoid top face, and the button reads fine as a plain rectangle */
+    rrect(c,ex-gap,ey-gap-top,ew+gap*2,eh+gap*2+top,0.0f,
+          (int)(pr*0.40f),(int)(pg*0.40f),(int)(pb*0.40f),0.95f,1.0f);
+
+    /* PERSPECTIVE: the drive sits below eye level, so we look slightly down
+     * on it and see the button's TOP FACE - a thin lit band above the front
+     * face, drawn as a shallow trapezoid (narrowing with distance) and
+     * bright because it faces up toward the light.  Without this the cap
+     * reads as flush no matter how the gap is drawn. */
+    for(int k=0;k<(int)top;k++){
+        float u=(float)k/top;                 /* 0 at the front, 1 far edge */
+        float inset=u*0.9f*mm;                /* the trapezoid narrowing    */
+        float sh=1.30f-0.16f*u;               /* lit, easing back           */
+        int yy=(int)(ey-k);
+        for(int i2=(int)(ex+inset);i2<(int)(ex+ew-inset);i2++){
+            float n=plastic_tex(i2,yy);
+            px_blend(c,i2,yy,(int)(pr*(sh+n)),(int)(pg*(sh+n)),
+                     (int)(pb*(sh+n)),1.0f);
+        }
+    }
+    /* the crease where the top face turns into the front face */
+    for(int i2=(int)ex;i2<(int)(ex+ew);i2++)
+        px_blend(c,i2,(int)ey,255,252,246,0.30f);
+
+    /* the cap: brighter than the case, gradient bright top -> softer bottom */
+    rrect(c,ex,ey,ew,eh,0.0f,
+          (int)(pr*1.10f),(int)(pg*1.10f),(int)(pb*1.10f),1.10f,0.94f);
+    /* gentle roll on its edges - enough to shape it, not to outline it */
+    housing_edge(c,ex,ey,ew,eh,0.0f,0.9f*mm,0.0f,1,0.9f);
 
     /* activity light: rectangular window, as in the reference */
     led_rect(c,x+16.5f*mm,y+18.6f*mm,4.6f*mm,2.2f*mm, 26,44,26);  /* UNLIT */
