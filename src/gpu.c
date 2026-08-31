@@ -85,7 +85,7 @@ static const char *FS_COMPOSITE =
 "uniform vec3  ledcol[2];\n"
 "uniform float ledon[2];\n"
 "uniform float ledround[2];\n"
-"uniform float crt_lines;\n"
+"uniform float crt_lines, crt_cols, vgrid;\n"
 "\n"
 "vec2 barrel(vec2 p){\n"
 "  vec2 c = p*2.0-1.0;\n"
@@ -102,6 +102,17 @@ static const char *FS_COMPOSITE =
 "  float w = clamp(px*crt_lines, 0.6, 4.0);\n"
 "  float g = exp(-d*d*3.0/ (w*0.55));\n"
 "  return mix(1.0, g, scan);\n"
+"}\n"
+"// The same footprint-integrated profile applied ACROSS the line, so the\n"
+"// source pixel COLUMNS show as well as the scanlines.  Integrating over\n"
+"// the footprint is what stops it moireing when the tube width is not a\n"
+"// clean multiple of the source width.\n"
+"float column(float x, float px){\n"
+"  float c = x*crt_cols;\n"
+"  float d = abs(fract(c)-0.5)*2.0;\n"
+"  float w = clamp(px*crt_cols, 0.6, 4.0);\n"
+"  float g = exp(-d*d*3.0/ (w*0.62));\n"
+"  return mix(1.0, g, vgrid);\n"
 "}\n"
 "void main(){\n"
 "  vec3 plastic = texture(chassis, vec2(uv.x, 1.0-uv.y)).rgb;\n"
@@ -136,6 +147,7 @@ static const char *FS_COMPOSITE =
 "        s = texture(tube, vec2(sb.x, 1.0-sb.y)).rgb;\n"
 "        s = (s - 0.5)*contrast + 0.5 + (bright-0.5)*0.6;\n"
 "        bm = beam(sb.y, px);\n"
+"        bm *= column(sb.x, 1.0/max(rect.z*outsize.x,1.0));\n"
 "      }\n"
 "      // aperture-grille triad, pinned to OUTPUT pixels, across the whole\n"
 "      // faceplate - the phosphor grid does not stop at the raster edge\n"
@@ -147,7 +159,7 @@ static const char *FS_COMPOSITE =
 "      // glow spills past the raster onto the unlit border, fading with\n"
 "      // distance - this is what stops the margin reading as dead black\n"
 "      vec3 bl = texture(bloom, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += bl*glow*0.62*exp(-outd*11.0)*mask;\n"
+"      col += bl*glow*0.34*exp(-outd*11.0)*mask;\n"
 "      vec2 c2 = b*2.0-1.0;\n"
 "      col *= 1.0 - 0.30*dot(c2,c2)*0.5;\n"
 "      col += ambient*0.016*vec3(0.9,0.95,1.0);\n"
@@ -292,6 +304,16 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
     glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,1.4f/BLOOM_H);
     pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
+    /* A single pass at this resolution still carries the glyph shapes - a
+     * character is a few bloom texels across, so the kernel cannot round it
+     * off.  Two more, wider passes turn the glow into a soft halo that no
+     * longer traces the letterforms. */
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.9f/BLOOM_W,0);
+    pass(g,g->prog_blur,g->fbo_bloom,BLOOM_W,BLOOM_H);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
+    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.9f/BLOOM_H);
+    pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
     /* spill: downsample hard, then blur again — soft enough not to streak */
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
     glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.6f/SPILL_W,0);
@@ -324,6 +346,8 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);
     glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
     glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
+    glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
+    glUniform1f(glGetUniformLocation(p,"vgrid"),k->vgrid);
     glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
 }
 uint8_t *gpu_readback(gpu *g,int *w,int *h){

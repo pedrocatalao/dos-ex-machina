@@ -23,7 +23,9 @@ typedef struct gpu_knobs {
     float warp;              /* barrel curvature                            */
     float margin;            /* unlit ring inside the aperture (0..0.1)     */
     float aperture_r;        /* aperture corner radius in output px         */
+    float vgrid;             /* vertical pixel-column division, 0..1        */
     int   crt_lines;         /* physical scanlines for this mode (§2.2)     */
+    int   crt_cols;          /* source pixel columns, for the vertical grid */
 } gpu_knobs;
 
 /* tube rect in output pixels, and the whole composite */

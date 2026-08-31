@@ -115,9 +115,10 @@ int main(int argc,char **argv){
 
     /* bright, contrast, ambient, glow, persistence, scan, warp,
      * margin (0: no gap between the moulding and the picture),
-     * aperture_r (set per frame from the layout), crt_lines */
+     * aperture_r (set per frame from the layout),
+     * vgrid, crt_lines, crt_cols */
     gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.85f,DXM_WARP,
-                 0.0f, 0.0f, 400};
+                 0.0f, 0.0f, 0.30f, 400, DOS_W};
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=0;
     while(!quit){
@@ -220,8 +221,9 @@ int main(int argc,char **argv){
         /* pick the tube source: the running core, or the DOS text screen */
         int cw,ch,cl;
         const uint8_t *src=corehost_running()?corehost_frame(&cw,&ch,&cl):NULL;
-        if(src){ gpu_set_tube(g,src,cw,ch); k.crt_lines=cl; }
-        else   { gpu_set_tube(g,dos_render(),DOS_W,DOS_H); k.crt_lines=400; }
+        if(src){ gpu_set_tube(g,src,cw,ch); k.crt_lines=cl; k.crt_cols=cw; }
+        else   { gpu_set_tube(g,dos_render(),DOS_W,DOS_H);
+                 k.crt_lines=400; k.crt_cols=DOS_W; }
 
         /* GL's origin is bottom-left; chassis_render draws top-down. */
         /* the activity LED follows the drive, with a little flicker so it
