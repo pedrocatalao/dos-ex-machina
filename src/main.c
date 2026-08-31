@@ -118,7 +118,7 @@ int main(int argc,char **argv){
 
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
-     * scan, vgrid, sharp_text, warp, margin, aperture_r,
+     * scan, vgrid, sharp_text, warp, margin, overscan, aperture_r,
      * crt_lines, crt_cols */
     /* The imperfection effects all default to ZERO: a machine in good
      * repair.  Non-zero h-sync and RGB shift in particular put every
@@ -126,7 +126,7 @@ int main(int argc,char **argv){
      * glyph having a thin left edge here and a thin right edge there. */
     gpu_knobs k={0.5f, 1.0f, 0.55f, 0.0f, 0.0f, 0.0f, 0.0f,
                  ambient, 0.0f, 0.0f, 0.0f, 0.55f, 0.45f,
-                 0.62f, 0.20f, 1.0f, DXM_WARP, 0.0f, 0.0f, 400, DOS_W};
+                 0.62f, 0.20f, 1.0f, DXM_WARP, 0.0f, 1.0f, 0.0f, 400, DOS_W};
 
     ui_init(&k);
     static char cfgpath[1024];

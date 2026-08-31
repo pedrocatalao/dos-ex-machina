@@ -99,6 +99,7 @@ static const char *FS_COMPOSITE =
 "uniform float crt_lines, crt_cols, vgrid;\n"
 "uniform vec2  texsize, texelpx;   // tube texture, and one output pixel\n"
 "uniform float u_sharp;            // 1 on the DOS screen, 0 in a game\n"
+"uniform float u_overscan;         // picture overflow, in OUTPUT pixels\n"
 "\n"
 "float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }\n"
 "\n"
@@ -173,9 +174,17 @@ static const char *FS_COMPOSITE =
 "    vec2 qq     = apx - (halfpx - aper_r);\n"
 "    float asd   = (qq.x>0.0 && qq.y>0.0) ? length(qq)-aper_r\n"
 "                                         : max(apx.x-halfpx.x, apx.y-halfpx.y);\n"
-"    if (asd <= 0.0) {\n"
+"    // The GLASS REGION opens outward by the overscan, so lit content\n"
+"    // actually reaches under the moulding.  Scaling the sample alone did\n"
+"    // nothing visible: the boundary stayed exactly where it was.\n"
+"    if (asd <= u_overscan) {\n"
 "      inside = 1.0;\n"
-"      vec2 sb = (b - 0.5)/max(1.0 - 2.0*margin, 1e-3) + 0.5;\n"
+"      // Overscan: push the picture a little PAST the aperture so its\n"
+"      // edge is tucked under the moulding instead of ending exactly at\n"
+"      // it.  Real sets always overscanned; it also means no seam can\n"
+"      // show between the last lit pixel and the dish.\n"
+"      vec2 e = u_overscan / max(rect.zw*outsize*0.5, vec2(1.0));\n"
+"      vec2 sb = (b - 0.5)/(1.0 + e)/max(1.0 - 2.0*margin, 1e-3) + 0.5;\n"
 "      vec2 cb = clamp(sb, 0.0, 1.0);\n"
 "      vec2 od = max(max(-sb, sb - vec2(1.0)), vec2(0.0));\n"
 "      float outd = length(od);          // 0 inside the raster\n"
@@ -477,6 +486,7 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
                 (float)g->tube_w /fmaxf(tw*(float)g->out_w,1.0f),
                 (float)g->tube_h /fmaxf(th*(float)g->out_h,1.0f));
     glUniform1f(glGetUniformLocation(p,"u_sharp"),k->sharp_text);
+    glUniform1f(glGetUniformLocation(p,"u_overscan"),k->overscan);
     glUniform1f(glGetUniformLocation(p,"vgrid"),k->vgrid);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D,g->tex_burn[g->burn_cur]);

@@ -38,6 +38,7 @@ typedef struct gpu_knobs {
     float sharp_text;        /* 1 for the DOS screen, 0 while a game runs  */
     float warp;              /* barrel curvature                           */
     float margin;            /* unlit ring inside the aperture             */
+    float overscan;          /* picture overflow past it, in output px     */
     float aperture_r;        /* aperture corner radius in output px        */
     int   crt_lines;         /* physical scanlines for this mode           */
     int   crt_cols;          /* source pixel columns                       */
