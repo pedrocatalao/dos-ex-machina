@@ -25,6 +25,8 @@
 #define BEZEL_BAND    0.076f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
 #define BEZEL_R_MID   0.042f   /* shoulder corner radius                    */
+#define FILLET_START     0.88f  /* where the shoulder roll begins,
+                                 * as a fraction across the dish  */
 #define BEZEL_R_MID_WARP 0.45f /* the shoulder follows the tube's curvature  */
                                /* only PARTLY - the moulding flattens as it  */
                                /* moves out from the glass, but it does not  */
@@ -725,20 +727,22 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
             float niy = (gl>1e-4f)? -gy/gl : 0.0f;   /* inward normal, y */
             float nix = (gl>1e-4f)? -gx/gl : 0.0f;
             float k=1.0f-t;                   /* 1 at the glass, 0 at shoulder */
-            sh = 1.00f + lam*0.05f;
-            /* The top wall was lit at 0.40 from a reading of the reference,
-             * but it faces DOWN, away from an overhead light - it should
-             * only catch a little bounce, not read as the brightest part of
-             * the moulding. */
-            sh += fmaxf(niy,0.0f)*0.13f;                   /* top wall,
-                                                              evenly - the ref
-                                                              is bright right
-                                                              off the glass  */
-            sh -= fabsf(nix)*0.32f;                        /* side walls dark,
-                                                              FLAT like the ref
-                                                              (~90-115 held)  */
-            /* groove where the lit top wall meets the shoulder */
-            if(t>0.80f) sh -= fmaxf(niy,0.0f)*0.30f*(t-0.80f)/0.20f;
+            /* The wall's own shading, at FULL strength across the dish. */
+            float dev = lam*0.05f;
+            dev += fmaxf(niy,0.0f)*0.13f;       /* top wall: a little bounce */
+            dev -= fabsf(nix)*0.32f;            /* side walls rake away      */
+            /* (a 'groove' term used to subtract light here wherever the
+             * wall faced down - i.e. precisely the top of the dish as it
+             * met the shoulder.  That was the dark band; the shoulder is a
+             * convex edge and should catch light there, not lose it.) */
+            /* ROUNDED SHOULDER: only the last stretch before the flat face
+             * rolls off, so the corner is a fillet instead of a crease.  The
+             * dish keeps its depth - fading this across the whole wall (an
+             * earlier attempt) just flattened the recess. */
+            float fu=(t-FILLET_START)/(1.0f-FILLET_START);
+            if(fu<0.0f) fu=0.0f; if(fu>1.0f) fu=1.0f;
+            float roll=1.0f-fu*fu*(3.0f-2.0f*fu);
+            sh = 1.00f + dev*roll;
             /* contact shadow at the glass: narrow on the bottom (the ref
              * jumps from 102 to 155 in one step there), fuller elsewhere */
             float cs = 0.46f*(1.0f-0.62f*fmaxf(-niy,0.0f));
@@ -766,17 +770,19 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
      * along the top and drops into shadow along the bottom.  This is the
      * edge that gives the bezel its depth; putting the highlight out at the
      * chassis boundary instead was simply the wrong edge. */
-    float fw=fmaxf(2.0f,bz*0.30f);
+    float fw=fmaxf(2.0f,bz*0.42f);   /* a wider roll, so the corner reads round */
     for(int j=(int)(L->tube_y-m);j<(int)(L->tube_y+L->tube_h+m);j++)
       for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
         if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) continue;
         /* same shoulder the band is cut against, or the highlight sits
          * off the edge it is lighting */
         float dq=shoulder_sd(L,(float)i,(float)j,rmid,bz);
-        /* ONLY between the shoulder and the glass.  This used to run to
-         * +fw as well, putting the highlight on the flat moulding face
-         * outside the reveal - the flat face must stay uniform. */
-        if(dq>0.0f || dq<-fw) continue;
+        /* A rounded edge STRADDLES the boundary.  Clamping this to dq<=0
+         * meant the profile peaked exactly at the shoulder and stopped
+         * dead - which on the side where that peak is a darkening showed
+         * as a crisp line against the flat face. */
+        float outw=fw*0.55f;
+        if(dq<-fw || dq>outw) continue;
         float gx=shoulder_sd(L,(float)i+1,(float)j,rmid,bz)
                 -shoulder_sd(L,(float)i-1,(float)j,rmid,bz);
         float gy=shoulder_sd(L,(float)i,(float)j+1,rmid,bz)
@@ -788,11 +794,19 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
          * inward normal, not the outward one. */
         float nx=-gx/gl, ny=-gy/gl;        /* inward, toward the glass */
         float lam=nx*LIGHT_X+ny*LIGHT_Y;
-        float prof=1.0f+dq/fw;          /* 1 at the shoulder, 0 into the wall */
+        float prof = (dq<0.0f) ? (1.0f+dq/fw)      /* into the dish  */
+                               : (1.0f-dq/outw);   /* onto the face  */
         prof*=prof;
+        /* Only ever ADD light.  The signed term darkened the shoulder on
+         * the side facing away from the light, which showed as a shadow
+         * band along the top of the transition - a fillet that catches a
+         * highlight on one side should not carve a shadow on the other. */
+        /* A convex fillet presents every angle to the light, so it picks
+         * up a catch the whole way round - more on the side facing the
+         * source, but never nothing. */
         float sp=fmaxf(lam,0.0f);
-        /* the shoulder is a soft break, not a chrome edge */
-        px_shade(c,i,j,1.0f+lam*prof*0.10f,powf(sp,9.0f)*prof*0.10f);
+        px_shade(c,i,j,1.0f+(0.055f+sp*0.10f)*prof,
+                 powf(sp,9.0f)*prof*0.10f);
       }
 }
 
