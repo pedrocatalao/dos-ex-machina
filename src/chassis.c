@@ -154,19 +154,35 @@ static void text(canvas *c,float x,float y,const char *s,float sc,int r,int g,in
     }
 }
 static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
-    /* sits in a moulded well, so it gets a dark ring and a hot centre */
-    for(int j=(int)(cy-rad*2.2f);j<=(int)(cy+rad*2.2f);j++)
-        for(int i=(int)(cx-rad*2.2f);i<=(int)(cx+rad*2.2f);i++){
-            float dx=i-cx,dy=j-cy,d=sqrtf(dx*dx+dy*dy);
-            if(d<rad*1.65f && d>=rad*0.95f) px_blend(c,i,j,40,38,34,0.55f);
+    /* Matched to the reference PNG's LEDs at 16x magnification:
+     *  - a THIN dark outline hugging the lens (heavier at the top), not a
+     *    wide mounting ring
+     *  - a saturated, fairly uniform body, deepening toward lower-right
+     *  - a soft whitish hot spot in the upper-left quarter
+     *  - NO glow halo on the surrounding plastic                        */
+    for(int j2=(int)(cy-rad*1.25f);j2<=(int)(cy+rad*1.25f);j2++)
+        for(int i2=(int)(cx-rad*1.25f);i2<=(int)(cx+rad*1.25f);i2++){
+            float dx=(i2-cx)/rad, dy=(j2-cy)/rad;
+            float d=sqrtf(dx*dx+dy*dy);
+            if(d>1.22f) continue;
+            if(d>0.92f){                          /* thin outline */
+                float a=1.0f-fmaxf(0.0f,(d-1.05f)/0.17f);
+                a*=fminf(1.0f,(d-0.86f)/0.10f);
+                float top=(dy<0.0f)?1.0f:0.72f;   /* heavier above */
+                px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+                continue;
+            }
+            /* body: uniform, deepening to lower-right */
+            float f=0.94f-0.22f*fmaxf(0.0f,(dx+dy)*0.5f);
+            if(d>0.72f) f*=1.0f-(d-0.72f)/0.28f*0.30f;
+            /* hot spot up-left: soft gaussian, whitening not just brightening */
+            float hx=(dx+0.30f)/0.42f, hy=(dy+0.32f)/0.42f;
+            float w2=expf(-(hx*hx+hy*hy));
+            int rr=(int)(r*f+(255-r*f)*w2);
+            int gg=(int)(g*f+(255-g*f)*w2);
+            int bb=(int)(b*f+(255-b*f)*w2*0.9f);
+            px_blend(c,i2,j2,rr,gg,bb,1.0f);
         }
-    for(int j=(int)(cy-rad-2);j<=(int)(cy+rad+2);j++)
-        for(int i=(int)(cx-rad-2);i<=(int)(cx+rad+2);i++){
-            float dx=i-cx,dy=j-cy,d=sqrtf(dx*dx+dy*dy);
-            if(d<=rad)          px_blend(c,i,j,r,g,b,1.0f);
-            else if(d<rad+2.0f) px_blend(c,i,j,r,g,b,0.28f*(rad+2.0f-d));
-        }
-    px_blend(c,(int)(cx-rad*0.3f),(int)(cy-rad*0.3f),255,255,255,0.55f);
 }
 
 /* ---- moulded modules ---- */
@@ -208,21 +224,6 @@ static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
         /* the thinnest lit line under each rib, or the slats read as paint */
         for(int i2=(int)(x+slot);i2<(int)(x+w-slot);i2++)
             px_blend(c,i2,(int)(sy+slot),252,250,244,0.15f);
-    }
-}
-/* thin vent slots straight into flat plastic (case breathing holes) */
-static void vents(canvas *c,float x,float y,float w,float h,int n,int vertical){
-    if(n<1) n=1;
-    float step=(vertical?w:h)/n, slot=fmaxf(1.2f,step*0.40f);
-    for(int k=0;k<n;k++){
-        float o=(vertical?x:y)+k*step+step*0.30f;
-        for(int t=0;t<(int)slot;t++){
-            float f=(float)t/slot; int v=(int)(34+26*f);
-            if(vertical) for(int j=(int)y;j<(int)(y+h);j++) px_blend(c,(int)o+t,j,v,v-1,v-3,0.80f);
-            else        for(int i=(int)x;i<(int)(x+w);i++) px_blend(c,i,(int)o+t,v,v-1,v-3,0.80f);
-        }
-        if(vertical) for(int j=(int)y;j<(int)(y+h);j++) px_blend(c,(int)(o+slot),j,255,252,244,0.26f);
-        else        for(int i=(int)x;i<(int)(x+w);i++) px_blend(c,i,(int)(o+slot),255,252,244,0.26f);
     }
 }
 static void seam(canvas *c,float x,float y,float len,int vertical,float w){
@@ -434,7 +435,7 @@ dxm_layout chassis_layout(int W,int H){
     dxm_layout L; float aspect=(float)W/(float)H;
     L.variant = aspect<1.45f?LAY_COMPACT : (aspect<1.85f?LAY_STANDARD:LAY_STEREO);
     L.cx=0; L.cy=0; L.cw=(float)W; L.ch=(float)H;
-    float edge=W*0.016f, inset=H*0.052f;
+    float edge=W*0.024f, inset=H*0.052f;
     /* the monitor housing is chunky: it wraps the picture by BEZEL_HOUSING
      * on every side, and the layout has to budget for it */
     float th=((float)H-inset)*0.735f, tw=th*4.0f/3.0f;   /* slimmer band */
@@ -620,17 +621,17 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
     canvas C; C.w=W; C.h=H; C.px=calloc((size_t)W*H,4);
     canvas *c=&C;
     g_lbl=fmaxf(1.0f,(float)H/760.0f);
-    float inset=H*0.052f, edge=W*0.016f;
+    float inset=H*0.052f, edge=W*0.024f;
     float bz=L->tube_h*BEZEL_BAND;      /* measured off the reference */
     float hous=L->tube_h*BEZEL_HOUSING;
 
     rrect(c,0,0,(float)W,(float)H,0.0f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.03f,0.90f);
 
-    /* ribbed edge strips */
-    vents(c,edge*0.20f,inset*0.5f,edge*0.60f,H-inset,(int)((H-inset)/(H*0.017f)),1);
-    vents(c,W-edge*0.80f,inset*0.5f,edge*0.60f,H-inset,(int)((H-inset)/(H*0.017f)),1);
-    seam(c,edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
-    seam(c,W-edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
+    /* Edge strips: plain plastic, separated from the face by a seam. */
+    {
+      seam(c,edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
+      seam(c,(float)W-edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
+    }
 
     /* bezel band -> aperture -> glass.  The housing face itself is NOT
      * repainted: it is flush with the case, and giving it its own plate with
@@ -684,23 +685,15 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
         float px0=pbx+pbw+inset*0.85f;
         float pw=16.0f*mm;                       /* a 16mm power cap */
         text(c,px0,mid-pw*0.39f-g_lbl*11,"POWER",g_lbl,86,82,74);
-        rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,88,85,78,0.62f,0.70f);
-        housing_edge(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,
-                     fmaxf(2.0f,pw*0.08f),fmaxf(2.0f,pw*0.07f),0,1.0f);
-        rrect(c,px0+pw*0.10f,mid-pw*0.39f+pw*0.08f,pw*0.80f,pw*0.62f,pw*0.08f,
+        /* thin cut around the button, cap nearly filling it */
+        rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,64,61,56,0.80f,0.92f);
+        rrect(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,pw*0.08f,
               PLASTIC_R,PLASTIC_G,PLASTIC_B,1.16f,0.84f);
-        bevel(c,px0+pw*0.10f,mid-pw*0.39f+pw*0.08f,pw*0.80f,pw*0.62f,
+        bevel(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,
               fmaxf(1.0f,pw*0.06f),1);
-        { float lx=px0+pw+inset*0.75f;
-          float lstep=fmaxf(band_h*0.16f,13.0f*g_lbl);
-          float ly=mid-lstep*1.35f;
-          const char *lab[3]={"POWER","H.D.D.","FLOPPY"};
-          int lc[3][3]={{60,255,90},{255,175,40},{60,255,90}};
-          for(int k=0;k<3;k++){
-              text(c,lx,ly+k*lstep,lab[k],g_lbl,86,82,74);
-              led(c,lx+8.0f*g_lbl*8.2f,ly+k*lstep+4*g_lbl,
-                  fmaxf(2.0f,inset*0.070f),lc[k][0],lc[k][1],lc[k][2]);
-          } }
+        /* power LED: a small round lens under the button */
+        led(c,px0+pw*0.5f,mid-pw*0.39f+pw*0.78f+fmaxf(4.0f,band_h*0.09f),
+            1.35f*mm,70,225,60);
 
         /* centre: stereo sound, volume, phones */
         float cxm=(float)W*0.5f;
