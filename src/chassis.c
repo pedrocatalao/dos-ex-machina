@@ -887,8 +887,11 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         text(c,px0,mid-pw*0.39f-g_lbl*11,"POWER",g_lbl,86,82,74);
         /* thin cut around the button, cap nearly filling it */
         rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,64,61,56,0.80f,0.92f);
+        /* the cap is moulded in the same darker brown as the drive, not in
+         * the case colour - the same multipliers floppy_drive() uses */
         rrect(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,pw*0.08f,
-              PLASTIC_R,PLASTIC_G,PLASTIC_B,1.16f,0.84f);
+              (int)(PLASTIC_R*0.74f),(int)(PLASTIC_G*0.72f),
+              (int)(PLASTIC_B*0.76f),1.16f,0.84f);
         bevel(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,
               fmaxf(1.0f,pw*0.06f),1);
         /* power LED: a small round lens under the button */
