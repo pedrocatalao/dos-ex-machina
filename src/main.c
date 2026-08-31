@@ -117,8 +117,8 @@ int main(int argc,char **argv){
      * margin (0: no gap between the moulding and the picture),
      * aperture_r (set per frame from the layout),
      * vgrid, crt_lines, crt_cols */
-    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.85f,DXM_WARP,
-                 0.0f, 0.0f, 0.30f, 400, DOS_W};
+    gpu_knobs k={0.5f,1.0f,ambient,0.55f,0.45f,0.62f,DXM_WARP,
+                 0.0f, 0.0f, 0.20f, 400, DOS_W};
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=0;
     while(!quit){

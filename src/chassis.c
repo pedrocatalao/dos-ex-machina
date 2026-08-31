@@ -9,7 +9,7 @@
 #include "crt.h"
 
 /* ---- chassis_params: every dimension and colour in one place (SPEC §5) --- */
-#define RELIEF  2.5f          /* embossed grain depth */
+#define RELIEF  2.0f          /* embossed grain depth */
 #define LIGHT_X (-0.42f)
 #define LIGHT_Y (-0.91f)
 
