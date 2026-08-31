@@ -282,13 +282,24 @@ static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
      * faint lit lip on the plastic below, soft anti-aliased rim. */
     float ccx=x+w*0.5f, ccy=y+h*0.5f;
     float hw=w*0.40f, hh=h*0.44f;
-    float crad=fminf(hw,hh)*0.09f;      /* rectangular, corners just eased */
+    float crad=fminf(hw,hh)*0.16f;      /* rectangular, corners just eased */
     float hp=fmaxf(2.0f,pitch*0.21f);            /* hole pitch  */
     float hr=hp*0.25f;                           /* hole radius */
-    int row=0;
-    for(float cy2=y+hp; cy2<y+h-hp*0.5f; cy2+=hp*0.87f,row++){
-        float ox=(row&1)? hp*0.5f : 0.0f;
-        for(float cx2=x+hp+ox; cx2<x+w-hp*0.5f; cx2+=hp){
+    /* The grid is CENTRED on the panel, not run left-to-right until it
+     * runs out - otherwise the leftover margin differs from the starting
+     * one and each grille comes out lopsided.  Rows alternate between n and
+     * n-1 columns, which gives the hex offset while keeping every row
+     * symmetric about the centre. */
+    float rowstep = hp*0.87f;
+    int nrow = (int)floorf((hh*2.0f)/rowstep);
+    int ncol = (int)floorf((hw*2.0f)/hp);
+    if(nrow<1) nrow=1;
+    if(ncol<1) ncol=1;
+    for(int row=0; row<nrow; row++){
+        float cy2 = ccy + (row - (nrow-1)*0.5f)*rowstep;
+        int n = (row&1) ? ncol-1 : ncol;
+        for(int ci=0; ci<n; ci++){
+            float cx2 = ccx + (ci - (n-1)*0.5f)*hp;
             /* only holes fully inside the capsule */
             if(rr_sd(cx2,cy2,ccx,ccy,hw,hh,crad) > -hr*1.2f) continue;
             /* At this pitch a hole spans only a few pixels, so shade it by
