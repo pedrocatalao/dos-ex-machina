@@ -526,12 +526,32 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float gap=0.40f*mm;                       /* the dark outline */
 
     float top=1.45f*mm;                       /* how far it stands proud */
+    float rad=0.30f*mm;                       /* barely-there corner ease  */
 
-    /* the opening, taller than the cap so the recess shows above it */
-    /* square corners: a rounded cap never lined up cleanly with the
-     * trapezoid top face, and the button reads fine as a plain rectangle */
-    rrect(c,ex-gap,ey-gap-top,ew+gap*2,eh+gap*2+top,0.0f,
-          (int)(pr*0.40f),(int)(pg*0.40f),(int)(pb*0.40f),0.95f,1.0f);
+    /* Only the RECESS ABOVE the cap is dark - that is the opening the
+     * button has come out of.  The sides and bottom get no outline: the
+     * cap simply sits on the face there, and a soft shadow underneath does
+     * the work instead. */
+    rrect(c,ex-gap,ey-gap-top,ew+gap*2,gap+top,rad,
+          (int)(pr*0.44f),(int)(pg*0.44f),(int)(pb*0.44f),0.92f,1.0f);
+
+    /* soft blurred shadow cast below the extended cap.  Two passes of a
+     * widening, fading band read as penumbra rather than a drawn line. */
+    for(int k=0;k<(int)(2.2f*mm);k++){
+        float u=(float)k/(2.2f*mm);
+        float a=(1.0f-u)*(1.0f-u)*0.34f;
+        float spread=u*1.4f*mm;
+        int yy=(int)(ey+eh)+k;
+        for(int i2=(int)(ex-spread);i2<(int)(ex+ew+spread);i2++){
+            /* fade the shadow off toward its ends so it has no hard edge */
+            float e=1.0f;
+            float dl=(i2-(ex-spread))/(1.6f*mm), dr=((ex+ew+spread)-i2)/(1.6f*mm);
+            if(dl<1.0f) e=dl;
+            if(dr<1.0f) e=fminf(e,dr);
+            if(e<=0.0f) continue;
+            px_shade(c,i2,yy,1.0f-a*e,0.0f);
+        }
+    }
 
     /* PERSPECTIVE: the drive sits below eye level, so we look slightly down
      * on it and see the button's TOP FACE - a thin lit band above the front
@@ -553,11 +573,10 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
     for(int i2=(int)ex;i2<(int)(ex+ew);i2++)
         px_blend(c,i2,(int)ey,255,252,246,0.30f);
 
-    /* the cap: brighter than the case, gradient bright top -> softer bottom */
-    rrect(c,ex,ey,ew,eh,0.0f,
+    /* the cap face */
+    rrect(c,ex,ey,ew,eh,rad,
           (int)(pr*1.10f),(int)(pg*1.10f),(int)(pb*1.10f),1.10f,0.94f);
-    /* gentle roll on its edges - enough to shape it, not to outline it */
-    housing_edge(c,ex,ey,ew,eh,0.0f,0.9f*mm,0.0f,1,0.9f);
+    housing_edge(c,ex,ey,ew,eh,rad,0.9f*mm,0.0f,1,0.9f);
 
     /* activity light: rectangular window, as in the reference */
     led_rect(c,x+16.5f*mm,y+18.6f*mm,4.6f*mm,2.2f*mm, 26,44,26);  /* UNLIT */
