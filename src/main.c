@@ -109,7 +109,7 @@ int main(int argc,char **argv){
     if(ast) SDL_ResumeAudioStreamDevice(ast);
     snd_init(44100);
     snd_power(1);                 /* fans and spindle spin up */
-    snd_disk(2.4);                /* boot-time drive chatter  */
+
 
     dos_init();
 
@@ -189,15 +189,24 @@ int main(int argc,char **argv){
         }
 
         /* core lifecycle */
-        if(corehost_running()==0 && dos_update(t)==DOS_RUNNING) dos_core_exited();
+        /* Only return to the prompt if a core was ACTUALLY started and has
+         * since exited.  DOS_RUNNING also covers the loading pause before a
+         * launch, and testing the state alone aborted the launch instantly. */
+        static int core_started=0;
+        if(core_started && !corehost_running()){
+            core_started=0;
+            dos_core_exited();
+        }
         const char *req=dos_launch_request();
         if(req){
             const dxm_core_info *info=sky_core_info();
             const char *dd=getenv("DXM_DATA");
-            snd_disk(1.6);        /* the drive works while it loads */
-            corehost_start(info, dd?dd:"/Users/pedro/Git/skyroads-mac/data");
+            snd_floppy(2.2);      /* the drive works while it loads */
+            if(corehost_start(info, dd?dd:"/Users/pedro/Git/skyroads-mac/data")==0)
+                core_started=1;
         }
         if(dos_take_beep()) snd_beep(240.0);  /* after the RAM check */
+        { double f=dos_take_floppy(); if(f>0.0) snd_floppy(f); }
         if(autocmd && dos_update(t)==DOS_PROMPT){       /* wait for the prompt */
             for(const char *q=autocmd;*q;q++) dos_key(*q,0);
             dos_key('\r',0); autocmd=NULL;
@@ -211,6 +220,20 @@ int main(int argc,char **argv){
         else   { gpu_set_tube(g,dos_render(),DOS_W,DOS_H); k.crt_lines=400; }
 
         /* GL's origin is bottom-left; chassis_render draws top-down. */
+        /* the activity LED follows the drive, with a little flicker so it
+         * reads as head movement rather than a steady lamp */
+        { /* floppy activity: flickers with head movement */
+          float lv=snd_floppy_level();
+          float fl=0.72f+0.28f*(float)sin(t*47.0)*(float)sin(t*23.0);
+          gpu_set_led(g,0, L.fdd_led[0]/W, 1.0f-(L.fdd_led[1]+L.fdd_led[3])/H,
+                      L.fdd_led[2]/W, L.fdd_led[3]/H,
+                      lv*fl, 0.16f,1.0f,0.22f, 0);
+          /* power: steady, and it comes up with the machine */
+          static float pwr=0.0f;
+          pwr += ((quit?0.0f:1.0f)-pwr)*0.02f;
+          gpu_set_led(g,1, L.pwr_led[0]/W, 1.0f-(L.pwr_led[1]+L.pwr_led[3])/H,
+                      L.pwr_led[2]/W, L.pwr_led[3]/H,
+                      pwr, 0.20f,1.0f,0.26f, 1); }
         gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
                     L.tube_w/W, L.tube_h/H, &k, t);
         SDL_GL_SwapWindow(win);

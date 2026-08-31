@@ -15,8 +15,10 @@ static int    boot_step;
 static uint8_t fb[DOS_W*DOS_H*3];
 static char   launch[32];
 static int    launch_pending;
+static double launch_at;      /* hold the launch until the drive is done */
 static int    sky_installed = 1;   /* v0: data ships with the dev checkout */
 static int    beep_pending;        /* POST beep, fired after the RAM count */
+static double floppy_req;          /* seconds of drive activity wanted    */
 static int    mem_counting;        /* the memory test is spinning          */
 static double mem_next;            /* next number update                   */
 static long   mem_shown;           /* KB counted so far                    */
@@ -58,6 +60,9 @@ void dos_init(void){
 void dos_core_exited(void){
     put('\n'); prompt(); st=DOS_PROMPT; line_n=0;
 }
+/* The game does not appear the instant you type its name: the drive spins
+ * up and reads first, exactly as it would have.  dos_update() releases the
+ * launch once that load has had time to run. */
 const char *dos_launch_request(void){
     if(!launch_pending) return NULL;
     launch_pending=0; return launch;
@@ -97,7 +102,7 @@ static void run(char *s){
     size_t n=strlen(s);
     if(n>4 && !strcmp(s+n-4,".EXE")) s[n-4]=0;
     if(!*s) return;
-    if(!strcmp(s,"DIR"))       cmd_dir();
+    if(!strcmp(s,"DIR")){      floppy_req=0.7; cmd_dir(); }
     else if(!strcmp(s,"CLS")){ memset(scr,' ',sizeof scr); cur_r=cur_c=0; return; }
     else if(!strcmp(s,"HELP")) cmd_help();
     else if(!strcmp(s,"VER"))  sayln("DXM-DOS Version 1.0  (C) 2026");
@@ -111,7 +116,9 @@ static void run(char *s){
     else if(!strcmp(s,"SKYROADS")){
         if(!sky_installed){ sayln("Bad command or file name"); }
         else { snprintf(launch,sizeof launch,"skyroads");
-               launch_pending=1; st=DOS_RUNNING; return; }
+               floppy_req=2.6;              /* the drive reads the game */
+               launch_at=-1.0;              /* armed; set on the next tick */
+               st=DOS_RUNNING; return; }
     }
     else if(!strcmp(s,"FORMAT"))
         sayln("Nice try.");
@@ -134,6 +141,7 @@ void dos_key(int ch,int sc){
 
 /* The PC speaker POST beep: taken once, at power-on. */
 int dos_take_beep(void){ int b=beep_pending; beep_pending=0; return b; }
+double dos_take_floppy(void){ double f=floppy_req; floppy_req=0.0; return f; }
 
 /* The RAM count spins in place: the BIOS printed the running total and
  * overwrote it, so we hold the cursor at the digits and rewrite them. */
@@ -150,6 +158,13 @@ static void mem_draw(long kb){
 
 dos_state dos_update(double t){
     if(t0<0){ t0=t; next_boot=t+0.35; }
+
+    /* loading pause between the command and the game taking over */
+    if(st==DOS_RUNNING && !launch_pending && launch_at<0.0)
+        launch_at = t + 2.3;
+    if(st==DOS_RUNNING && launch_at>0.0 && t>=launch_at){
+        launch_pending=1; launch_at=0.0;
+    }
 
     if(mem_counting){
         if(t>=mem_next){
@@ -175,6 +190,7 @@ dos_state dos_update(double t){
         if(BOOT[boot_step]){
             const char *ln=BOOT[boot_step++];
             say(ln);
+            if(strstr(ln,"Floppy Disk A")) floppy_req=1.1;  /* BIOS seeks A: */
             if(strstr(ln,"Memory Test")){ /* start the live count here */
                 mem_row=cur_r; mem_col=cur_c;
                 mem_counting=1; mem_shown=0; mem_next=t;

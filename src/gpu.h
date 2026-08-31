@@ -29,6 +29,12 @@ typedef struct gpu_knobs {
 void gpu_draw(gpu *g, float tube_x, float tube_y, float tube_w, float tube_h,
               const gpu_knobs *k, double t);
 
+/* Live LED emission painted over the baked chassis, which contains only the
+ * UNLIT lens.  idx 0 = floppy activity, 1 = power.  round!=0 uses a circular
+ * lens profile.  All the light and its bleed onto the plastic come from here. */
+void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
+                 float on,float r,float gr,float b,int round);
+
 /* read the framebuffer back (for --shot); caller frees */
 uint8_t *gpu_readback(gpu *g, int *w, int *h);
 #endif

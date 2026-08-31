@@ -64,6 +64,28 @@ void snd_beep(double ms){
 }
 void snd_disk(double seconds){ (void)seconds; }   /* head seeks removed */
 
+/* ---- 3.5" floppy drive --------------------------------------------------
+ * SAMPLED, not synthesised.  The fan and hum are steady textures that must
+ * sweep with spin-up and track the ambient knob, so synthesis is right for
+ * them; a drive read is irregular mechanical noise that only plays in short
+ * bursts, and three attempts at synthesising it never stopped sounding like
+ * a buzz or a whistle.  The clip is baked into the binary (see
+ * tools/mkpcm.py) so nothing is loaded at runtime. */
+#include "fdd_pcm.h"
+static double fdd_left;          /* seconds of activity remaining */
+static float  fdd_env;
+static double fdd_pos;           /* playback position, fractional */
+static float  fdd_lp;            /* low shelf for a heavier drive  */
+
+void snd_floppy(double seconds){
+    if(seconds > fdd_left){
+        if(fdd_left <= 0.0) fdd_pos = 0.0;   /* start of a fresh access */
+        fdd_left = seconds;
+    }
+}
+float snd_floppy_level(void){ return fdd_env; }
+
+
 void snd_mix(int16_t *out,int nframes){
     double sr = SR;
     for(int i=0;i<nframes;i++){
@@ -105,6 +127,28 @@ void snd_mix(int16_t *out,int nframes){
             s += (fan_lp2 - fan_hp) * 0.034f * fan_env;
             hiss_lp += (n - hiss_lp)*0.55f;
             s += hiss_lp * 0.0025f * fan_env;
+        }
+
+        /* --- 3.5" floppy drive (sampled) --- */
+        if(fdd_left > 0.0 || fdd_env > 0.001f){
+            if(fdd_left > 0.0) fdd_left -= 1.0/sr;
+            float want = (fdd_left > 0.0) ? 1.0f : 0.0f;
+            fdd_env += (want-fdd_env) * (float)(1.0/(sr*0.045));
+
+            /* Linear resample, looping seamlessly.  Playing the clip back
+             * slightly slow drops its pitch - the mechanical way a bigger,
+             * heavier drive sounds. */
+            double step = (double)FDD_PCM_RATE / sr * 0.84;
+            int i0 = (int)fdd_pos;
+            double fr = fdd_pos - i0;
+            int i1 = i0+1; if(i1>=FDD_PCM_LEN) i1=0;
+            float v = (float)(fdd_pcm[i0]*(1.0-fr) + fdd_pcm[i1]*fr) / 32768.0f;
+            fdd_pos += step;
+            if(fdd_pos >= FDD_PCM_LEN) fdd_pos -= FDD_PCM_LEN;
+
+            /* and a gentle low shelf: keep the body, ease off the top */
+            fdd_lp += (v - fdd_lp)*0.34f;
+            s += (fdd_lp*0.75f + v*0.25f) * 0.60f * fdd_env;
         }
 
         /* --- PC speaker on top --- */

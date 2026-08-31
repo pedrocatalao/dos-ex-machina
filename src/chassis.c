@@ -388,6 +388,7 @@ static void soft_vedge(canvas *c,float y0,float y1,float x,float span,
 /* 3.5" drive: same geometry as before (recessed plate, finger cuts, slot
  * through them, protruding eject, inserted diskette), but every edge is now
  * an eased ramp at the LED's fidelity - no hard 1px lines anywhere. */
+static float g_fdd_led[4], g_pwr_led[4];   /* recorded LED placeholders */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float mm=h/25.4f; (void)w;
     float fw=101.6f*mm;
@@ -471,7 +472,9 @@ static void floppy_drive(canvas *c,float x,float y,float w,float h){
     soft_hedge(c,ex+1.2f*mm,ex+ew-1.2f*mm,ey+0.5f*mm,1.0f*mm,1.16f,0.08f,1);
 
     /* activity light: rectangular window, as in the reference */
-    led_rect(c,x+16.5f*mm,y+18.6f*mm,4.6f*mm,2.2f*mm,70,225,60);
+    led_rect(c,x+16.5f*mm,y+18.6f*mm,4.6f*mm,2.2f*mm, 26,44,26);  /* UNLIT */
+    g_fdd_led[0]=x+16.5f*mm-2.3f*mm; g_fdd_led[1]=y+18.6f*mm-1.1f*mm;
+    g_fdd_led[2]=4.6f*mm;            g_fdd_led[3]=2.2f*mm;
 }
 
 dxm_layout chassis_layout(int W,int H){
@@ -660,7 +663,7 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
       }
 }
 
-uint8_t *chassis_render(const dxm_layout *L,int W,int H){
+uint8_t *chassis_render(dxm_layout *L,int W,int H){
     canvas C; C.w=W; C.h=H; C.px=calloc((size_t)W*H,4);
     canvas *c=&C;
     g_lbl=fmaxf(1.0f,(float)H/760.0f);
@@ -737,8 +740,12 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
         bevel(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,
               fmaxf(1.0f,pw*0.06f),1);
         /* power LED: a small round lens under the button */
-        led(c,px0+pw*0.5f,mid-pw*0.39f+pw*0.78f+fmaxf(4.0f,band_h*0.09f),
-            1.35f*mm,70,225,60);
+        { float lr=1.35f*mm;
+          float lcx=px0+pw*0.5f;
+          float lcy=mid-pw*0.39f+pw*0.78f+fmaxf(4.0f,band_h*0.09f);
+          led(c,lcx,lcy,lr, 26,44,26);                        /* UNLIT */
+          g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
+          g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f; }
 
         /* centre: stereo sound, volume, phones */
         float cxm=(float)W*0.5f;
@@ -762,5 +769,6 @@ uint8_t *chassis_render(const dxm_layout *L,int W,int H){
         floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
     }
 
+    for(int k=0;k<4;k++){ L->fdd_led[k]=g_fdd_led[k]; L->pwr_led[k]=g_pwr_led[k]; }
     return C.px;
 }

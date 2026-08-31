@@ -13,4 +13,5 @@ const uint8_t *dos_render(void);        /* DOS_W x DOS_H RGB8 */
 const char *dos_launch_request(void);   /* non-NULL once, when a game starts */
 void       dos_core_exited(void);
 int        dos_take_beep(void);    /* 1 once when the POST beep should sound */
+double     dos_take_floppy(void);  /* >0 once when the drive should run   */
 #endif

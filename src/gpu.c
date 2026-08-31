@@ -37,6 +37,7 @@ struct gpu {
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_spill, tex_spill;
     double last_t; int have_last;
+    float led[2][4], led_col[2][3], led_on[2], led_round[2];
 };
 
 static const char *VS =
@@ -79,6 +80,10 @@ static const char *FS_COMPOSITE =
 "uniform vec4  rect;        // tube x,y,w,h in 0..1 output space\n"
 "uniform vec2  outsize;\n"
 "uniform float warp, bright, contrast, ambient, glow, scan, margin;\n"
+"uniform vec4  led[2];\n"
+"uniform vec3  ledcol[2];\n"
+"uniform float ledon[2];\n"
+"uniform float ledround[2];\n"
 "uniform float crt_lines;\n"
 "\n"
 "vec2 barrel(vec2 p){\n"
@@ -156,6 +161,19 @@ static const char *FS_COMPOSITE =
 "  float amb = pow(0.16 + 0.98*ambient, 2.2);\n"
 "  vec3 lit = plastic*amb + spill*fall*glow*(0.13+0.14*(1.0-ambient));\n"
 "  vec3 fin = mix(lit, col, inside);\n"
+"  // Live activity LED painted over the baked chassis: the lens itself\n"
+"  // plus a soft bloom onto the surrounding plastic.\n"
+"  for (int i = 0; i < 2; ++i) {\n"
+"    if (ledon[i] <= 0.001) continue;\n"
+"    vec2 lc = led[i].xy + led[i].zw*0.5;\n"
+"    vec2 d  = (uv - lc) / (led[i].zw*0.5);\n"
+"    // box lens for rectangular windows, radial for round ones\n"
+"    float m = mix(max(abs(d.x),abs(d.y)), length(d), ledround[i]);\n"
+"    float lens = 1.0 - smoothstep(0.82, 1.02, m);\n"
+"    // the emitted light bleeds onto the surrounding plastic\n"
+"    float bleed = exp(-dot(d,d)*0.75);\n"
+"    fin += ledcol[i] * (lens*1.45 + bleed*0.22) * ledon[i];\n"
+"  }\n"
 "  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"   /* linear -> sRGB */
 "}\n";
 
@@ -216,6 +234,13 @@ gpu *gpu_create(int w,int h){
 }
 void gpu_destroy(gpu *g){ if(g) free(g); }
 void gpu_resize(gpu *g,int w,int h){ g->out_w=w; g->out_h=h; }
+void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
+                 float on,float r,float gr,float b,int round){
+    if(idx<0||idx>1) return;
+    g->led[idx][0]=x; g->led[idx][1]=y; g->led[idx][2]=w; g->led[idx][3]=h;
+    g->led_col[idx][0]=r; g->led_col[idx][1]=gr; g->led_col[idx][2]=b;
+    g->led_on[idx]=on; g->led_round[idx]=round?1.0f:0.0f;
+}
 
 void gpu_set_chassis(gpu *g,const uint8_t *rgba,int w,int h){
     g->chassis_w=w; g->chassis_h=h;
@@ -284,6 +309,10 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1f(glGetUniformLocation(p,"glow"),k->glow);
     glUniform1f(glGetUniformLocation(p,"scan"),k->scan);
     glUniform1f(glGetUniformLocation(p,"margin"),k->margin);
+    glUniform4fv(glGetUniformLocation(p,"led"),2,&g->led[0][0]);
+    glUniform3fv(glGetUniformLocation(p,"ledcol"),2,&g->led_col[0][0]);
+    glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);
+    glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
     glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
     glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
 }
