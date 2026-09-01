@@ -236,29 +236,37 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
         }
 }
 
-/* Rectangular LED window, same construction as the round one: thin outline
- * heavier on top, body deepening lower-right, soft hot spot up-left, the
- * recess shadow above and lit lip below.  This is what the reference's
- * floppy activity light is. */
+/* Rectangular LED window.  A drive-activity light is a FLAT-FRONTED light
+ * pipe, not a bead: the face is a plane, the corners are barely eased, and
+ * the plastic is frosted so it scatters rather than reflecting a highlight.
+ * The generous corner radius and the gaussian hot spot this replaces are
+ * exactly what made it read as a little round lens. */
 static void led_rect(canvas *c,float cx,float cy,float w,float h,
                      int r,int g,int b){
-    float hw=w*0.5f, hh=h*0.5f, rad=h*0.30f;
+    float hw=w*0.5f, hh=h*0.5f;
+    float rad=h*0.15f;                    /* eased, not rounded */
     float ring=fmaxf(1.2f,h*0.16f);
+    float pitch=fmaxf(1.6f,h*0.17f);      /* diffuser striation pitch */
     for(int j2=(int)(cy-hh-ring*3);j2<=(int)(cy+hh+ring*3);j2++)
         for(int i2=(int)(cx-hw-ring*3);i2<=(int)(cx+hw+ring*3);i2++){
             float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad);
             float dy=(j2-cy)/hh;
             if(sd<=0.0f){
-                /* lens body */
-                float dx=(i2-cx)/hw;
-                float f=0.94f-0.20f*fmaxf(0.0f,(dx+dy)*0.5f);
-                float e=-sd/h;                     /* depth into the lens */
-                if(e<0.20f) f*=0.70f+1.5f*e;       /* darker at the frame */
-                float hx=(dx+0.35f)/0.55f, hy=(dy+0.40f)/0.60f;
-                float w2=expf(-(hx*hx+hy*hy));
-                px_blend(c,i2,j2,(int)(r*f+(255-r*f)*w2),
-                         (int)(g*f+(255-g*f)*w2),
-                         (int)(b*f+(255-b*f)*w2*0.9f),1.0f);
+                float e=-sd/h;                     /* depth in from the frame */
+                /* A plane takes an even wash.  Only the very bottom falls
+                 * off, where the frame shades it. */
+                float f=0.99f-0.12f*fmaxf(0.0f,dy);
+                if(e<0.16f) f*=0.66f+2.10f*e;      /* the moulded frame */
+                /* frosted plastic: fine grain, plus the horizontal tool
+                 * striations a moulded pipe carries */
+                f += (hash2(i2,j2,7)-0.5f)*0.14f;
+                f += sinf((float)j2*3.14159265f/pitch)*0.045f;
+                /* the bevel along the top of the face catches a thin line -
+                 * a flat front has an EDGE, which is what sells it as flat */
+                float bev=(e<0.11f&&dy<0.0f)?0.17f*(1.0f-e/0.11f):0.0f;
+                px_blend(c,i2,j2,(int)(r*f+255.0f*bev),
+                                 (int)(g*f+255.0f*bev),
+                                 (int)(b*f+255.0f*bev),1.0f);
             } else if(sd<=ring){
                 float a=1.0f-sd/ring;
                 float top=(dy<0.0f)?1.0f:0.66f;
