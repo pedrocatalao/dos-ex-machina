@@ -348,6 +348,42 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
     g_grain=1;
 }
 
+/* The parting between the two mouldings: the monitor housing sits ON the
+ * base, and where two parts meet there is a real gap, not a drawn line.  A
+ * gap has a cross-section - the upper part overhangs and casts into it, the
+ * floor sits in shade, and the base's own top edge comes back up into the
+ * light - and that cross-section is the whole reason it reads as two parts
+ * rather than as a scratch across one. */
+static void panel_gap(canvas *c,float x,float y,float w,float d){
+    float lip=d*0.55f;                        /* how far the light spreads  */
+    for(int j2=(int)(y-lip-1);j2<(int)(y+d+lip+1);j2++){
+        float v=((float)j2+0.5f-y)/d;         /* 0 at the top of the gap    */
+        float mul=1.0f, spec=0.0f;
+        if(v<0.0f){
+            /* the face above, darkened as it turns down into the gap */
+            float t=-v*d/lip; if(t>1.0f) continue;
+            mul=1.0f-0.20f*(1.0f-t)*(1.0f-t);
+        } else if(v<=1.0f){
+            /* inside: darkest just under the overhang, lifting toward the
+             * floor, and the far wall picks up a little bounce */
+            float u=v;
+            mul=0.34f+0.30f*u*u;
+        } else {
+            /* the base's top edge, catching the key light square on */
+            float t=(v-1.0f)*d/lip; if(t>1.0f) continue;
+            float e=(1.0f-t)*(1.0f-t);
+            mul=1.0f+0.26f*e;
+            spec=e*0.075f;
+        }
+        for(int i2=(int)x;i2<(int)(x+w);i2++)
+            px_shade(c,i2,j2,mul,spec);
+    }
+    /* the hard line where the overhang begins - one dark row, so the top of
+     * the gap has an edge instead of fading in */
+    for(int i2=(int)x;i2<(int)(x+w);i2++)
+        px_blend(c,i2,(int)y,18,17,15,0.55f);
+}
+
 /* ---- moulded modules ---- */
 
 /* A grille is a recessed WELL with a moulded lip, and slots inside it with
@@ -1024,7 +1060,9 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     float band_y=L->tube_y+L->tube_h+hous+inset*0.22f;
     float band_h=(float)H-inset*0.55f-band_y;
     if(band_h>inset*0.8f){
-        seam(c,edge,band_y-inset*0.26f,(float)W-2*edge,0,fmaxf(1.0f,W*0.0012f));
+        /* the two mouldings part here, with a real gap between them */
+        panel_gap(c,edge,band_y-inset*0.30f,(float)W-2*edge,
+                  fmaxf(2.0f,1.7f*(float)H/268.0f));
         float mid=band_y+band_h*0.46f;
         float mm=H/268.0f;              /* ONE physical scale, tied to the
                                            DISPLAY, not the band - so slimming
