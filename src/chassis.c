@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 #include "crt.h"
 
 /* ---- chassis_params: every dimension and colour in one place (SPEC §5) --- */
@@ -290,13 +291,16 @@ static void led_rect(canvas *c,float cx,float cy,float w,float h,
  * The artwork is the real logo, baked (tools/mklogo.py).  Setting it in the
  * 8x8 case font got the words right and everything else wrong: the mark has
  * letterforms of its own - the triangular A over its rule, the notched E -
- * and faking those is exactly the sort of thing that reads as a cartoon. */
+ * and faking those is exactly the sort of thing that reads as a cartoon.
+ *
+ * It is die-cut to the artwork, with no laminate margin around it, so the
+ * corner radius has to come off the print itself. */
 static void sb_sticker(canvas *c,float cx,float cy,float w){
-    float lw=w*0.885f;                       /* the print inside the laminate */
+    float lw=w;                              /* the print IS the label */
     float lh=lw*(float)SB_LOGO_HT/(float)SB_LOGO_W;
-    float h=lh+w*0.115f;
+    float h=lh;
     float x=cx-w*0.5f, y=cy-h*0.5f;
-    float rad=h*0.16f, hw=w*0.5f, hh=h*0.5f;
+    float rad=h*0.10f, hw=w*0.5f, hh=h*0.5f;
     g_grain=0;                               /* printed vinyl has no grain */
 
     /* the shadow it casts on the pod, which is what puts it on top */
@@ -311,9 +315,6 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
             px_shade(c,i2,j2,1.0f-0.17f*(1.0f-t)*(1.0f-t)*side,0.0f);
         }
     }
-
-    /* the clear laminate the print sits inside */
-    rrect(c,x,y,w,h,rad, 234,234,230, 1.0f,0.96f);
 
     /* the artwork, box-filtered down to whatever size it landed at */
     { float lx=cx-lw*0.5f, ly=cy-lh*0.5f;
@@ -346,6 +347,46 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
         if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
       }
     g_grain=1;
+}
+
+/* A vent cut: a through-hole, so what shows in it is the dark inside of the
+ * machine rather than a shaded groove.  Written to work at any aspect - the
+ * shading is driven by the cut's NARROW dimension, not by its length, so a
+ * tall slot gets the same short overhang shadow at its top that a wide one
+ * gets, instead of having its whole upper half in shade. */
+static void vent_slot(canvas *c,float x,float y,float w,float h){
+    float cx=x+w*0.5f, cy=y+h*0.5f, hw=w*0.5f, hh=h*0.5f;
+    float th=fminf(w,h);                      /* the narrow dimension */
+    float rad=th*0.46f;                       /* the ends are rounded */
+    float lip=fmaxf(1.2f,th*0.70f);
+    for(int j2=(int)(y-lip-1);j2<=(int)(y+h+lip+1);j2++)
+      for(int i2=(int)(x-lip-1);i2<=(int)(x+w+lip+1);i2++){
+        float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad);
+        if(sd<=0.5f){
+            float cov=fminf(1.0f,0.5f-sd);
+            /* the overhang at the top reaches about two widths in */
+            float dt=((float)j2+0.5f-y)/fmaxf(th*2.2f,1.0f);
+            float v=0.19f+0.20f*fminf(1.0f,dt);
+            /* the wall away from the light takes a little of it */
+            v+=0.11f*(((float)i2+0.5f)-x)/fmaxf(w,1.0f);
+            /* and the bottom end lifts, where light gets past the lip */
+            float db=((y+h)-((float)j2+0.5f))/fmaxf(th*1.8f,1.0f);
+            if(db<1.0f) v+=0.15f*(1.0f-db);
+            px_shade(c,i2,j2,1.0f+(v-1.0f)*cov,0.0f);
+        } else if(sd<lip){
+            /* Which rim catches the light is a question about the NORMAL,
+             * not about being above or below centre - get it from the
+             * field's gradient and the same answer serves either aspect. */
+            float gx=rr_sd((float)i2+1,(float)j2,cx,cy,hw,hh,rad)
+                    -rr_sd((float)i2-1,(float)j2,cx,cy,hw,hh,rad);
+            float gy=rr_sd((float)i2,(float)j2+1,cx,cy,hw,hh,rad)
+                    -rr_sd((float)i2,(float)j2-1,cx,cy,hw,hh,rad);
+            float gl=sqrtf(gx*gx+gy*gy); if(gl<1e-4f) continue;
+            float lam=(gx*LIGHT_X+gy*LIGHT_Y)/gl;   /* outward . light */
+            float e=1.0f-sd/lip; e*=e;
+            px_shade(c,i2,j2,1.0f-lam*0.17f*e,fmaxf(-lam,0.0f)*e*0.05f);
+        }
+      }
 }
 
 /* The parting between the two mouldings: the monitor housing sits ON the
@@ -1049,7 +1090,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             /* the sound-card sticker, on the RIGHT pod under the holes */
             { float sw=pw*0.54f;
               float y0=gy+gh*0.94f, y1=py+ph;      /* holes end .. pod ends */
-              float sh=sw*0.885f*0.5f+sw*0.115f;   /* what sb_sticker builds */
+              float sh=sw*0.5f;                    /* what sb_sticker builds */
               if(y1-y0>sh*1.30f)
                 sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
             }
@@ -1131,6 +1172,32 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         float fh=25.4f*mm, fw2=101.6f*mm;
         float fx=(float)W-edge-inset*0.65f-fw2;
         float fmid=((band_y-inset*0.26f)+(float)H)*0.5f;
+
+        /* Vent cuts along the foot of the band, confined to the middle
+         * fifth of the case.  A run all the way from the badge to the drive
+         * read as a decorative band; a short group on the centre line reads
+         * as what it is - ducting put where the airflow is. */
+        { float vy0=fmaxf(pby+pbh, mid+pw*0.39f+fmaxf(4.0f,band_h*0.09f)
+                                   +2.7f*mm) + inset*0.10f;
+          float vy1=(float)H-inset*0.28f;
+          float vx0=(float)W*0.40f, vx1=(float)W*0.60f;
+          /* the run hangs from its BOTTOM edge: shortening it from the top
+           * keeps it sitting on the foot of the case, which is where a cut
+           * that vents the floor of the machine belongs */
+          float avail=vy1-vy0, vspan=vx1-vx0;
+          float vh=avail*0.86f;
+          vy0=vy1-vh;
+          /* the test is on the room AVAILABLE, not on the shortened run -
+           * testing the latter is what silently deleted the whole row */
+          if(avail>1.8f*mm && vspan>8.0f*mm){
+              float vw=fmaxf(2.0f,1.15f*mm);
+              float pitch=vw*2.7f;
+              int n=(int)((vspan+pitch-vw)/pitch);
+              float x2=vx0+(vspan-((n-1)*pitch+vw))*0.5f;
+              for(int k=0;k<n;k++) vent_slot(c,x2+k*pitch,vy0,vw,vh);
+          }
+        }
+
         floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh);
     }
 
