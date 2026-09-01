@@ -331,38 +331,6 @@ static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
         }
     }
 }
-/* A moulded styling groove: a shallow horizontal channel with rounded ends.
- * Real cases carried these on the flanks as much for stiffening the panel as
- * for looks.  Cross-section is a half-round depression, so the wall you enter
- * on faces away from the key light and the wall you climb out on faces into
- * it - dark at the top, bright at the bottom, dimmer in the trough.  Drawing
- * it as a flat dark line instead is exactly what reads as a printed stripe. */
-static void groove_h(canvas *c,float x,float y,float w,float d,float amp){
-    float r=d*0.9f;                       /* how far the ends round off */
-    for(int j2=(int)(y-1);j2<=(int)(y+d+1);j2++){
-        float v=((float)j2+0.5f-y)/d;     /* 0 at the top lip, 1 at the bottom */
-        if(v<-0.35f||v>1.35f) continue;
-        float g,depth;
-        if(v<0.0f||v>1.0f){               /* the face just outside the channel */
-            float t=(v<0.0f)?(-v/0.35f):((v-1.0f)/0.35f);
-            g=(v<0.0f)? (1.0f-t) : -(1.0f-t);
-            depth=0.0f;
-        }else{
-            g=cosf(v*3.14159265f);        /* +1 entering (dark), -1 exiting */
-            depth=sinf(v*3.14159265f);
-        }
-        for(int i2=(int)x;i2<(int)(x+w);i2++){
-            /* fade the amplitude toward each end so the groove dies out
-             * instead of stopping against a hard vertical edge */
-            float dl=(float)i2-x, dr=(x+w-1.0f)-(float)i2;
-            float e=fminf(1.0f,fminf(dl,dr)/fmaxf(r,1.0f));
-            if(e<=0.0f) continue;
-            float a=amp*e;
-            px_shade(c,i2,j2,1.0f-(0.34f*g+0.16f*depth)*a,
-                     fmaxf(0.0f,-g)*0.055f*a);
-        }
-    }
-}
 static void seam(canvas *c,float x,float y,float len,int vertical,float w){
     for(int t=0;t<(int)fmaxf(1.0f,w);t++){
         if(vertical) for(int j=(int)y;j<(int)(y+len);j++){
@@ -916,29 +884,49 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         if(gw>inset*0.5f){
             float gh=L->tube_h*0.5f;
             float gy=L->tube_y+(L->tube_h-gh)*0.5f;   /* centred on the tube */
-            grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
-            grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
-            /* Styling grooves stacked above and below each grille.  They run
-             * horizontally so they read across the flank rather than echoing
-             * the tube's vertical edge, and they stop short of the grille
-             * capsule so the two features do not collide. */
-            float gd=fmaxf(2.0f,(float)H*0.0060f);   /* channel height */
-            float gp=gd*2.30f;                       /* pitch          */
-            float ggw=gw*0.80f;
-            float gx0[2]={edge+inset*0.45f+(gw-ggw)*0.5f,
-                          (float)W-edge-inset*0.45f-gw+(gw-ggw)*0.5f};
-            float top=L->tube_y, bot=L->tube_y+L->tube_h;
+            /* Each grille sits in a raised moulded POD - a tall rounded
+             * pad standing a fraction proud of the flank, with the holes
+             * punched through its middle.  This is how the real cases did
+             * it: one moulded feature carrying the speaker, rather than
+             * decoration applied around it.  It also gives the space above
+             * and below the holes something to be - plateau face - instead
+             * of leaving it bare or striping it. */
+            float pw=gw*0.88f, ph=L->tube_h*0.94f;
+            float py=L->tube_y+(L->tube_h-ph)*0.5f;
+            float prad=fminf(pw,ph)*0.11f;
+            float pxs[2]={edge+inset*0.45f+(gw-pw)*0.5f,
+                          (float)W-edge-inset*0.45f-gw+(gw-pw)*0.5f};
             for(int s2=0;s2<2;s2++){
-                for(int k=0;k<4;k++){
-                    float ya=gy-inset*0.30f-gp*(float)(k+1);
-                    float yb=gy+gh+inset*0.30f+gp*(float)k;
-                    /* the topmost of a stack is always the shallowest, the
-                     * way a moulding fades out toward the end of a run */
-                    float a=1.0f-0.13f*(float)k;
-                    if(ya>top)          groove_h(c,gx0[s2],ya,ggw,gd,a);
-                    if(yb+gd<bot)       groove_h(c,gx0[s2],yb,ggw,gd,a);
+                float px0=pxs[s2];
+                /* the proud face catches marginally more of the key light */
+                for(int j2=(int)py;j2<(int)(py+ph);j2++)
+                  for(int i2=(int)px0;i2<(int)(px0+pw);i2++)
+                    if(rr_sd((float)i2,(float)j2,px0+pw*0.5f,py+ph*0.5f,
+                             pw*0.5f,ph*0.5f,prad)<0.0f)
+                        px_shade(c,i2,j2,1.022f,0.0f);
+                housing_edge(c,px0,py,pw,ph,prad,
+                             fmaxf(1.5f,(float)W*0.0022f),
+                             fmaxf(2.0f,(float)W*0.0030f),1,0.85f);
+                /* moulding bosses tucked into the pod corners */
+                { float br=3.0f*(float)H/268.0f, in2=prad*0.72f;
+                  float bp[4][2]={{in2,in2},{pw-in2,in2},
+                                  {in2,ph-in2},{pw-in2,ph-in2}};
+                  for(int k=0;k<4;k++){
+                    float bx=px0+bp[k][0], by=py+bp[k][1];
+                    for(int j2=(int)(by-br-1);j2<=(int)(by+br+1);j2++)
+                      for(int i2=(int)(bx-br-1);i2<=(int)(bx+br+1);i2++){
+                        float dx2=i2-bx, dy2=j2-by;
+                        float dd=sqrtf(dx2*dx2+dy2*dy2);
+                        if(dd>br) continue;
+                        float rim=1.0f-fabsf(dd-br*0.84f)/(br*0.20f);
+                        if(rim<0.0f) rim=0.0f;
+                        px_shade(c,i2,j2,1.0f-0.020f+0.034f*rim*(-dy2/br),0.0f);
+                      }
+                  }
                 }
             }
+            grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
+            grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
         }
     }
 
