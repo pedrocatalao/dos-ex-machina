@@ -333,18 +333,38 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
                 r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
               }
             if(!n) continue;
-            px_blend(c,(int)lx+i2,(int)ly+j2,r/n,g/n,b/n,1.0f);
+            /* A label that has sat on a warm case for thirty years is not
+             * the print file any more.  Two corrections:
+             *
+             * The black.  Print black on vinyl is not 0,0,0 - nothing on
+             * this machine is - and the artwork comes off an SVG where it
+             * is.  Lift the black point onto the same dark blue-grey the
+             * 486 badge is printed in, as a levels move rather than a flat
+             * add, so white stays white and everything between scales.
+             *
+             * Then desaturate a touch and take the top off the brightness. */
+            { const float BK_R=0x22, BK_G=0x26, BK_B=0x30;
+              float R=BK_R+(float)r/n*(255.0f-BK_R)/255.0f;
+              float G=BK_G+(float)g/n*(255.0f-BK_G)/255.0f;
+              float B=BK_B+(float)b/n*(255.0f-BK_B)/255.0f;
+              float lum=0.299f*R+0.587f*G+0.114f*B;
+              const float DULL=0.15f, FADE=0.95f;
+              R=(R+(lum-R)*DULL)*FADE;
+              G=(G+(lum-G)*DULL)*FADE;
+              B=(B+(lum-B)*DULL)*FADE;
+              px_blend(c,(int)lx+i2,(int)ly+j2,(int)R,(int)G,(int)B,1.0f); }
         }
     }
 
-    /* vinyl is glossy: one broad diagonal catch, which is the difference
-     * between a label and a printed rectangle */
+    /* Vinyl is glossy, but not new vinyl-glossy: a worn label scatters, so
+     * the catch is broader and weaker.  Narrowing and brightening it is
+     * what would put it back to looking freshly applied. */
     for(int j2=(int)y;j2<(int)(y+h);j2++)
       for(int i2=(int)x;i2<(int)(x+w);i2++){
         if(rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad)>0.0f) continue;
         float u=((float)i2-x)/w + (((float)j2-y)/h)*0.50f;
-        float d=(u-0.40f)/0.22f;
-        float a=expf(-d*d)*0.11f;
+        float d=(u-0.40f)/0.28f;
+        float a=expf(-d*d)*0.085f;
         if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
       }
     g_grain=1;
