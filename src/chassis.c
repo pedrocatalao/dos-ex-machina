@@ -4,6 +4,7 @@
 #include "chassis.h"
 #include "font.h"
 #include "dxm_road.h"
+#include "corner_sticker.h"
 #include "sb_logo.h"
 #include <stdlib.h>
 #include <string.h>
@@ -347,6 +348,78 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
         if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
       }
     g_grain=1;
+}
+
+/* The mark on the speaker pod, cut INTO the plastic rather than stuck on
+ * it.  An engraving changes no colour at all - the material is the same
+ * material at the bottom of the cut as on the face - so this pass only ever
+ * shades what is already there.  Painting the mark in and then shading it
+ * is what would give the game away.
+ *
+ * The artwork is baked from assets/corner-sticker.png (tools/mklogo.py) and
+ * its alpha is read as DEPTH.  Shading comes from that depth field's
+ * gradient: the wall you meet first is turned away from the key light and
+ * falls dark, the far wall is turned into it and catches a highlight, and
+ * the floor between them sits in its own shade.  A fixed light-above /
+ * dark-below pair - which is fine for lettering - would be wrong here,
+ * because the mark is all circles and the walls face every direction. */
+static void corner_engraving(canvas *c,float cx,float cy,float w){
+    float h=w*(float)CORNER_STICKER_HT/(float)CORNER_STICKER_W;
+    int dw=(int)w, dh=(int)h;
+    if(dw<4||dh<4) return;
+    float *dep=calloc((size_t)dw*dh,sizeof *dep);
+    float *bl =calloc((size_t)dw*dh,sizeof *bl);
+    if(!dep||!bl){ free(dep); free(bl); return; }
+
+    /* box-filter the alpha down to the size it actually landed at */
+    { float sx=(float)CORNER_STICKER_W/(float)dw;
+      float sy=(float)CORNER_STICKER_HT/(float)dh;
+      for(int j=0;j<dh;j++)
+        for(int i=0;i<dw;i++){
+            int u0=(int)(i*sx), u1=(int)((i+1)*sx); if(u1<=u0) u1=u0+1;
+            int v0=(int)(j*sy), v1=(int)((j+1)*sy); if(v1<=v0) v1=v0+1;
+            if(u1>CORNER_STICKER_W)  u1=CORNER_STICKER_W;
+            if(v1>CORNER_STICKER_HT) v1=CORNER_STICKER_HT;
+            long a=0; int n=0;
+            for(int v=v0;v<v1;v++)
+              for(int u=u0;u<u1;u++){
+                a+=corner_sticker[((size_t)v*CORNER_STICKER_W+u)*4+3]; n++;
+              }
+            dep[(size_t)j*dw+i]=(float)a/(255.0f*(float)n);
+        }
+    }
+    /* Soften it by a pixel before differentiating.  A tool leaves a wall
+     * with some width to it; off the raw mask the gradient lives in a
+     * single pixel and the cut reads as an outline drawn round the mark. */
+    for(int j=0;j<dh;j++)
+      for(int i=0;i<dw;i++){
+        float acc=0.0f; int n=0;
+        for(int v=-1;v<=1;v++)
+          for(int u=-1;u<=1;u++){
+            int si=i+u, sj=j+v;
+            if(si<0||sj<0||si>=dw||sj>=dh){ n++; continue; }
+            acc+=dep[(size_t)sj*dw+si]; n++;
+          }
+        bl[(size_t)j*dw+i]=acc/(float)n;
+      }
+
+    float x=cx-w*0.5f, y=cy-h*0.5f;
+    for(int j=0;j<dh;j++)
+      for(int i=0;i<dw;i++){
+        float d0=bl[(size_t)j*dw+i];
+        float gx=((i+1<dw)?bl[(size_t)j*dw+i+1]:d0)
+                -((i>0)   ?bl[(size_t)j*dw+i-1]:d0);
+        float gy=((j+1<dh)?bl[(size_t)(j+1)*dw+i]:d0)
+                -((j>0)   ?bl[(size_t)(j-1)*dw+i]:d0);
+        if(d0<0.004f && fabsf(gx)+fabsf(gy)<0.004f) continue;
+        /* the normal of a CUT tilts with the depth gradient, not against
+         * it, which is what puts the highlight on the far wall */
+        float lam=(gx*LIGHT_X+gy*LIGHT_Y)*0.5f;
+        px_shade(c,(int)x+i,(int)y+j,
+                 1.0f - d0*0.085f + lam*1.15f,
+                 fmaxf(lam,0.0f)*0.20f);
+      }
+    free(dep); free(bl);
 }
 
 /* A vent cut: a through-hole, so what shows in it is the dark inside of the
@@ -1088,12 +1161,13 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
             grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
             /* the sound-card sticker, on the RIGHT pod under the holes */
-            { float sw=pw*0.54f;
+            { float sw=pw*0.46f;
               float y0=gy+gh*0.94f, y1=py+ph;      /* holes end .. pod ends */
               float sh=sw*0.5f;                    /* what sb_sticker builds */
               if(y1-y0>sh*1.30f)
                 sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
             }
+            /* the sound-card sticker, on the RIGHT pod under the holes */
         }
     }
 
@@ -1169,6 +1243,15 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           led(c,lcx,lcy,lr, 26,44,26);                        /* UNLIT */
           g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
           g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f; }
+
+        /* The engraved mark, on the centre line of the base.  It is level
+         * with the badge rather than lower down, which keeps it clear of
+         * the vent run along the foot - two features sharing the middle of
+         * the case is one too many. */
+        { float sh=pbh*0.74f;
+          float sw=sh*(float)CORNER_STICKER_W/(float)CORNER_STICKER_HT;
+          if(sw>8.0f) corner_engraving(c,(float)W*0.5f,mid,sw);
+        }
 
         /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
          * vertically between the divider ridge and the case bottom */
