@@ -44,6 +44,8 @@ struct gpu {
     GLuint fbo_room, tex_room;
     GLuint fbo_burn[2], tex_burn[2]; int burn_cur;
     GLuint prog_burn, prog_overlay, tex_overlay;
+    GLuint prog_splash, tex_splash; int spl_w, spl_h;
+    GLuint prog_fade;
     int    ov_w, ov_h;
     double last_t; int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2];
@@ -316,6 +318,31 @@ static const char *FS_BURN =
 "}\n";
 
 /* the settings panel, straight alpha over the finished frame */
+/* Startup splash: the wordmark on black, before the machine exists.  It is
+ * drawn PREMULTIPLIED - the source is baked that way so that scaling it up
+ * with linear filtering cannot pull the transparent pixels' black into the
+ * edges as a dark fringe. */
+static const char *FS_SPLASH =
+"#version 330 core\n"
+"in vec2 uv; out vec4 o;\n"
+"uniform sampler2D src;\n"
+"uniform vec4  rect;      // where the logo sits, in 0..1 output space\n"
+"uniform float alpha;\n"
+"void main(){\n"
+"  vec2 t = (uv - rect.xy) / rect.zw;\n"
+"  o = vec4(0.0);\n"
+"  if (t.x>=0.0 && t.x<=1.0 && t.y>=0.0 && t.y<=1.0)\n"
+"    o = texture(src, vec2(t.x, 1.0-t.y)) * alpha;\n"
+"}\n";
+
+/* A plain black veil, for bringing the whole machine up out of nothing
+ * after the splash.  It goes over everything - chassis, tube and panel - so
+ * what fades in is the room, not just the picture. */
+static const char *FS_FADE =
+"#version 330 core\n"
+"out vec4 o; uniform float a;\n"
+"void main(){ o = vec4(0.0,0.0,0.0,a); }\n";
+
 static const char *FS_OVERLAY =
 "#version 330 core\n"
 "in vec2 uv; out vec4 o;\n"
@@ -362,6 +389,13 @@ gpu *gpu_create(int w,int h){
     g->prog_composite=mkprog(FS_COMPOSITE);
     g->prog_burn=mkprog(FS_BURN);
     g->prog_overlay=mkprog(FS_OVERLAY);
+    g->prog_splash=mkprog(FS_SPLASH);
+    g->prog_fade=mkprog(FS_FADE);
+    glGenTextures(1,&g->tex_splash); glBindTexture(GL_TEXTURE_2D,g->tex_splash);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     glGenTextures(1,&g->tex_tube);   glBindTexture(GL_TEXTURE_2D,g->tex_tube);
     /* LINEAR, but the shader snaps to texel centres when sharp() is off,
      * which reproduces NEAREST exactly - so the filter never has to change
@@ -532,6 +566,45 @@ uint8_t *gpu_readback(gpu *g,int *w,int *h){
     return px;
 }
 
+void gpu_set_splash(gpu *g,const uint8_t *rgba,int w,int h){
+    if(!rgba||w<=0||h<=0){ g->spl_w=0; g->spl_h=0; return; }
+    g->spl_w=w; g->spl_h=h;
+    glBindTexture(GL_TEXTURE_2D,g->tex_splash);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+}
+void gpu_draw_splash(gpu *g,float alpha){
+    glBindFramebuffer(GL_FRAMEBUFFER,0);
+    glViewport(0,0,g->out_w,g->out_h);
+    glClearColor(0,0,0,1); glClear(GL_COLOR_BUFFER_BIT);
+    if(g->spl_w<=0||alpha<=0.0f) return;
+    /* fit to a share of the width, but never let a wide display push it
+     * past a share of the height */
+    float ow=(float)g->out_w, oh=(float)g->out_h;
+    float w=ow*0.56f, h=w*(float)g->spl_h/(float)g->spl_w;
+    if(h>oh*0.34f){ h=oh*0.34f; w=h*(float)g->spl_w/(float)g->spl_h; }
+    float rx=(ow-w)*0.5f/ow, ry=(oh-h)*0.5f/oh;
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE,GL_ONE_MINUS_SRC_ALPHA);   /* premultiplied */
+    glUseProgram(g->prog_splash);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_splash);
+    glUniform1i(glGetUniformLocation(g->prog_splash,"src"),0);
+    glUniform4f(glGetUniformLocation(g->prog_splash,"rect"),rx,ry,w/ow,h/oh);
+    glUniform1f(glGetUniformLocation(g->prog_splash,"alpha"),alpha);
+    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glDisable(GL_BLEND);
+}
+void gpu_draw_fade(gpu *g,float a){
+    if(a<=0.0f) return;
+    glBindFramebuffer(GL_FRAMEBUFFER,0);
+    glViewport(0,0,g->out_w,g->out_h);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(g->prog_fade);
+    glUniform1f(glGetUniformLocation(g->prog_fade,"a"),a>1.0f?1.0f:a);
+    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glDisable(GL_BLEND);
+}
 void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h){
     if(!rgba || w<=0 || h<=0){ g->ov_w=0; g->ov_h=0; return; }
     g->ov_w=w; g->ov_h=h;

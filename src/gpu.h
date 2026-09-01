@@ -48,6 +48,13 @@ typedef struct gpu_knobs {
 void gpu_draw(gpu *g, float tube_x, float tube_y, float tube_w, float tube_h,
               const gpu_knobs *k, double t);
 
+/* Startup splash: the wordmark on black while the machine is being built.
+ * The RGBA must be PREMULTIPLIED (see gpu.c). */
+void gpu_set_splash(gpu *g,const uint8_t *rgba,int w,int h);
+void gpu_draw_splash(gpu *g,float alpha);
+/* black veil over the finished frame: 1 = black, 0 = nothing */
+void gpu_draw_fade(gpu *g,float a);
+
 /* The settings panel, drawn on the CPU and composited last. */
 void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h);
 void gpu_draw_overlay(gpu *g);

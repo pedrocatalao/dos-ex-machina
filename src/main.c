@@ -12,6 +12,7 @@
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
+#include "dxm_splash.h"
 #include <math.h>
 
 static int sc_from_sdl(SDL_Scancode s){
@@ -55,8 +56,20 @@ static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
     fclose(f);
 }
 
+/* chassis_render() is the one genuinely slow thing at startup - a few
+ * million pixels of signed-distance work - and it touches no GL, so it runs
+ * on a worker while the main thread holds the splash up.  Doing it inline
+ * would freeze the fade for its whole duration. */
+typedef struct { int W,H; dxm_layout L; uint8_t *px; } chassis_job;
+static int SDLCALL chassis_worker(void *ud){
+    chassis_job *j=(chassis_job *)ud;
+    j->L=chassis_layout(j->W,j->H);
+    j->px=chassis_render(&j->L,j->W,j->H);
+    return 0;
+}
+
 int main(int argc,char **argv){
-    int windowed=0, shot_frames=0, selftest=0; const char *shot=NULL; const char *autocmd=NULL;
+    int windowed=0, shot_frames=0, selftest=0, quit_early=0; const char *shot=NULL; const char *autocmd=NULL;
     float ambient=0.4f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
@@ -101,9 +114,12 @@ int main(int argc,char **argv){
     { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
       win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H); }
     gpu *g=gpu_create(W,H);
-    dxm_layout L=chassis_layout(W,H);
-    uint8_t *chas=chassis_render(&L,W,H);
-    gpu_set_chassis(g,chas,W,H);
+
+    /* The machine is switched on before it is drawn: the splash and the
+     * sound of it running come up first, and the chassis is built behind
+     * them. */
+    { uint8_t *spl=dxm_splash_rgba();
+      if(spl){ gpu_set_splash(g,spl,DXM_SPLASH_W,DXM_SPLASH_HT); free(spl); } }
 
     /* The core renders at 44100 Hz (skyroads audio.c SAMPLE_RATE).  The
      * stream must be opened at the CORE's rate - SDL3 resamples to whatever
@@ -113,7 +129,45 @@ int main(int argc,char **argv){
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&as,audio_cb,NULL);
     if(ast) SDL_ResumeAudioStreamDevice(ast);
     snd_init(44100);
-    snd_power(1);                 /* fans and spindle spin up */
+    snd_power(1);                 /* fans and spindle spin up, immediately */
+
+    chassis_job job={W,H,{0},NULL};
+    SDL_Thread *cth=SDL_CreateThread(chassis_worker,"chassis",&job);
+    if(!cth) chassis_worker(&job);            /* no threads: just do it here */
+
+    if(!selftest){
+        /* Fast in, hold until the machine is ready, then out.  The hold has
+         * a floor so a quick build does not flash the mark up and away. */
+        const double FADE_IN=0.30, HOLD_MIN=0.95, FADE_OUT=0.45;
+        Uint64 s0=SDL_GetTicksNS();
+        for(;;){
+            SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
+            double e=(SDL_GetTicksNS()-s0)/1e9;
+            float a=(float)(e<FADE_IN ? e/FADE_IN : 1.0);
+            gpu_draw_splash(g,a*a*(3.0f-2.0f*a));   /* ease, no linear ramp */
+            SDL_GL_SwapWindow(win);
+            if(quit_early) break;
+            if(e>=HOLD_MIN && cth && SDL_GetThreadState(cth)==SDL_THREAD_COMPLETE) break;
+            if(e>=HOLD_MIN && !cth) break;
+        }
+        Uint64 f0=SDL_GetTicksNS();
+        while(!quit_early){
+            SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
+            double e=(SDL_GetTicksNS()-f0)/1e9;
+            if(e>=FADE_OUT) break;
+            float a=(float)(1.0-e/FADE_OUT);
+            gpu_draw_splash(g,a*a*(3.0f-2.0f*a));
+            SDL_GL_SwapWindow(win);
+        }
+    }
+    /* The machine comes up out of the same black the splash left behind,
+     * so the two reads as one continuous power-on rather than a cut. */
+    Uint64 mach_fade0=SDL_GetTicksNS();
+    const double MACH_FADE=0.70;
+    if(cth) SDL_WaitThread(cth,NULL);
+    dxm_layout L=job.L;
+    uint8_t *chas=job.px;
+    gpu_set_chassis(g,chas,W,H);
 
 
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
@@ -136,7 +190,7 @@ int main(int argc,char **argv){
     dos_init();
 
     Uint64 t_start=SDL_GetTicksNS();
-    int frame=0, quit=0;
+    int frame=0, quit=quit_early;
     while(!quit){
         SDL_Event e;
         while(SDL_PollEvent(&e)){
@@ -274,6 +328,13 @@ int main(int argc,char **argv){
         { int ow,oh;
           const uint8_t *ov=ui_render(W,H,&ow,&oh);
           if(ov){ gpu_set_overlay(g,ov,ow,oh); gpu_draw_overlay(g); }
+        if(!selftest){
+            double fe=(SDL_GetTicksNS()-mach_fade0)/1e9;
+            if(fe<MACH_FADE){
+                float a=(float)(1.0-fe/MACH_FADE);
+                gpu_draw_fade(g,a*a*(3.0f-2.0f*a));
+            }
+        }
 
           if(ui_visible()) SDL_ShowCursor(); else SDL_HideCursor(); }
         SDL_GL_SwapWindow(win);
