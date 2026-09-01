@@ -1088,12 +1088,17 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
       for(int j2=0;j2<(int)gap_hi;j2++){
         /* u: 0 at the parting, 1 at the very top edge of the machine */
         float u=1.0f-(float)j2/gap_hi;
-        float sh =0.46f+0.54f*cosf(u*1.24f);
-        float lit=expf(-((u-0.13f)*(u-0.13f))/0.0090f)*0.15f;
+        /* A pure falloff, with no separate catch band.  The highlight that
+         * used to sit at u=0.13 belonged to the parting that ran along the
+         * bottom of this roll; with that gone it had nothing to describe
+         * and simply read as a bright line drawn across the case. */
+        float sh=0.46f+0.54f*cosf(u*1.24f);      /* 1.0 exactly at u=0, so
+                                                    it meets the face below
+                                                    with no step */
         for(int i2=0;i2<W;i2++){
             uint8_t *q=c->px+((size_t)j2*c->w+i2)*4;
             for(int k=0;k<3;k++){
-                float v=q[k]*sh+lit*255.0f;
+                float v=q[k]*sh;
                 q[k]=(uint8_t)(v<0?0:v>255?255:v);
             }
         }
@@ -1215,11 +1220,6 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
          * goes right round the case, and stopping it at the front face made
          * it read as a groove cut into one moulding instead. */
         panel_gap(c,0.0f,gap_lo,(float)W,gap_d);
-        /* And the same parting again across the top of the housing, held
-         * the same distance off the tube as the one below - measured from
-         * the shoulder to the NEAR lip of each, so the two read as one part
-         * sandwiched between two others. */
-        if(gap_hi>gap_d) panel_gap(c,0.0f,gap_hi,(float)W,gap_d);
         float mid=band_y+band_h*0.46f;
         float mm=H/268.0f;              /* ONE physical scale, tied to the
                                            DISPLAY, not the band - so slimming
