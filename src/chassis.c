@@ -462,40 +462,28 @@ static void vent_slot(canvas *c,float x,float y,float w,float h){
       }
 }
 
-/* The parting between the two mouldings: the monitor housing sits ON the
- * base, and where two parts meet there is a real gap, not a drawn line.  A
- * gap has a cross-section - the upper part overhangs and casts into it, the
- * floor sits in shade, and the base's own top edge comes back up into the
- * light - and that cross-section is the whole reason it reads as two parts
- * rather than as a scratch across one. */
+/* The parting between two mouldings.  It is a COVE, not a notch: the face
+ * curves down into it and back out again with no edge anywhere, which is
+ * what a moulded gap in a case actually looks like - the tool has a radius
+ * and cannot leave a corner.  The earlier version cut a square channel and
+ * put a hard dark row along its top lip, and that hard row is exactly what
+ * read as a scratch rather than as a join.
+ *
+ * `d` is the FULL width of the cove.  Depth is a raised cosine across it,
+ * so the shading falls straight out of the profile's slope: the flank you
+ * meet first turns away from the key light, the far flank turns into it,
+ * and the trough between sits in its own shade. */
 static void panel_gap(canvas *c,float x,float y,float w,float d){
-    float lip=d*0.55f;                        /* how far the light spreads  */
-    for(int j2=(int)(y-lip-1);j2<(int)(y+d+lip+1);j2++){
-        float v=((float)j2+0.5f-y)/d;         /* 0 at the top of the gap    */
-        float mul=1.0f, spec=0.0f;
-        if(v<0.0f){
-            /* the face above, darkened as it turns down into the gap */
-            float t=-v*d/lip; if(t>1.0f) continue;
-            mul=1.0f-0.20f*(1.0f-t)*(1.0f-t);
-        } else if(v<=1.0f){
-            /* inside: darkest just under the overhang, lifting toward the
-             * floor, and the far wall picks up a little bounce */
-            float u=v;
-            mul=0.34f+0.30f*u*u;
-        } else {
-            /* the base's top edge, catching the key light square on */
-            float t=(v-1.0f)*d/lip; if(t>1.0f) continue;
-            float e=(1.0f-t)*(1.0f-t);
-            mul=1.0f+0.26f*e;
-            spec=e*0.075f;
-        }
+    for(int j2=(int)y;j2<(int)(y+d);j2++){
+        float t=(((float)j2+0.5f)-y)/d;
+        if(t<0.0f||t>1.0f) continue;
+        float prof=0.5f-0.5f*cosf(t*6.28318f);   /* 0 at the lips, 1 mid  */
+        float g   =sinf(t*6.28318f);             /* +descending, -rising  */
+        float lam =-g*0.91f;                     /* the key light is above */
+        float sp  =fmaxf(lam,0.0f);
         for(int i2=(int)x;i2<(int)(x+w);i2++)
-            px_shade(c,i2,j2,mul,spec);
+            px_shade(c,i2,j2,1.0f+lam*0.40f-prof*0.15f,sp*sp*0.085f);
     }
-    /* the hard line where the overhang begins - one dark row, so the top of
-     * the gap has an edge instead of fading in */
-    for(int i2=(int)x;i2<(int)(x+w);i2++)
-        px_blend(c,i2,(int)y,18,17,15,0.55f);
 }
 
 /* ---- moulded modules ---- */
@@ -1062,8 +1050,35 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     float inset=H*0.052f, edge=W*0.024f;
     float bz=L->tube_h*BEZEL_BAND;      /* measured off the reference */
     float hous=L->tube_h*BEZEL_HOUSING;
+    /* the two partings, and where the upper one sits - the top band is the
+     * case above it, so both have to be solved from the same numbers */
+    float gap_d=fmaxf(3.0f,2.0f*(float)H/268.0f);
+    float gap_lo=L->tube_y+L->tube_h+hous+inset*0.22f-inset*0.30f;
+    float gap_hi=L->tube_y-(gap_lo-(L->tube_y+L->tube_h))-gap_d;
 
     rrect(c,0,0,(float)W,(float)H,0.0f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.03f,0.90f);
+
+    /* The top band rolls BACK: above the upper parting the case is no longer
+     * a flat face, it is the front turning over into the top of the box.  So
+     * it takes a catch just past the roll - where the surface is tilted up
+     * toward the key light - and then falls away into shade as it turns out
+     * of sight, exactly as the side strips do going outward.  Leaving it
+     * flat is what made the machine read as a panel rather than a box. */
+    if(gap_hi>4.0f){
+      for(int j2=0;j2<(int)gap_hi;j2++){
+        /* u: 0 at the parting, 1 at the very top edge of the machine */
+        float u=1.0f-(float)j2/gap_hi;
+        float sh =0.46f+0.54f*cosf(u*1.24f);
+        float lit=expf(-((u-0.13f)*(u-0.13f))/0.0090f)*0.15f;
+        for(int i2=0;i2<W;i2++){
+            uint8_t *q=c->px+((size_t)j2*c->w+i2)*4;
+            for(int k=0;k<3;k++){
+                float v=q[k]*sh+lit*255.0f;
+                q[k]=(uint8_t)(v<0?0:v>255?255:v);
+            }
+        }
+      }
+    }
 
     /* Edge strips: the case turning away from the viewer.  They are the
      * SIDES of the box, so they fall off in shade toward each outer edge -
@@ -1179,8 +1194,12 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
          * turned-away side strips as well: the parting between two parts
          * goes right round the case, and stopping it at the front face made
          * it read as a groove cut into one moulding instead. */
-        panel_gap(c,0.0f,band_y-inset*0.30f,(float)W,
-                  fmaxf(2.0f,1.7f*(float)H/268.0f));
+        panel_gap(c,0.0f,gap_lo,(float)W,gap_d);
+        /* And the same parting again across the top of the housing, held
+         * the same distance off the tube as the one below - measured from
+         * the shoulder to the NEAR lip of each, so the two read as one part
+         * sandwiched between two others. */
+        if(gap_hi>gap_d) panel_gap(c,0.0f,gap_hi,(float)W,gap_d);
         float mid=band_y+band_h*0.46f;
         float mm=H/268.0f;              /* ONE physical scale, tied to the
                                            DISPLAY, not the band - so slimming
