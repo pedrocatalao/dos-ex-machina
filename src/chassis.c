@@ -1101,8 +1101,11 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     float band_y=L->tube_y+L->tube_h+hous+inset*0.22f;
     float band_h=(float)H-inset*0.55f-band_y;
     if(band_h>inset*0.8f){
-        /* the two mouldings part here, with a real gap between them */
-        panel_gap(c,edge,band_y-inset*0.30f,(float)W-2*edge,
+        /* The two mouldings part here.  It runs the FULL width, across the
+         * turned-away side strips as well: the parting between two parts
+         * goes right round the case, and stopping it at the front face made
+         * it read as a groove cut into one moulding instead. */
+        panel_gap(c,0.0f,band_y-inset*0.30f,(float)W,
                   fmaxf(2.0f,1.7f*(float)H/268.0f));
         float mid=band_y+band_h*0.46f;
         float mm=H/268.0f;              /* ONE physical scale, tied to the
