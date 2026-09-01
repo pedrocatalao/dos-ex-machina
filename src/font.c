@@ -69,7 +69,39 @@ static const uint8_t G[96][8] = {
  {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF},          /* _ */
  {0x30,0x18,0x0C,0x00,0x00,0x00,0x00,0x00},          /* ` */
 };
+/* CP437 line drawing and blocks.  A text-mode UI is BUILT out of these -
+ * without them a panel frame has to be faked from dashes and pipes, which
+ * leaves a gap at every cell boundary and reads as ASCII art rather than as
+ * a program.  The single-line set is 2px thick so that it matches after the
+ * 8x8 glyphs are row-doubled to 8x16: two pixels across for the uprights,
+ * one row (doubled) for the runs. */
+#define V 0x18                                 /* the upright: x=3,4 */
+static const uint8_t BOX[][9] = {
+ {0xB3, V,V,V,V,V,V,V,V},                      /* vertical      */
+ {0xC4, 0,0,0,0xFF,0,0,0,0},                   /* horizontal    */
+ {0xDA, 0,0,0,0x1F,V,V,V,V},                   /* top left      */
+ {0xBF, 0,0,0,0xF8,V,V,V,V},                   /* top right     */
+ {0xC0, V,V,V,0x1F,0,0,0,0},                   /* bottom left   */
+ {0xD9, V,V,V,0xF8,0,0,0,0},                   /* bottom right  */
+ {0xC3, V,V,V,0x1F,V,V,V,V},                   /* tee right     */
+ {0xB4, V,V,V,0xF8,V,V,V,V},                   /* tee left      */
+ {0xC2, 0,0,0,0xFF,V,V,V,V},                   /* tee down      */
+ {0xC1, V,V,V,0xFF,0,0,0,0},                   /* tee up        */
+ {0xC5, V,V,V,0xFF,V,V,V,V},                   /* cross         */
+ {0xDB, 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}, /* full block */
+ {0xB0, 0x88,0x00,0x22,0x00,0x88,0x00,0x22,0x00}, /* light shade */
+ {0xB1, 0xAA,0x00,0x55,0x00,0xAA,0x00,0x55,0x00}, /* medium      */
+ {0xB2, 0xAA,0x55,0xAA,0x55,0xAA,0x55,0xAA,0x55}, /* dark        */
+ {0x1E, 0x00,0x18,0x3C,0x7E,0xFF,0x00,0x00,0x00}, /* up arrow    */
+ {0x1F, 0x00,0x00,0x00,0xFF,0x7E,0x3C,0x18,0x00}, /* down arrow  */
+ {0x10, 0x00,0x60,0x78,0x7E,0x78,0x60,0x00,0x00}, /* right arrow */
+};
+#undef V
+
 const uint8_t *font_glyph(int ch) {
+    ch &= 0xFF;
+    for (unsigned k = 0; k < sizeof BOX / sizeof BOX[0]; k++)
+        if (BOX[k][0] == ch) return BOX[k] + 1;
     if (ch >= 'a' && ch <= 'z') ch -= 32;      /* v0: lowercase -> uppercase */
     if (ch < 32 || ch > '`') return G[0];
     return G[ch - 32];

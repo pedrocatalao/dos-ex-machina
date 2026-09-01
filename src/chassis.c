@@ -4,6 +4,7 @@
 #include "chassis.h"
 #include "font.h"
 #include "dxm_road.h"
+#include "sb_logo.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -279,6 +280,72 @@ static void led_rect(canvas *c,float cx,float cy,float w,float h,
                     px_shade(c,i2,j2,1.0f+0.18f*(1.0f-t),(1.0f-t)*0.05f);
             }
         }
+}
+
+/* The sound-card sticker.  Everything else on this machine was moulded or
+ * printed at the factory; this is the one mark a PREVIOUS OWNER left, so it
+ * is applied ON the case - clear laminate margin, contact shadow round the
+ * edge, and the gloss catch vinyl has and plastic does not.
+ *
+ * The artwork is the real logo, baked (tools/mklogo.py).  Setting it in the
+ * 8x8 case font got the words right and everything else wrong: the mark has
+ * letterforms of its own - the triangular A over its rule, the notched E -
+ * and faking those is exactly the sort of thing that reads as a cartoon. */
+static void sb_sticker(canvas *c,float cx,float cy,float w){
+    float lw=w*0.885f;                       /* the print inside the laminate */
+    float lh=lw*(float)SB_LOGO_HT/(float)SB_LOGO_W;
+    float h=lh+w*0.115f;
+    float x=cx-w*0.5f, y=cy-h*0.5f;
+    float rad=h*0.16f, hw=w*0.5f, hh=h*0.5f;
+    g_grain=0;                               /* printed vinyl has no grain */
+
+    /* the shadow it casts on the pod, which is what puts it on top */
+    { float sw=h*0.13f;
+      for(int j2=(int)(y-sw-1);j2<(int)(y+h+sw+1);j2++)
+        for(int i2=(int)(x-sw-1);i2<(int)(x+w+sw+1);i2++){
+            float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad);
+            if(sd<=0.0f||sd>sw) continue;
+            float t=sd/sw, dyn=((float)j2-cy)/hh;
+            /* deeper below, away from the key light */
+            float side=0.55f+0.60f*fmaxf(0.0f,dyn);
+            px_shade(c,i2,j2,1.0f-0.17f*(1.0f-t)*(1.0f-t)*side,0.0f);
+        }
+    }
+
+    /* the clear laminate the print sits inside */
+    rrect(c,x,y,w,h,rad, 234,234,230, 1.0f,0.96f);
+
+    /* the artwork, box-filtered down to whatever size it landed at */
+    { float lx=cx-lw*0.5f, ly=cy-lh*0.5f;
+      float sx=(float)SB_LOGO_W/lw, sy=(float)SB_LOGO_HT/lh;
+      for(int j2=0;j2<(int)lh;j2++)
+        for(int i2=0;i2<(int)lw;i2++){
+            int u0=(int)(i2*sx), u1=(int)((i2+1)*sx); if(u1<=u0) u1=u0+1;
+            int v0=(int)(j2*sy), v1=(int)((j2+1)*sy); if(v1<=v0) v1=v0+1;
+            if(u1>SB_LOGO_W) u1=SB_LOGO_W;
+            if(v1>SB_LOGO_HT) v1=SB_LOGO_HT;
+            int r=0,g=0,b=0,n=0;
+            for(int v=v0;v<v1;v++)
+              for(int u=u0;u<u1;u++){
+                const uint8_t *sp=sb_logo+((size_t)v*SB_LOGO_W+u)*4;
+                r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
+              }
+            if(!n) continue;
+            px_blend(c,(int)lx+i2,(int)ly+j2,r/n,g/n,b/n,1.0f);
+        }
+    }
+
+    /* vinyl is glossy: one broad diagonal catch, which is the difference
+     * between a label and a printed rectangle */
+    for(int j2=(int)y;j2<(int)(y+h);j2++)
+      for(int i2=(int)x;i2<(int)(x+w);i2++){
+        if(rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad)>0.0f) continue;
+        float u=((float)i2-x)/w + (((float)j2-y)/h)*0.50f;
+        float d=(u-0.40f)/0.22f;
+        float a=expf(-d*d)*0.11f;
+        if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
+      }
+    g_grain=1;
 }
 
 /* ---- moulded modules ---- */
@@ -943,6 +1010,13 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             }
             grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
             grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
+            /* the sound-card sticker, on the RIGHT pod under the holes */
+            { float sw=pw*0.54f;
+              float y0=gy+gh*0.94f, y1=py+ph;      /* holes end .. pod ends */
+              float sh=sw*0.885f*0.5f+sw*0.115f;   /* what sb_sticker builds */
+              if(y1-y0>sh*1.30f)
+                sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
+            }
         }
     }
 
@@ -1031,9 +1105,6 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
       /* the compliance block, low and to the left, where nobody looks */
       moulded_text(c,edge+inset*0.9f, (float)H-inset*0.95f+9.0f*ms,
                    "MADE IN PORTUGAL",ms,0);
-      /* and the model number moulded near the top right, larger */
-      moulded_text(c,(float)W-edge-inset*0.9f-8.0f*ms*11.0f, inset*0.55f,
-                   "SERIES 4000",ms,0);
 
       /* ejector pin marks: faint discs on the broad flat areas */
       { float pr2=3.6f*mmu;

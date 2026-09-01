@@ -238,6 +238,10 @@ int main(int argc,char **argv){
                     else if(e.key.key=='\r') dos_key('\r',sc);
                     else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);
                     else if(e.key.key>=32&&e.key.key<127) dos_key((int)e.key.key,sc);
+                    /* the navigator is driven by keys that carry no
+                     * character at all - without this the prompt never
+                     * hears an arrow or an Esc */
+                    else if(sc) dos_key(0,sc);
                 }
             }
         }
