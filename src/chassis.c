@@ -331,6 +331,38 @@ static void grille_panel(canvas *c,float x,float y,float w,float h,float pitch){
         }
     }
 }
+/* A moulded styling groove: a shallow horizontal channel with rounded ends.
+ * Real cases carried these on the flanks as much for stiffening the panel as
+ * for looks.  Cross-section is a half-round depression, so the wall you enter
+ * on faces away from the key light and the wall you climb out on faces into
+ * it - dark at the top, bright at the bottom, dimmer in the trough.  Drawing
+ * it as a flat dark line instead is exactly what reads as a printed stripe. */
+static void groove_h(canvas *c,float x,float y,float w,float d,float amp){
+    float r=d*0.9f;                       /* how far the ends round off */
+    for(int j2=(int)(y-1);j2<=(int)(y+d+1);j2++){
+        float v=((float)j2+0.5f-y)/d;     /* 0 at the top lip, 1 at the bottom */
+        if(v<-0.35f||v>1.35f) continue;
+        float g,depth;
+        if(v<0.0f||v>1.0f){               /* the face just outside the channel */
+            float t=(v<0.0f)?(-v/0.35f):((v-1.0f)/0.35f);
+            g=(v<0.0f)? (1.0f-t) : -(1.0f-t);
+            depth=0.0f;
+        }else{
+            g=cosf(v*3.14159265f);        /* +1 entering (dark), -1 exiting */
+            depth=sinf(v*3.14159265f);
+        }
+        for(int i2=(int)x;i2<(int)(x+w);i2++){
+            /* fade the amplitude toward each end so the groove dies out
+             * instead of stopping against a hard vertical edge */
+            float dl=(float)i2-x, dr=(x+w-1.0f)-(float)i2;
+            float e=fminf(1.0f,fminf(dl,dr)/fmaxf(r,1.0f));
+            if(e<=0.0f) continue;
+            float a=amp*e;
+            px_shade(c,i2,j2,1.0f-(0.34f*g+0.16f*depth)*a,
+                     fmaxf(0.0f,-g)*0.055f*a);
+        }
+    }
+}
 static void seam(canvas *c,float x,float y,float len,int vertical,float w){
     for(int t=0;t<(int)fmaxf(1.0f,w);t++){
         if(vertical) for(int j=(int)y;j<(int)(y+len);j++){
@@ -886,6 +918,27 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             float gy=L->tube_y+(L->tube_h-gh)*0.5f;   /* centred on the tube */
             grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
             grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
+            /* Styling grooves stacked above and below each grille.  They run
+             * horizontally so they read across the flank rather than echoing
+             * the tube's vertical edge, and they stop short of the grille
+             * capsule so the two features do not collide. */
+            float gd=fmaxf(2.0f,(float)H*0.0060f);   /* channel height */
+            float gp=gd*2.30f;                       /* pitch          */
+            float ggw=gw*0.80f;
+            float gx0[2]={edge+inset*0.45f+(gw-ggw)*0.5f,
+                          (float)W-edge-inset*0.45f-gw+(gw-ggw)*0.5f};
+            float top=L->tube_y, bot=L->tube_y+L->tube_h;
+            for(int s2=0;s2<2;s2++){
+                for(int k=0;k<4;k++){
+                    float ya=gy-inset*0.30f-gp*(float)(k+1);
+                    float yb=gy+gh+inset*0.30f+gp*(float)k;
+                    /* the topmost of a stack is always the shallowest, the
+                     * way a moulding fades out toward the end of a run */
+                    float a=1.0f-0.13f*(float)k;
+                    if(ya>top)          groove_h(c,gx0[s2],ya,ggw,gd,a);
+                    if(yb+gd<bot)       groove_h(c,gx0[s2],yb,ggw,gd,a);
+                }
+            }
         }
     }
 
@@ -972,10 +1025,8 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     { float mmu=(float)H/268.0f;                    /* same mm as the band */
       float ms=fmaxf(1.0f,g_lbl*0.72f);
       /* the compliance block, low and to the left, where nobody looks */
-      moulded_text(c,edge+inset*0.9f, (float)H-inset*0.95f,
-                   "MADE IN PORTUGAL",ms,0);
       moulded_text(c,edge+inset*0.9f, (float)H-inset*0.95f+9.0f*ms,
-                   "MODEL DXM-486DX2  TYPE 4B",ms,0);
+                   "MADE IN PORTUGAL",ms,0);
       /* and the model number moulded near the top right, larger */
       moulded_text(c,(float)W-edge-inset*0.9f-8.0f*ms*11.0f, inset*0.55f,
                    "SERIES 4000",ms,0);
