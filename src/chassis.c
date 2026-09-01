@@ -25,7 +25,7 @@
 #define BEZEL_BAND    0.076f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
 #define BEZEL_R_MID   0.042f   /* shoulder corner radius                    */
-#define FILLET_START     0.88f  /* where the shoulder roll begins,
+#define FILLET_START     0.915f /* where the shoulder roll begins,
                                  * as a fraction across the dish  */
 #define BEZEL_R_MID_WARP 0.45f /* the shoulder follows the tube's curvature  */
                                /* only PARTLY - the moulding flattens as it  */
@@ -787,7 +787,10 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
      * along the top and drops into shadow along the bottom.  This is the
      * edge that gives the bezel its depth; putting the highlight out at the
      * chassis boundary instead was simply the wrong edge. */
-    float fw=fmaxf(2.0f,bz*0.42f);   /* a wider roll, so the corner reads round */
+    float fw=fmaxf(2.0f,bz*0.30f);   /* roll width: wider reads rounder, and
+                                        past about half the band the moulding
+                                        stops looking moulded and starts
+                                        looking inflated */
     for(int j=(int)(L->tube_y-m);j<(int)(L->tube_y+L->tube_h+m);j++)
       for(int i=(int)(L->tube_x-m);i<(int)(L->tube_x+L->tube_w+m);i++){
         if(aperture_sd(L,(float)i,(float)j,rin)<=0.0f) continue;
@@ -908,7 +911,12 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                              fmaxf(1.5f,(float)W*0.0022f),
                              fmaxf(2.0f,(float)W*0.0030f),1,0.85f);
                 /* moulding bosses tucked into the pod corners */
-                { float br=3.0f*(float)H/268.0f, in2=prad*0.72f;
+                /* A real ejector boss is almost invisible EXCEPT at its
+                 * rim - the flat top sits flush with the face around it.
+                 * Darkening the whole disc instead read as a stamped spot,
+                 * the more so because it came out the same radius as the
+                 * pod corner it sat in. */
+                { float br=1.6f*(float)H/268.0f, in2=prad*0.86f;
                   float bp[4][2]={{in2,in2},{pw-in2,in2},
                                   {in2,ph-in2},{pw-in2,ph-in2}};
                   for(int k=0;k<4;k++){
@@ -918,9 +926,9 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                         float dx2=i2-bx, dy2=j2-by;
                         float dd=sqrtf(dx2*dx2+dy2*dy2);
                         if(dd>br) continue;
-                        float rim=1.0f-fabsf(dd-br*0.84f)/(br*0.20f);
+                        float rim=1.0f-fabsf(dd-br*0.88f)/(br*0.14f);
                         if(rim<0.0f) rim=0.0f;
-                        px_shade(c,i2,j2,1.0f-0.020f+0.034f*rim*(-dy2/br),0.0f);
+                        px_shade(c,i2,j2,1.0f-0.005f+0.030f*rim*(-dy2/br),0.0f);
                       }
                   }
                 }
