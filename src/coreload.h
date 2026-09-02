@@ -9,6 +9,15 @@
 #include <stddef.h>
 #include "dxm_core.h"
 
+/* The one path separator DXM builds with.  Windows accepts '/' everywhere
+ * these calls go, but the paths are shown to the user in NC, so they should
+ * look native. */
+#ifdef _WIN32
+#  define DXM_SEP '\\'
+#else
+#  define DXM_SEP '/'
+#endif
+
 typedef struct {
     void                 *handle;      /* dlopen/LoadLibrary handle       */
     const dxm_core_info  *info;

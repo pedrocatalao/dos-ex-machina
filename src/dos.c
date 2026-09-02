@@ -2,11 +2,13 @@
  * The prompt is the UI: there is no other way to reach anything. */
 #include "dos.h"
 #include "font.h"
+#include "library.h"
 #include "dxm_core.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <ctype.h>
 
 static char    scr[DOS_ROWS][DOS_COLS];
 /* One VGA attribute per cell: low nibble foreground, high nibble background.
@@ -24,7 +26,6 @@ static void nc_art(void);
 static char   launch[32];
 static int    launch_pending;
 static double launch_at;      /* hold the launch until the drive is done */
-static int    sky_installed = 1;   /* v0: data ships with the dev checkout */
 static int    beep_pending;        /* POST beep, fired after the RAM count */
 static double floppy_req;          /* seconds of drive activity wanted    */
 static double now_t;               /* last dos_update time, for the logo  */
@@ -70,6 +71,11 @@ void dos_init(void){
     cur_att=0x07;
     cur_r=cur_c=0; line_n=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
     beep_pending=0; mem_counting=0; mem_shown=0;
+}
+void dos_core_failed(void){
+    put('\n');
+    sayln("Cannot run that program.");
+    prompt(); st=DOS_PROMPT; line_n=0;
 }
 void dos_core_exited(void){
     put('\n'); prompt(); st=DOS_PROMPT; line_n=0;
@@ -117,23 +123,31 @@ typedef struct {
     const char *cmd;           /* what dos runs for it         */
     const char *title;
     const char *by;
-    const char *desc[5];
+    const char *note;          /* why it cannot run, if it cannot */
+    int year;
     const uint8_t *art; int aw, ah;
     int installed;
 } nc_entry;
 
-/* The one game there is.  Everything about the panel is driven off this
- * table, so a second title is a row here and nothing else. */
-static const nc_entry NC_GAMES[] = {
-  { "SKYROADS", "skyroads", "SkyRoads", "Bluemoon Interactive, 1993",
-    { "Drive a skimmer along roads",
-      "suspended over thirty alien",
-      "worlds.  Fuel and oxygen run",
-      "down while you line up the",
-      "jumps.  The gaps do not care." },
-    dxm_road, DXM_ROAD_W, DXM_ROAD_HT, 1 },
-};
-#define NC_N ((int)(sizeof NC_GAMES / sizeof NC_GAMES[0]))
+/* Entries come from the library, not from a table here: DXM links no game,
+ * so what the panel lists is whatever is installed on the machine.  The
+ * catalogue will add rows for games that are NOT installed yet, which is
+ * why `installed` is a field rather than an assumption. */
+static nc_entry nc_rows[LIB_MAX];
+static int      nc_n;
+
+static void nc_rows_build(void){
+    nc_n=0;
+    for(int i=0;i<lib_count() && nc_n<LIB_MAX;i++){
+        const lib_game *g=lib_at(i);
+        nc_entry *e=&nc_rows[nc_n++];
+        memset(e,0,sizeof *e);
+        e->file=g->id; e->cmd=g->id; e->title=g->title;
+        e->by=g->by; e->year=g->year; e->installed=g->ready;
+        e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
+        e->note=g->note;
+    }
+}
 
 static int nc_open, nc_sel;
 
@@ -198,31 +212,47 @@ static void nc_draw(void){
         int cx=NC_LX+1+k*cw-1;
         for(int r=NC_LIST_T;r<=NC_LIST_B;r++) cell(r,cx,BX_V,A_PANEL);
       }
-      for(int i=0;i<NC_N;i++){
+      for(int i=0;i<nc_n;i++){
         int colk=i/rows, rowk=i%rows;
         if(colk>=NC_COLS) break;
         int x=NC_LX+1+colk*cw, y=NC_LIST_T+rowk;
-        uint8_t a=(i==nc_sel)?A_SEL:(NC_GAMES[i].installed?A_NAME:A_DIM);
+        uint8_t a=(i==nc_sel)?A_SEL:(nc_rows[i].installed?A_NAME:A_DIM);
         nfill(y,x,cw-1,' ',a);
-        nputs(y,x+1,NC_GAMES[i].file,a);
+        nputs(y,x+1,nc_rows[i].file,a);
       }
     }
     nrule(NC_LX,NC_BOT-1,NC_LW);
     { char b[48];
-      snprintf(b,sizeof b," %d file(s)",NC_N);
+      snprintf(b,sizeof b," %d file(s)",nc_n);
       nputs(NC_BOT,NC_LX+2,b,A_PANEL); }
 
     /* ---- right panel: the highlighted entry ---- */
-    const nc_entry *e=&NC_GAMES[nc_sel];
+    if(nc_n==0){
+        nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,"NOTHING INSTALLED");
+        nputs(NC_DESC_T,  NC_RX+2,"No games on this machine.",A_TEXT);
+        nputs(NC_DESC_T+2,NC_RX+2,"Put a .dxm module and its",A_TEXT);
+        nputs(NC_DESC_T+3,NC_RX+2,"data under:",A_TEXT);
+        nputs(NC_DESC_T+5,NC_RX+2,"  games/<name>/",A_NAME);
+    } else {
+    const nc_entry *e=&nc_rows[nc_sel];
     nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,e->title);
     /* the art well is painted black here; the pixels land on top of it in
      * dos_render(), which is the only place this program is not text */
     for(int r=NC_ART_T;r<=NC_ART_B;r++) nfill(r,NC_RX+1,NC_RW-2,' ',0x00);
     nrule(NC_RX,NC_ART_B+1,NC_RW);
-    for(int k=0;k<5;k++)
-        if(e->desc[k]) nputs(NC_DESC_T+k,NC_RX+2,e->desc[k],A_TEXT);
+    /* A game that cannot run says why, in the space a description will take
+     * once the catalogue supplies one.  Silence there is the worst answer:
+     * the entry is visible, so something must account for it. */
+    if(!e->installed && e->note && e->note[0]){
+        nputs(NC_DESC_T,  NC_RX+2,"CANNOT RUN",A_HEAD);
+        nputs(NC_DESC_T+2,NC_RX+2,e->note,A_TEXT);
+    }
     nrule(NC_RX,NC_BOT-1,NC_RW);
-    nputs(NC_BOT,NC_RX+2,e->by,A_PANEL);
+    { char foot[64];
+      if(e->year) snprintf(foot,sizeof foot,"%s, %d",e->by,e->year);
+      else        snprintf(foot,sizeof foot,"%s",e->by);
+      nputs(NC_BOT,NC_RX+2,foot,A_PANEL); }
+    }
 
     /* ---- the command line, and the key bar ---- */
     nfill(22,0,DOS_COLS,' ',0x07);
@@ -243,7 +273,7 @@ static void nc_draw(void){
 
 /* The artwork: pixels, so it goes on after the character cells. */
 static void nc_art(void){
-    const nc_entry *e=&NC_GAMES[nc_sel];
+    const nc_entry *e=&nc_rows[nc_sel];
     if(!e->art) return;
     int bx=DOS_PAD_X+(NC_RX+1)*8, by=DOS_PAD_Y+NC_ART_T*16;
     int bw=(NC_RW-2)*8, bh=(NC_ART_B-NC_ART_T+1)*16;
@@ -278,12 +308,12 @@ static void nc_key(int ch,int sc){
         cur_att=0x07; cur_r=cur_c=0; prompt();
         return;
     }
-    if(sc==DXM_SC_DOWN)      { if(nc_sel+1<NC_N) nc_sel++; }
+    if(sc==DXM_SC_DOWN)      { if(nc_sel+1<nc_n) nc_sel++; }
     else if(sc==DXM_SC_UP)   { if(nc_sel>0) nc_sel--; }
-    else if(sc==DXM_SC_RIGHT){ if(nc_sel+rows<NC_N) nc_sel+=rows; }
+    else if(sc==DXM_SC_RIGHT){ if(nc_sel+rows<nc_n) nc_sel+=rows; }
     else if(sc==DXM_SC_LEFT) { if(nc_sel-rows>=0) nc_sel-=rows; }
     else if(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n'){
-        const nc_entry *e=&NC_GAMES[nc_sel];
+        const nc_entry *e=&nc_rows[nc_sel];
         if(e->installed){
             nc_open=0;
             memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
@@ -308,11 +338,21 @@ static void cmd_dir(void){
     sayln("CONFIG   SYS           246  05-31-94   6:22a");
     sayln("README   TXT         1,204  08-30-26  11:04a");
     sayln("NC       EXE        41,272  06-08-93  10:14a");
-    if(sky_installed)
-        sayln("SKYROADS EXE       114,688  03-15-93   1:93a");
+    /* One line per installed game.  DIR reports what is on the machine, so
+     * it has to come from the same place the navigator's list does. */
+    for(int i=0;i<lib_count();i++){
+        const lib_game *g=lib_at(i);
+        char nm[16], ln[80]; int k=0;
+        for(;g->id[k] && k<8;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
+        while(k<8) nm[k++]=' ';
+        nm[8]=0;
+        snprintf(ln,sizeof ln,"%s EXE       114,688  03-15-93   1:93a",nm);
+        sayln(ln);
+    }
     put('\n');
-    sayln(sky_installed ? "        6 file(s)         212,490 bytes"
-                        : "        5 file(s)          97,802 bytes");
+    { char ln[80];
+      snprintf(ln,sizeof ln,"        %d file(s)",5+lib_count());
+      sayln(ln); }
     sayln("                      536,870,912 bytes free");
 }
 static void cmd_help(void){
@@ -323,7 +363,15 @@ static void cmd_help(void){
     sayln("VER        Show the DOS version.");
     sayln("TYPE file  Display a text file.");
     sayln("NC         Browse the games in a dual-pane navigator.");
-    sayln("SKYROADS   Run SkyRoads.");
+    for(int i=0;i<lib_count();i++){
+        const lib_game *g=lib_at(i);
+        char nm[16], ln[96]; int k=0;
+        for(;g->id[k] && k<10;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
+        while(k<10) nm[k++]=' ';
+        nm[10]=0;
+        snprintf(ln,sizeof ln,"%s Run %s.",nm,g->title);
+        sayln(ln);
+    }
     sayln("EXIT       Switch the machine off.");
 }
 static void run(char *s){
@@ -343,21 +391,27 @@ static void run(char *s){
     else if(!strcmp(s,"TYPE")){
         if(arg && !strcmp(arg,"README.TXT")){
             sayln("DOS ex Machina - a machine that only runs games.");
-            sayln("Type SKYROADS to play.  Type EXIT to switch off.");
+            sayln("Type NC to browse the games.  Type EXIT to switch off.");
         } else { say("File not found - "); sayln(arg?arg:""); }
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
-    else if(!strcmp(s,"SKYROADS")){
-        if(!sky_installed){ sayln("Bad command or file name"); }
-        else { snprintf(launch,sizeof launch,"skyroads");
+    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build();
+                              nc_open=1; nc_sel=0; nc_draw(); return; }
+    else if(!strcmp(s,"FORMAT"))
+        sayln("Nice try.");
+    else {
+        /* Anything else may be an installed game.  Typing its name is still
+         * how you run it - the navigator is a convenience over the same
+         * mechanism, not a replacement for it. */
+        const lib_game *g=lib_find(s);
+        if(!g)             sayln("Bad command or file name");
+        else if(!g->ready){ say("Cannot run "); say(g->title); sayln(":");
+                            sayln(g->note[0]?g->note:"not ready"); }
+        else { snprintf(launch,sizeof launch,"%s",g->id);
                floppy_req=2.6;              /* the drive reads the game */
                launch_at=-1.0;              /* armed; set on the next tick */
                st=DOS_RUNNING; return; }
     }
-    else if(!strcmp(s,"NC")){ nc_open=1; nc_sel=0; nc_draw(); return; }
-    else if(!strcmp(s,"FORMAT"))
-        sayln("Nice try.");
-    else sayln("Bad command or file name");
 }
 
 void dos_key(int ch,int sc){
@@ -367,7 +421,10 @@ void dos_key(int ch,int sc){
         put('\n'); line[line_n]=0;
         char tmp[128]; memcpy(tmp,line,sizeof tmp);
         line_n=0; run(tmp);
-        if(st==DOS_PROMPT) prompt();
+        /* NC owns the whole screen once it opens, so the prompt must not be
+         * printed over it - the cursor is wherever the command line left it,
+         * and nc_draw does not move it. */
+        if(st==DOS_PROMPT && !nc_open) prompt();
         return;
     }
     if(ch=='\b'){ if(line_n){ line_n--; if(cur_c>4) cur_c--; scr[cur_r][cur_c]=' '; } return; }

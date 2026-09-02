@@ -25,19 +25,14 @@ static int      back;
 static volatile unsigned char keys[NKEYS];
 static int      chq[64]; static volatile int chq_r, chq_w;
 
-/* The core linked in at build time.  A module opened at run time replaces
- * these through corehost_use_module(); everything below goes through the
- * pointers so it cannot tell the two apart. */
-const dxm_core_info *dxm_core_get_info(void);
-int  dxm_core_main(const dxm_host *h,const char *dir);
-void dxm_core_audio(int16_t *out,int frames);
-
-static dxm_core_main_fn  f_main  = dxm_core_main;
-static dxm_core_audio_fn f_audio = dxm_core_audio;
+/* No core is linked in: a game is always a module opened at run time, so
+ * these start NULL and corehost_start refuses until one is chosen. */
+static dxm_core_main_fn  f_main;
+static dxm_core_audio_fn f_audio;
 
 void corehost_use_module(const dxm_module *m){
-    if(m && m->handle){ f_main=m->main_fn; f_audio=m->audio_fn; }
-    else              { f_main=dxm_core_main; f_audio=dxm_core_audio; }
+    f_main  = (m && m->handle) ? m->main_fn  : NULL;
+    f_audio = (m && m->handle) ? m->audio_fn : NULL;
 }
 
 static double now_s(void){
@@ -94,6 +89,10 @@ static void *thread_main(void *ud){
 }
 int corehost_start(const dxm_core_info *info,const char *data_dir){
     if(running) return -1;
+    if(!f_main){
+        fprintf(stderr,"[dxm] no core chosen - corehost_use_module first\n");
+        return -1;
+    }
     if(!info || info->abi!=DXM_ABI){
         fprintf(stderr,"[dxm] core ABI %d, this build speaks %d - refusing\n",
                 info?info->abi:-1,DXM_ABI);
@@ -136,7 +135,7 @@ void corehost_audio(int16_t *out,int nframes){
      * The mutex closes the same window during teardown. */
     pthread_mutex_lock(&mu);
     int ok = running && front >= 0;
-    if(ok) f_audio(out,nframes);
+    if(ok && f_audio) f_audio(out,nframes);
     else   memset(out,0,(size_t)nframes*4);
     pthread_mutex_unlock(&mu);
 }

@@ -1,0 +1,78 @@
+{
+  "catalogue": 1,
+  "updated": "2026-09-02",
+
+  "_comment": [
+    "The list of games DOS ex Machina can install. Fetched at run time, so",
+    "adding a game is an edit here rather than a new DXM release.",
+    "",
+    "'abi' is the contract version a game's module was built against; DXM",
+    "refuses one it does not speak, and can say which side needs updating.",
+    "",
+    "'module' is keyed by platform-arch, matching what DXM asks for at run",
+    "time. A missing key means that game is not available for that machine",
+    "yet - which is a thing to show the user, not an error.",
+    "",
+    "'data' is separate from the module on purpose. The module is the port,",
+    "which is ours to distribute; the data is the publisher's. For freeware",
+    "we point at their own download rather than mirroring it. For anything",
+    "not freeware, kind is 'byo' and the user supplies the files.",
+    "",
+    "Every artifact carries a sha256 because DXM downloads and then EXECUTES",
+    "the module. Verifying is not optional. The art carries one too, so the",
+    "on-disk cache can be keyed by it - a changed hash is a changed image,",
+    "and nothing has to guess about staleness.",
+    "",
+    "'art' is shown in the navigator's right pane, for games that are merely",
+    "available as well as installed ones - so it is fetched on its own, not",
+    "bundled with the game."
+  ],
+
+  "games": [
+    {
+      "id": "skyroads",
+      "title": "SkyRoads",
+      "by": "Bluemoon Interactive",
+      "year": 1993,
+      "abi": 2,
+      "desc": [
+        "Drive a skimmer along roads suspended over thirty alien worlds.",
+        "Fuel and oxygen run down while you line up the jumps.",
+        "The gaps do not care."
+      ],
+      "source": "https://github.com/pedrocatalao/skyroads-sdl",
+      "art": {
+        "url": "https://raw.githubusercontent.com/pedrocatalao/skyroads-sdl/main/docs/title-crt.png",
+        "sha256": "31c6fd548e89bf1bb6c5ef8950063fed0e900ce054357097bd15134392262df9",
+        "size": 141734,
+        "format": "png"
+      },
+      "module": {
+        "macos-universal": {
+          "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-macos-universal.dxm",
+          "sha256": "712f6b2d22a882f1cce4c688c426c21db1d49065984519c8ee5410be9cd6fffe",
+          "size": 259040
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-linux-x86_64.dxm",
+          "sha256": "a573178f228b27aff2643c80e46d09aaf211b3a808bb0d79a043260fd7b60660",
+          "size": 109256
+        },
+        "linux-arm64": {
+          "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-linux-arm64.dxm",
+          "sha256": "a9b247ce4b5171b0aeb4171719a95e9deb73068ee97db98e61952af2f7efb2b4",
+          "size": 152328
+        }
+      },
+      "data": {
+        "kind": "freeware",
+        "url": "http://www.bluemoon.ee/history/skyroads/skyroads.zip",
+        "sha256": "24762fe14196a642224288fe2063c9d0c0033be9c5b4b2f97fded09390803ee4",
+        "size": 593740,
+        "format": "zip",
+        "probe": "roads.lzs",
+        "note": "Bluemoon's own freeware release. Downloaded from them, never mirrored here."
+      }
+    }
+  ]
+}
