@@ -1,34 +1,63 @@
-# DOS ex Machina
+<p align="center">
+  <img src="docs/logo.png" alt="DOS ex Machina" width="720">
+</p>
 
-A retro PC on your screen: a procedurally-drawn beige case and CRT, booting a
-simulated DOS prompt, from which you launch natively-ported DOS games. The
-games run in the same tube, behind the same glass.
+A 1993 beige-box PC on your screen — case, CRT and all — booting a simulated
+DOS prompt, from which you launch **natively ported** DOS games. The games run
+in the same tube, behind the same glass, with the same phosphor.
 
-See [SPEC.md](SPEC.md) for the design and [PORTING.md](PORTING.md) for the
-contract a game must satisfy to run here.
+Nothing here is a photograph. The machine is drawn procedurally at your
+display's resolution, from signed-distance geometry and a lighting model: the
+moulding partings, the speaker pods, the vent cuts, the ejector-pin marks and
+thirty years of wear are all solved, not painted. The tube is a real pipeline
+— phosphor persistence, barrel curvature, footprint-integrated scanlines, an
+aperture-grille mask, bloom, and coloured light spilling from the picture onto
+the plastic around it.
 
-## Status — first working version (M1 + most of M2)
+<p align="center">
+  <img src="docs/screenshot-prompt.jpg" alt="The DOS prompt" width="49%">
+  <img src="docs/screenshot-game.jpg" alt="SkyRoads running in the tube" width="49%">
+</p>
 
-Working end to end on macOS: boot theater → `C:\>` → `SKYROADS` → the game
-runs in the tube → Esc returns to the prompt → it relaunches.
+The games are not emulated. Each is a native C port that also ships as a
+standalone game in its own right — [SkyRoads][sr] runs perfectly well on its
+own — and DXM is the optional machine you can put it inside.
+[PORTING.md](PORTING.md) is the contract a port satisfies to run here.
 
-- Procedural chassis, no raster art. Three layout variants solved from the
-  host resolution (SPEC §6.3).
-- Tube pipeline in one GL shader path: time-based phosphor persistence,
-  barrel curvature, footprint-integrated beam/scanlines, aperture-grille mask
-  pinned to output pixels, bloom, glass sheen, and coloured bezel spill.
-- SkyRoads linked as an SDL-free static core. `nm -u libskyroads_core.a`
-  reports 0 undefined `SDL_*` symbols.
-- `--selftest` runs the conformance sequence from PORTING.md §5.
+[sr]: https://github.com/pedrocatalao/skyroads-sdl
+
+## How it works
+
+A game reaches DXM one of two ways, and everything above the seam is identical
+either way:
+
+- **Linked in** at build time — what the dev build does.
+- **As a `.dxm` module**, opened at run time with `dlopen`/`LoadLibrary`.
+
+A module exports exactly three symbols (`dxm_core_get_info`, `dxm_core_main`,
+`dxm_core_audio`) and hides everything else, so two games can be loaded at once
+without their globals colliding. It carries the shared adapter inside it and
+links no SDL and no threading library of its own, which is what makes it
+loadable on every platform. `dxm_core_info.abi` is checked before anything
+runs, so a module built against a different version of the contract is refused
+with a message saying which side needs updating.
+
+```
+$ ./build/dxm --core ~/Downloads/skyroads-macos-universal.dxm
+[dxm] core: SkyRoads (BlueMoon Software, 1993) from …/skyroads-macos-universal.dxm
+```
 
 ## Build
 
-Needs SDL3 and a skyroads-sdl checkout on the `dxm-core` branch.
+Needs SDL3 and a [skyroads-sdl][sr] checkout for the bundled core.
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSKY_CORE=ON -DSKY_DXM_INCLUDE=$PWD/src -DDXM_SKYROADS=/path/to/skyroads-sdl
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDXM_SKYROADS=/path/to/skyroads-sdl
 cmake --build build -j8
 ```
+
+The subproject's options are set from here, so a plain configure works — you
+should not have to remember `SKY_CORE`.
 
 ## Run
 
@@ -36,21 +65,61 @@ cmake --build build -j8
 DXM_DATA=/path/to/skyroads/data ./build/dxm
 ```
 
-Fullscreen is real fullscreen: the case fills the display edge to edge, with
-no background around it. Extra width becomes more machine (wider bays, speaker
-columns on ultrawide), never letterboxing.
+Fullscreen is real fullscreen: the case fills the display edge to edge with no
+background around it. Extra width becomes more machine — wider bays, wider
+speaker columns on ultrawide — never letterboxing.
 
-Quit with `EXIT` at the prompt, Esc out of a game to return to `C:\>`, or
-Cmd-Q at any time.
+At the `C:\>` prompt:
 
-Dev flags (SPEC §11): `--windowed`, `--size WxH`, `--type CMD`,
-`--shot out.bmp --frames N` (honours fullscreen), `--selftest`.
+| | |
+|---|---|
+| `DIR` | list the files on this machine |
+| `NC` | dual-pane navigator, Norton Commander's shape |
+| `SKYROADS` | run the game |
+| `TYPE`, `CLS`, `VER`, `HELP` | as you would expect |
+| `EXIT` | switch the machine off |
+
+**F1** opens a settings panel over the tube with sixteen CRT parameters —
+bloom, burn-in, static, jitter, glow line, ambient light, flicker, h-sync,
+RGB shift, chassis glow, persistence, scanlines, pixel grid, curvature,
+brightness, contrast. They save to `crt.cfg` in the preferences directory.
+
+Esc out of a game returns to the prompt; the machine survives it and the game
+can be relaunched.
+
+Dev flags: `--windowed`, `--size WxH`, `--core FILE.dxm`, `--type CMD`,
+`--shot out.bmp --frames N`, `--selftest`, `--ambient N`, `--dump-audio FILE`.
+
+## Status
+
+Working end to end: boot theater → `C:\>` → `SKYROADS` → the game runs in the
+tube → Esc → the prompt again → it relaunches. `--selftest` runs that whole
+sequence twice and is what proves PORTING §3.1 and §3.2 hold.
+
+**Platforms.** DXM itself runs on macOS today. The *core module* builds and is
+verified on macOS, Linux and Windows on both x86_64 and arm64 by the game
+repo's CI — it is the shell that is behind, not the contract.
 
 ## Known gaps
 
-- macOS only so far. `gpu.c` includes `<OpenGL/gl3.h>` directly; Linux and
-  Windows need a GL loader (or the SDL_GPU port — SPEC §12.1).
-- No `INSTALL` command yet; data dir comes from `DXM_DATA` (M3).
-- Knobs are drawn but not yet interactive (SPEC §6.8).
-- The Compact (<=4:3) variant is implemented but only lightly eyeballed.
-- The font is an 8x8 ASCII subset row-doubled to 8x16, not full CP437.
+- **Linux and Windows.** `gpu.c` reaches for `<OpenGL/gl3.h>` directly and
+  needs a GL loader elsewhere; `corehost.c` still uses pthreads, `<unistd.h>`
+  and `clock_gettime`, all of which have direct SDL3 equivalents.
+- **No downloader.** `--core` takes a module you already fetched, and the game
+  data directory comes from `DXM_DATA`. The catalogue — a manifest of games
+  with module URLs, hashes and art — is designed but not written.
+- **NC's right pane** shows a placeholder image rather than real game art.
+- The chassis knobs are drawn but not yet interactive; the F1 panel is the
+  working control surface.
+- The font is an 8x8 ASCII subset row-doubled to 8x16, plus the CP437 line
+  drawing the navigator needs — not full CP437.
+
+## Design notes
+
+[SPEC.md](SPEC.md) covers the machine: how the layout is solved from the host
+resolution, the tube pipeline pass by pass, and why every decision that could
+differ between platforms is pinned down instead.
+
+[PORTING.md](PORTING.md) is the normative contract for a port: no `exit()`, no
+stdio, no SDL, no working-directory assumptions, restartable state, declared
+video modes, and audio pulled rather than pushed.
