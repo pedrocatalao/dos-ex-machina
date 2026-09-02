@@ -352,12 +352,8 @@ static void nc_draw(void){
           nputs(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
       } else if(e->available){
           char b[48];
-          /* required and optional shown apart: a 6 MB soundfont should not
-           * make a 0.8 MB game look like a 7 MB one */
           double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
-          double ex=0; for(int k=0;k<e->cat->n_extras;k++) ex+=e->cat->extras[k].f.size;
-          if(ex>0) snprintf(b,sizeof b,"ENTER to download  %.1f + %.1f MB",mb,ex/1048576.0);
-          else     snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
+          snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
           nputs(NC_BOT-2,NC_RX+2,b,A_NAME);
       }
     }

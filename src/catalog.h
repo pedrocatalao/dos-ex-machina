@@ -11,23 +11,12 @@
 #define CAT_MAX      32
 #define CAT_URL_MAX  400
 #define CAT_DESC     4
-#define CAT_EXTRAS   4
 
 typedef struct {
     char url[CAT_URL_MAX];
     char sha256[65];
     long size;
 } cat_file;
-
-/* Something a game is better with but runs without - a soundfont, say.
- * Counted apart from the required download, because a 6 MB extra should not
- * make a 0.8 MB game look like a 6.8 MB one. */
-typedef struct {
-    char     name[40];        /* the filename to save it as */
-    char     what[48];         /* what it is, for the panel  */
-    cat_file f;
-    int      optional;
-} cat_extra;
 
 typedef struct {
     char id[32], title[64], by[80];
@@ -37,8 +26,6 @@ typedef struct {
     char data_kind[16];          /* "freeware" | "byo"        */
     char data_format[8];         /* "zip"                     */
     char data_probe[32];         /* the file that proves data */
-    cat_extra extras[CAT_EXTRAS];
-    int  n_extras;
     int  have_module;            /* a build exists for THIS platform */
 } cat_game;
 
