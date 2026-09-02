@@ -68,11 +68,14 @@ static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
  * finished, and saying so directly does not depend on an SDL version
  * reporting COMPLETE the way the one it was written against did.  It also
  * covers the no-threads path, where the work has already happened inline. */
-typedef struct { int W,H; dxm_layout L; uint8_t *px; volatile int done; } chassis_job;
+typedef struct { int W,H; dxm_layout L; uint8_t *px;
+                 volatile int done; Uint64 ms; } chassis_job;
 static int SDLCALL chassis_worker(void *ud){
     chassis_job *j=(chassis_job *)ud;
+    Uint64 t0=SDL_GetTicksNS();
     j->L=chassis_layout(j->W,j->H);
     j->px=chassis_render(&j->L,j->W,j->H);
+    j->ms=(SDL_GetTicksNS()-t0)/1000000;
     j->done=1;
     return 0;
 }
@@ -140,9 +143,13 @@ int main(int argc,char **argv){
     snd_init(44100);
     snd_power(1);                 /* fans and spindle spin up, immediately */
 
-    chassis_job job={W,H,{0},NULL,0};
+    chassis_job job={W,H,{0},NULL,0,0};
     SDL_Thread *cth=SDL_CreateThread(chassis_worker,"chassis",&job);
-    if(!cth) chassis_worker(&job);            /* no threads: just do it here */
+    if(!cth){
+        fprintf(stderr,"[dxm] no worker thread (%s) - drawing inline\n",
+                SDL_GetError());
+        chassis_worker(&job);
+    }
 
     if(!selftest){
         /* Fast in, hold until the machine is ready, then out.  The hold has
@@ -157,13 +164,6 @@ int main(int argc,char **argv){
             SDL_GL_SwapWindow(win);
             if(quit_early) break;
             if(e>=HOLD_MIN && job.done) break;
-            /* A splash that never ends is worse than an ugly one: if the
-             * chassis is somehow still not drawn, say so and carry on rather
-             * than sitting on the logo forever. */
-            if(e>=20.0){
-                fprintf(stderr,"[dxm] chassis is taking too long - continuing\n");
-                break;
-            }
         }
         Uint64 f0=SDL_GetTicksNS();
         while(!quit_early){
@@ -180,6 +180,8 @@ int main(int argc,char **argv){
     Uint64 mach_fade0=SDL_GetTicksNS();
     const double MACH_FADE=0.70;
     if(cth) SDL_WaitThread(cth,NULL);
+    fprintf(stderr,"[dxm] chassis %dx%d in %llu ms%s\n",
+            W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
     dxm_layout L=job.L;
     uint8_t *chas=job.px;
     gpu_set_chassis(g,chas,W,H);
