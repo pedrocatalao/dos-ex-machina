@@ -71,7 +71,29 @@ jobs:
           ldd build/dxm | grep -q libcurl
           echo "ok: GL loaded at run time, links curl"
 
+      # A tarball someone can unpack and run.  SDL3 travels with it, because
+      # it is not in Ubuntu's archive yet and nobody should have to build it.
+      # curl, zlib and libGL are left to the system: they are on every desktop
+      # Linux already, and libGL in particular MUST come from the local driver.
+      - name: Package
+        run: |
+          mkdir -p dist/dxm/lib
+          cp build/dxm dist/dxm/
+          ldd build/dxm | awk '{print $3}' \
+            | grep "^$HOME/sdl3-install/" \
+            | sort -u | while read -r so; do cp -L "$so" dist/dxm/lib/; done
+          ls -la dist/dxm dist/dxm/lib
+          # Prove it resolves from its own directory and not from the build
+          # tree - which is the whole point, and is exactly what the artifact
+          # got wrong before it was packaged this way.
+          ( cd dist/dxm && ldd ./dxm > /tmp/deps.txt )
+          if grep -q "not found" /tmp/deps.txt; then
+            echo "unresolved after packaging:"; grep "not found" /tmp/deps.txt; exit 1
+          fi
+          grep SDL3 /tmp/deps.txt
+          tar -czf "dxm-linux-${{ matrix.arch }}.tar.gz" -C dist dxm
+
       - uses: actions/upload-artifact@v4
         with:
           name: dxm-linux-${{ matrix.arch }}
-          path: build/dxm
+          path: dxm-linux-${{ matrix.arch }}.tar.gz

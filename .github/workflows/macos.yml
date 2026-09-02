@@ -54,7 +54,35 @@ jobs:
           otool -L build/dxm | grep -q SDL3
           echo "universal, links SDL3"
 
+      # A zip someone can unpack and run.  SDL3 travels with it - it is built
+      # from source here, so a user would have nowhere to get it from - while
+      # curl, zlib and OpenGL come from the system, as they must.
+      - name: Package
+        run: |
+          mkdir -p dist/dxm/lib
+          cp build/dxm dist/dxm/
+          for lib in $(otool -L build/dxm | awk 'NR>1 && $1 ~ /SDL3/ {print $1}'); do
+            [ -f "$lib" ] || continue
+            base=$(basename "$lib")
+            cp -L "$lib" dist/dxm/lib/
+            chmod u+w "dist/dxm/lib/$base"
+            install_name_tool -id "@rpath/$base" "dist/dxm/lib/$base"
+            install_name_tool -change "$lib" "@rpath/$base" dist/dxm/dxm
+          done
+          # install_name_tool invalidates the code signature, and on Apple
+          # Silicon an unsigned binary will not launch at all.  Ad-hoc signing
+          # is enough - this is not notarisation, just a valid signature.
+          codesign --force --sign - dist/dxm/lib/*.dylib
+          codesign --force --sign - dist/dxm/dxm
+          # Nothing may still point at the build-time SDL3, or the zip only
+          # works on a machine that already had it.
+          otool -L dist/dxm/dxm | grep -i sdl3
+          if otool -L dist/dxm/dxm | grep -q "$HOME/sdl3-install"; then
+            echo "still references the build tree"; exit 1
+          fi
+          cd dist && zip -r -y "../dxm-macos-universal.zip" dxm
+
       - uses: actions/upload-artifact@v4
         with:
           name: dxm-macos-universal
-          path: build/dxm
+          path: dxm-macos-universal.zip

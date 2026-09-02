@@ -27,6 +27,20 @@ target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_
 # GL 1.1 is exported by the system library and has to be LINKED; everything
 # past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,
 # hence the framework; everywhere else CMake finds libGL / opengl32.
+# Look for libraries next to the binary first, so a release can carry the
+# ones a user will not have (SDL3, mainly) instead of asking them to install
+# anything.  $ORIGIN is resolved by the loader at run time, so the directory
+# can be moved anywhere.
+if(APPLE)
+    set_target_properties(dxm PROPERTIES
+        BUILD_RPATH   "@executable_path/lib"
+        INSTALL_RPATH "@executable_path/lib")
+elseif(UNIX)
+    set_target_properties(dxm PROPERTIES
+        BUILD_RPATH   "$ORIGIN/lib"
+        INSTALL_RPATH "$ORIGIN/lib")
+endif()
+
 if(APPLE)
     target_link_libraries(dxm PRIVATE "-framework OpenGL")
 else()
