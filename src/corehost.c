@@ -72,6 +72,11 @@ static void *thread_main(void *ud){
 }
 int corehost_start(const dxm_core_info *info,const char *data_dir){
     if(running) return -1;
+    if(!info || info->abi!=DXM_ABI){
+        fprintf(stderr,"[dxm] core ABI %d, this build speaks %d - refusing\n",
+                info?info->abi:-1,DXM_ABI);
+        return -1;
+    }
     cur_info=info; snprintf(cur_data,sizeof cur_data,"%s",data_dir);
     /* plat_pref_path() is concatenated directly by callers (skyroads'
      * cfg_path() does "%sskyroads.cfg"), so it MUST end in a separator. */
