@@ -49,8 +49,8 @@ static int SDLCALL worker(void *ud) {
     (void)ud;
     char dir[LIB_PATH], path[LIB_PATH], data[LIB_PATH], zip[LIB_PATH];
     char err[192];
-    /* module, data, extract - the three the user waits through */
-    const int STEPS = 3;
+    /* module, data, extract, then anything optional */
+    const int STEPS = 3 + job.n_extras;
 
     if (lib_make_dir(job.id, dir, sizeof dir) != 0) {
         fail("cannot create the game directory%s", NULL);
@@ -100,6 +100,27 @@ static int SDLCALL worker(void *ud) {
             return 0;
         }
         remove(zip);                      /* the archive has served its purpose */
+    }
+
+    /* ---- 4. the extras ----
+     * These improve the game but it runs without them, so a failure here is
+     * a note rather than a failed install.  Undoing three good downloads
+     * because a soundfont was unreachable would be the wrong trade. */
+    for (int i = 0; i < job.n_extras && !cancel; i++) {
+        const cat_extra *x = &job.extras[i];
+        char label[64];
+        snprintf(label, sizeof label, "%s", x->what[0] ? x->what : x->name);
+        set_stage(label, 4 + i, STEPS);
+        snprintf(path, sizeof path, "%s%cdata%c%s", dir, DXM_SEP, DXM_SEP, x->name);
+        if (net_get_file(x->f.url, path, on_progress, NULL, &cancel,
+                         err, sizeof err) != 0
+         || !sha256_matches(path, x->f.sha256)) {
+            remove(path);
+            if (!x->optional) { fail("%s", err); return 0; }
+            SDL_LockMutex(mu);
+            snprintf(st.skipped, sizeof st.skipped, "%s unavailable", label);
+            SDL_UnlockMutex(mu);
+        }
     }
 
     SDL_LockMutex(mu);

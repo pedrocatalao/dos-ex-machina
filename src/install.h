@@ -13,6 +13,7 @@ typedef struct {
     double     frac;           /* 0..1 within the current step */
     double     got, total;     /* bytes, for the byte counter   */
     char       err[192];
+    char       skipped[96];    /* an optional part that did not arrive */
 } inst_status;
 
 int  install_start(const cat_game *g);

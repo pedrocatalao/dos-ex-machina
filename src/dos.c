@@ -5,6 +5,7 @@
 #include "library.h"
 #include "catalog.h"
 #include "install.h"
+#include "art.h"
 #include "dxm_core.h"
 #include <string.h>
 #include <stdio.h>
@@ -51,7 +52,17 @@ static void put(char ch){
 }
 static void say(const char *s){ while(*s) put(*s++); }
 static void sayln(const char *s){ say(s); put('\n'); }
-static void prompt(void){ say("C:\\>"); }
+/* The machine has one subdirectory that matters: games install into
+ * C:\GAMES, and running one from the prompt means going there first, the
+ * way it would have.  NC reaches them wherever you are - it is a program
+ * that browses the disk, not a shortcut around it. */
+static int  in_games;             /* 0 = C:\, 1 = C:\GAMES */
+static int  prompt_len;           /* so backspace knows where the line starts */
+static void prompt(void){
+    const char *p = in_games ? "C:\\GAMES>" : "C:\\>";
+    prompt_len = (int)strlen(p);
+    say(p);
+}
 
 static const char *BOOT[] = {
   "DXM BIOS v1.0  (C) 2026 DOS ex Machina",
@@ -71,7 +82,7 @@ void dos_init(void){
     memset(scr,' ',sizeof scr);
     memset(att,0x07,sizeof att);
     cur_att=0x07;
-    cur_r=cur_c=0; line_n=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
+    cur_r=cur_c=0; line_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
     beep_pending=0; mem_counting=0; mem_shown=0;
 }
 void dos_core_failed(void){
@@ -153,6 +164,13 @@ static void nc_rows_build(void){
         e->file=g->id; e->cmd=g->id; e->title=g->title;
         e->by=g->by; e->year=g->year; e->installed=g->ready;
         e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
+        /* An installed game still wants its picture AND its description -
+         * the catalogue is the only place either lives, and they do not stop
+         * being true once the game is on the disk. */
+        e->cat=cat_find(g->id);
+        if(e->cat)
+            for(int k=0;k<CAT_DESC;k++)
+                e->desc[k]=e->cat->desc[k][0]?e->cat->desc[k]:NULL;
         e->note=g->note;
     }
     for(int i=0;i<cat_count() && nc_n<LIB_MAX;i++){
@@ -226,7 +244,10 @@ static void nc_draw(void){
     memset(att,A_PANEL,sizeof att);
 
     /* ---- left panel: what you can run ---- */
-    nbox(NC_LX,NC_TOP,NC_LW,NC_BOT-NC_TOP+1,"C:\\GAMES");
+    /* GAMES, not C:\GAMES - the panel is not a directory listing.  It shows
+     * what is installed AND what could be, and only half of that is on the
+     * disk that path would name. */
+    nbox(NC_LX,NC_TOP,NC_LW,NC_BOT-NC_TOP+1,"GAMES");
     { int rows=NC_LIST_B-NC_LIST_T+1;
       int cw=(NC_LW-2)/NC_COLS;                /* 12 cells a column */
       /* the column separators, which is what makes it read as a panel
@@ -241,7 +262,16 @@ static void nc_draw(void){
         int x=NC_LX+1+colk*cw, y=NC_LIST_T+rowk;
         uint8_t a=(i==nc_sel)?A_SEL:(nc_rows[i].installed?A_NAME:A_DIM);
         nfill(y,x,cw-1,' ',a);
+        /* The header stays C:\GAMES because the installed ones really are
+         * there.  What is NOT on the disk is marked instead, so the panel
+         * still reads as a directory listing with a few things left to
+         * fetch.  The mark goes after the name, where a listing puts a
+         * file's attributes. */
         nputs(y,x+1,nc_rows[i].file,a);
+        if(!nc_rows[i].installed){
+            int ax=x+1+(int)strlen(nc_rows[i].file)+1;
+            if(ax < x+cw-1) cell(y,ax,0x19,a);
+        }
       }
     }
     nrule(NC_LX,NC_BOT-1,NC_LW);
@@ -322,8 +352,12 @@ static void nc_draw(void){
           nputs(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
       } else if(e->available){
           char b[48];
+          /* required and optional shown apart: a 6 MB soundfont should not
+           * make a 0.8 MB game look like a 7 MB one */
           double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
-          snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
+          double ex=0; for(int k=0;k<e->cat->n_extras;k++) ex+=e->cat->extras[k].f.size;
+          if(ex>0) snprintf(b,sizeof b,"ENTER to download  %.1f + %.1f MB",mb,ex/1048576.0);
+          else     snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
           nputs(NC_BOT-2,NC_RX+2,b,A_NAME);
       }
     }
@@ -353,22 +387,56 @@ static void nc_draw(void){
 
 /* The artwork: pixels, so it goes on after the character cells. */
 static void nc_art(void){
+    if(nc_n==0) return;
     const nc_entry *e=&nc_rows[nc_sel];
-    if(!e->art) return;
+    const uint8_t *px=e->art; int aw=e->aw, ah=e->ah;
+    /* The catalogue's picture if it has arrived; the road mark until it
+     * does, so the well is never simply empty. */
+    if(e->cat){
+        int w,h;
+        const uint8_t *got=art_get(&e->cat->art,&w,&h);
+        if(got){ px=got; aw=w; ah=h; }
+    }
+    if(!px) return;
     int bx=DOS_PAD_X+(NC_RX+1)*8, by=DOS_PAD_Y+NC_ART_T*16;
     int bw=(NC_RW-2)*8, bh=(NC_ART_B-NC_ART_T+1)*16;
-    /* fit inside the well, whole-pixel scaled: a game's art is pixels and
-     * resampling it to a fractional size is the one thing that would make
-     * it look like a photograph of a screen rather than the screen */
+    /* Real artwork is far bigger than the well, so it is scaled DOWN by an
+     * integer step with a box filter - a game screenshot reduced by point
+     * sampling drops every other scanline and comes apart. */
+    if(aw>bw||ah>bh){
+        /* the SMALLEST step that fits - anything larger throws away
+         * resolution for nothing.  The earlier version kept stepping while
+         * the result was still half the well, which overshot every time. */
+        int step=1;
+        while((aw/step>bw || ah/step>bh) && step<32) step++;
+        int dw=aw/step, dh=ah/step;
+        int x0=bx+(bw-dw)/2, y0=by+(bh-dh)/2;
+        for(int y=0;y<dh;y++){
+            int dy=y0+y; if(dy<0||dy>=DOS_H) continue;
+            for(int x=0;x<dw;x++){
+                int dx=x0+x; if(dx<0||dx>=DOS_W) continue;
+                int r=0,g=0,b=0,n=0;
+                for(int v=0;v<step;v++)
+                  for(int u=0;u<step;u++){
+                    const uint8_t *sp=px+((size_t)(y*step+v)*aw+(x*step+u))*4;
+                    r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
+                  }
+                uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
+                q[0]=(uint8_t)(r/n); q[1]=(uint8_t)(g/n); q[2]=(uint8_t)(b/n);
+            }
+        }
+        return;
+    }
+    /* smaller than the well: whole-pixel up-scale, so it stays pixels */
     int sc=1;
-    while((sc+1)*e->aw<=bw && (sc+1)*e->ah<=bh) sc++;
-    int dw=e->aw*sc, dh=e->ah*sc;
+    while((sc+1)*aw<=bw && (sc+1)*ah<=bh) sc++;
+    int dw=aw*sc, dh=ah*sc;
     int x0=bx+(bw-dw)/2, y0=by+(bh-dh)/2;
     for(int y=0;y<dh;y++){
         int dy=y0+y; if(dy<0||dy>=DOS_H) continue;
         for(int x=0;x<dw;x++){
             int dx=x0+x; if(dx<0||dx>=DOS_W) continue;
-            const uint8_t *sp=e->art+((size_t)(y/sc)*e->aw+(x/sc))*4;
+            const uint8_t *sp=px+((size_t)(y/sc)*aw+(x/sc))*4;
             float al=sp[3]/255.0f;
             if(al<=0.004f) continue;
             uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
@@ -419,28 +487,35 @@ static void nc_key(int ch,int sc){
 static void cmd_dir(void){
     sayln(" Volume in drive C is DXM-DOS");
     sayln(" Volume Serial Number is 1993-0C7E");
-    sayln(" Directory of C:\\");
+    sayln(in_games ? " Directory of C:\\GAMES" : " Directory of C:\\");
     put('\n');
-    sayln("COMMAND  COM        54,645  05-31-94   6:22a");
-    sayln("AUTOEXEC BAT           435  05-31-94   6:22a");
-    sayln("CONFIG   SYS           246  05-31-94   6:22a");
-    sayln("README   TXT         1,204  08-30-26  11:04a");
-    sayln("NC       EXE        41,272  06-08-93  10:14a");
-    /* One line per installed game.  DIR reports what is on the machine, so
-     * it has to come from the same place the navigator's list does. */
-    for(int i=0;i<lib_count();i++){
-        const lib_game *g=lib_at(i);
-        char nm[16], ln[80]; int k=0;
-        for(;g->id[k] && k<8;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
-        while(k<8) nm[k++]=' ';
-        nm[8]=0;
-        snprintf(ln,sizeof ln,"%s EXE       114,688  03-15-93   1:93a",nm);
-        sayln(ln);
+    if(!in_games){
+        sayln("COMMAND  COM        54,645  05-31-94   6:22a");
+        sayln("AUTOEXEC BAT           435  05-31-94   6:22a");
+        sayln("CONFIG   SYS           246  05-31-94   6:22a");
+        sayln("README   TXT         1,204  08-30-26  11:04a");
+        sayln("NC       EXE        41,272  06-08-93  10:14a");
+        sayln("GAMES        <DIR>           08-30-26  11:04a");
+        put('\n');
+        sayln("        5 file(s)          97,802 bytes");
+        sayln("        1 dir(s)");
+    } else {
+        sayln(".            <DIR>           08-30-26  11:04a");
+        sayln("..           <DIR>           08-30-26  11:04a");
+        for(int i=0;i<lib_count();i++){
+            const lib_game *g=lib_at(i);
+            char nm[16], ln[80]; int k=0;
+            for(;g->id[k] && k<8;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
+            while(k<8) nm[k++]=' ';
+            nm[8]=0;
+            snprintf(ln,sizeof ln,"%s EXE       114,688  03-15-93   1:93a",nm);
+            sayln(ln);
+        }
+        put('\n');
+        { char ln[80];
+          snprintf(ln,sizeof ln,"        %d file(s)",lib_count());
+          sayln(ln); }
     }
-    put('\n');
-    { char ln[80];
-      snprintf(ln,sizeof ln,"        %d file(s)",5+lib_count());
-      sayln(ln); }
     sayln("                      536,870,912 bytes free");
 }
 static void cmd_help(void){
@@ -450,6 +525,7 @@ static void cmd_help(void){
     sayln("CLS        Clear the screen.");
     sayln("VER        Show the DOS version.");
     sayln("TYPE file  Display a text file.");
+    sayln("CD dir     Change directory.  The games are in C:\\GAMES.");
     sayln("NC         Browse the games in a dual-pane navigator.");
     for(int i=0;i<lib_count();i++){
         const lib_game *g=lib_at(i);
@@ -457,7 +533,7 @@ static void cmd_help(void){
         for(;g->id[k] && k<10;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
         while(k<10) nm[k++]=' ';
         nm[10]=0;
-        snprintf(ln,sizeof ln,"%s Run %s.",nm,g->title);
+        snprintf(ln,sizeof ln,"%s Run %s (from C:\\GAMES).",nm,g->title);
         sayln(ln);
     }
     sayln("EXIT       Switch the machine off.");
@@ -465,6 +541,13 @@ static void cmd_help(void){
 static void run(char *s){
     while(*s==' ') s++;
     for(char *p=s;*p;p++) if(*p>='a'&&*p<='z') *p-=32;
+    /* DOS took CD.. and CD\GAMES with no space, because CD did not need a
+     * delimiter before a path.  Put one in before the splitter runs, rather
+     * than teaching the splitter about one command. */
+    if(s[0]=='C'&&s[1]=='D'&&(s[2]=='.'||s[2]=='\\'||s[2]=='/')){
+        memmove(s+3,s+2,strlen(s+2)+1);
+        s[2]=' ';
+    }
     char *sp=strchr(s,' '); char *arg=NULL;
     if(sp){ *sp=0; arg=sp+1; while(*arg==' ') arg++; }
     size_t n=strlen(s);
@@ -479,20 +562,35 @@ static void run(char *s){
     else if(!strcmp(s,"TYPE")){
         if(arg && !strcmp(arg,"README.TXT")){
             sayln("DOS ex Machina - a machine that only runs games.");
-            sayln("Type NC to browse the games.  Type EXIT to switch off.");
+            sayln("Type NC to browse the games, or CD GAMES to run one.");
         } else { say("File not found - "); sayln(arg?arg:""); }
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
     else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build();
                               nc_open=1; nc_sel=0; nc_draw(); return; }
+    else if(!strcmp(s,"CD")||!strcmp(s,"CHDIR")){
+        if(!arg||!*arg){ sayln(in_games?"C:\\GAMES":"C:\\"); }
+        else if(!strcmp(arg,"\\")||!strcmp(arg,"/")) in_games=0;
+        else if(!strcmp(arg,"..")){
+            if(in_games) in_games=0;
+            else sayln("Invalid directory");
+        }
+        else if(!strcmp(arg,".")) { /* stay put */ }
+        else if(!in_games && (!strcmp(arg,"GAMES")||!strcmp(arg,"\\GAMES")))
+            in_games=1;
+        else if(in_games && !strcmp(arg,"\\GAMES")) { /* already there */ }
+        else sayln("Invalid directory");
+    }
     else if(!strcmp(s,"FORMAT"))
         sayln("Nice try.");
     else {
-        /* Anything else may be an installed game.  Typing its name is still
-         * how you run it - the navigator is a convenience over the same
-         * mechanism, not a replacement for it. */
-        const lib_game *g=lib_find(s);
-        if(!g)             sayln("Bad command or file name");
+        /* Anything else may be an installed game - but only from the
+         * directory the games are actually in.  DOS did not search the disk
+         * for you, and neither does this. */
+        const lib_game *g=in_games?lib_find(s):NULL;
+        if(!g && !in_games && lib_find(s))
+            sayln("Bad command or file name - try CD GAMES");
+        else if(!g)        sayln("Bad command or file name");
         else if(!g->ready){ say("Cannot run "); say(g->title); sayln(":");
                             sayln(g->note[0]?g->note:"not ready"); }
         else { snprintf(launch,sizeof launch,"%s",g->id);
@@ -515,7 +613,7 @@ void dos_key(int ch,int sc){
         if(st==DOS_PROMPT && !nc_open) prompt();
         return;
     }
-    if(ch=='\b'){ if(line_n){ line_n--; if(cur_c>4) cur_c--; scr[cur_r][cur_c]=' '; } return; }
+    if(ch=='\b'){ if(line_n){ line_n--; if(cur_c>prompt_len) cur_c--; scr[cur_r][cur_c]=' '; } return; }
     if(ch>=32 && ch<127 && line_n<(int)sizeof line-1){ line[line_n++]=(char)ch; put((char)ch); }
     (void)sc;
 }
