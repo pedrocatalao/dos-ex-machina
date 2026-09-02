@@ -25,12 +25,8 @@
     "",
     "'art' is shown in the navigator's right pane, for games that are merely",
     "available as well as installed ones - so it is fetched on its own, not",
-    "bundled with the game.",
-    "",
-    "'extras' are files that make a game better but that it runs without. A",
-    "failed optional download is a note, not a failed install - and they are",
-    "counted separately in the size shown, because a 6 MB soundfont should",
-    "not look like part of a 0.8 MB game."
+    "bundled with the game."
+
   ],
 
   "games": [
@@ -77,18 +73,7 @@
         "format": "zip",
         "probe": "roads.lzs",
         "note": "Bluemoon's own freeware release. Downloaded from them, never mirrored here."
-      },
-      "extras": [
-        {
-          "name": "TimGM6mb.sf2",
-          "what": "Wavetable instruments",
-          "url": "https://sourceforge.net/p/mscore/code/HEAD/tree/trunk/mscore/share/sound/TimGM6mb.sf2?format=raw",
-          "sha256": "c5378b62028c920cb11e4803327983fee2f2cdff5dc89c708e39da417e51c854",
-          "size": 5969788,
-          "optional": true,
-          "note": "TimGM6mb (Tim Brechbill, GPL). SkyRoads plays its music through this when present, and falls back to AdLib FM without it."
-        }
-      ]
+      }
     }
   ]
 }

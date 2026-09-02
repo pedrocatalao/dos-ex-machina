@@ -180,28 +180,6 @@ static int parse(const char *json) {
               get_str(d, "probe",  e->data_probe,  sizeof e->data_probe);
           } }
 
-        { const char *x = member(g, "extras");
-          if (x && *x == '[') {
-              x++;
-              while (e->n_extras < CAT_EXTRAS) {
-                  x = skip_ws(x);
-                  if (*x != '{') break;
-                  cat_extra *a = &e->extras[e->n_extras];
-                  get_str(x, "name",   a->name,   sizeof a->name);
-                  get_str(x, "what",   a->what,   sizeof a->what);
-                  get_str(x, "url",    a->f.url,    sizeof a->f.url);
-                  get_str(x, "sha256", a->f.sha256, sizeof a->f.sha256);
-                  a->f.size   = get_num(x, "size");
-                  { const char *o = member(x, "optional");
-                    a->optional = o && *o == 't'; }
-                  if (a->name[0] && a->f.url[0]) e->n_extras++;
-                  x = skip_value(x);
-                  if (!x) break;
-                  x = skip_ws(x);
-                  if (*x == ',') x++; else break;
-              }
-          } }
-
         if (e->id[0]) n_games++;
         p = skip_value(p);
         if (!p) break;
