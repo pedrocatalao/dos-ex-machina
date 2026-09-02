@@ -60,16 +60,23 @@ jobs:
           # Copy the DLLs the binary actually loaded, following dependencies
           # of dependencies - SDL3 pulls in more than dxm.exe names directly.
           # Only the ones from the MSYS2 prefix: system DLLs stay put.
+          # Collect first, then act.  Written as a pipeline whose last stage
+          # is grep, the recursion died the moment it reached a leaf DLL with
+          # no MSYS2 dependencies: grep matching nothing returns 1, and under
+          # set -e that ends the step.  The arm64 leg only survived because
+          # its dependency chain happened to bottom out elsewhere.
           copy_deps() {
-            # ldd prints either /ucrt64/bin/x.dll or C:/msys64/ucrt64/bin/x.dll
-            # depending on the shell, so match the environment directory
-            # anywhere in the path rather than anchoring at the start.
-            ldd "$1" | awk '{print $3}' \
-              | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" | while read -r dll; do
+            local deps dll base
+            deps=$(ldd "$1" | awk '{print $3}' \
+                   | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" || true)
+            for dll in $deps; do
               base=$(basename "$dll")
-              [ -f "dist/dxm/$base" ] && continue
-              cp "$dll" dist/dxm/ && copy_deps "$dll"
+              if [ ! -f "dist/dxm/$base" ]; then
+                cp "$dll" dist/dxm/
+                copy_deps "$dll"
+              fi
             done
+            return 0
           }
           copy_deps build/dxm.exe
           ls -la dist/dxm/
