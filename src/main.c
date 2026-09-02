@@ -10,6 +10,8 @@
 #include "corehost.h"
 #include "coreload.h"
 #include "library.h"
+#include "catalog.h"
+#include "net.h"
 #include "dxm_core.h"
 #include "crt.h"
 #include "sound.h"
@@ -193,6 +195,10 @@ int main(int argc,char **argv){
      * with.  Scanning here means the prompt and the navigator agree about
      * the machine's contents from the first frame. */
     lib_scan();
+    /* The cached catalogue first, so the navigator is populated instantly
+     * and works with no network at all; then a refresh in the background. */
+    cat_load_cached();
+    cat_refresh_begin();
     for(int i=0;i<lib_count();i++){
         const lib_game *g=lib_at(i);
         fprintf(stderr,"[dxm] %-12s %s\n",g->id,
@@ -324,9 +330,14 @@ int main(int argc,char **argv){
         }
         if(dos_take_beep()) snd_beep(240.0);  /* after the RAM check */
         { double f=dos_take_floppy(); if(f>0.0) snd_floppy(f); }
-        if(autocmd && dos_update(t)==DOS_PROMPT){       /* wait for the prompt */
-            for(const char *q=autocmd;*q;q++) dos_key(*q,0);
-            dos_key('\r',0); autocmd=NULL;
+        /* --type takes a ';'-separated list, typed one per return to the
+         * prompt - so a sequence like "CD GAMES;DIR" can be driven. */
+        if(autocmd && *autocmd && dos_update(t)==DOS_PROMPT){
+            const char *e=strchr(autocmd,';');
+            const char *end=e?e:autocmd+strlen(autocmd);
+            for(const char *q=autocmd;q<end;q++) dos_key(*q,0);
+            dos_key('\r',0);
+            autocmd = e ? e+1 : NULL;
         }
         if(dos_update(t)==DOS_OFF){ snd_power(0); quit=1; }
 
