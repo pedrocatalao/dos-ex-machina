@@ -71,6 +71,11 @@ rather than notarised, so the first launch needs **right-click → Open** —
 double-clicking will refuse it. If it still balks, System Settings → Privacy
 and Security → General has an **Open Anyway** button.
 
+On Windows, unzip and run `dxm.exe` — the DLLs it needs are in the same
+folder and nothing has to be installed. The executable is unsigned, so
+SmartScreen will show *"Windows protected your PC"* the first time: **More
+info → Run anyway**.
+
 On Linux the tarball runs from wherever you unpack it — `./dxm`. If you want
 it in your applications menu, `./install.sh` puts it under `~/.local`, writes
 a desktop entry and installs the icon. It needs no root, touches nothing
