@@ -54,31 +54,17 @@ jobs:
       # toolchain's runtime differs between UCRT64 and CLANGARM64.
       - name: Package
         run: |
-          set -x
           mkdir -p dist/dxm
           cp build/dxm.exe dist/dxm/
-          # Copy the DLLs the binary actually loaded, following dependencies
-          # of dependencies - SDL3 pulls in more than dxm.exe names directly.
-          # Only the ones from the MSYS2 prefix: system DLLs stay put.
-          # Collect first, then act.  Written as a pipeline whose last stage
-          # is grep, the recursion died the moment it reached a leaf DLL with
-          # no MSYS2 dependencies: grep matching nothing returns 1, and under
-          # set -e that ends the step.  The arm64 leg only survived because
-          # its dependency chain happened to bottom out elsewhere.
-          copy_deps() {
-            local deps dll base
-            deps=$(ldd "$1" | awk '{print $3}' \
-                   | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" || true)
-            for dll in $deps; do
-              base=$(basename "$dll")
-              if [ ! -f "dist/dxm/$base" ]; then
-                cp "$dll" dist/dxm/
-                copy_deps "$dll"
-              fi
-            done
-            return 0
-          }
-          copy_deps build/dxm.exe
+          # ldd already reports the FULL transitive closure, so one pass gets
+          # everything - SDL3's own dependencies included.  The recursive
+          # version this replaces walked the tree by hand for no benefit, and
+          # hung on the arm64 runner, where the MSYS2 runtime is x86_64 under
+          # emulation and every process spawn is expensive.
+          # Only DLLs from the MSYS2 environment are copied; system ones stay.
+          ldd build/dxm.exe | awk '{print $3}' \
+            | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" \
+            | sort -u | while read -r dll; do cp "$dll" dist/dxm/; done
           ls -la dist/dxm/
           cd dist && zip -r "../dxm-windows-${{ matrix.arch }}.zip" dxm
 
