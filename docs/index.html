@@ -89,6 +89,17 @@
   .card h3{font-size:23px; font-weight:normal; color:var(--blue); margin-bottom:8px}
   .card p{font-size:20px; color:var(--dim); margin:0}
 
+  /* the download cards: a list of links, not prose, so they get their own
+     rules rather than inheriting .card p's dim colour */
+  .card.dl h3{color:#fff}
+  .dl ul{margin:0; list-style:none}
+  .dl li{margin:0 0 5px 0; font-size:20px}
+  .dl .arch{color:var(--dim)}
+  .dl .note{
+    display:block; margin-top:12px; padding-top:10px;
+    border-top:1px solid var(--line); color:var(--dim); font-size:18px;
+  }
+
   pre{
     background:#04070e; border:1px solid var(--line); padding:16px 18px;
     overflow-x:auto; font-size:19px; color:#9fd4ff; margin:16px 0;
@@ -108,7 +119,8 @@
     <p class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
     <div class="early">EARLY DEVELOPMENT — one game in the catalogue</div>
     <div class="cta">
-      <a class="btn" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
+      <a class="btn" href="#download">Download 0.3 Beta</a>
+      <a class="btn ghost" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
       <a class="btn ghost" href="#build">Build it</a>
     </div>
   </div>
@@ -174,6 +186,60 @@
     a SHA-256, and unpacks them into your preferences directory. After that it
     runs with no network, forever. Game data is never mirrored: for freeware
     titles the catalogue points at the publisher's own download.</p>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <h2>Download</h2>
+    <p class="lede">0.3 Beta — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
+    <div class="grid">
+
+      <div class="card dl">
+        <h3>macOS</h3>
+        <ul>
+          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.3-beta/dxm-macos-universal.zip">DOS ex Machina.app</a>
+              <span class="arch">— universal</span></li>
+        </ul>
+        <span class="note">Drag it to Applications. It is signed ad-hoc but
+        not notarised, so the first launch needs <b>right-click &rarr;
+        Open</b>. macOS 11 or newer.</span>
+      </div>
+
+      <div class="card dl">
+        <h3>Linux</h3>
+        <ul>
+          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.3-beta/dxm-linux-x86_64.tar.gz">Tarball</a>
+              <span class="arch">— x86_64</span></li>
+          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.3-beta/dxm-linux-arm64.tar.gz">Tarball</a>
+              <span class="arch">— arm64</span></li>
+        </ul>
+        <span class="note">Unpack and run <code>./dxm</code>. SDL3 travels
+        with it. <code>./install.sh</code> adds a menu entry under
+        <code>~/.local</code> — no root, and it leaves your PATH alone.
+        glibc 2.35 or newer.</span>
+      </div>
+
+      <div class="card dl">
+        <h3>Windows</h3>
+        <ul>
+          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.3-beta/dxm-windows-x86_64.zip">Zip</a>
+              <span class="arch">— x86_64</span></li>
+          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.3-beta/dxm-windows-arm64.zip">Zip</a>
+              <span class="arch">— arm64</span></li>
+        </ul>
+        <span class="note">Unpack and run <code>dxm.exe</code>. It is
+        unsigned, so SmartScreen interposes once: <b>More info &rarr; Run
+        anyway</b>.</span>
+      </div>
+
+    </div>
+    <p>Every build needs an <strong>OpenGL 3.3 core</strong> context, which
+    most virtual machines cannot provide. The render has only been confirmed
+    on macOS so far — see <a href="https://github.com/pedrocatalao/dos-ex-machina/releases/tag/v0.3-beta">the
+    release notes</a> for what that means on the other two.</p>
+    <p>Older builds and the full notes are on the
+    <a href="https://github.com/pedrocatalao/dos-ex-machina/releases">releases page</a>.</p>
   </div>
 </section>
 
