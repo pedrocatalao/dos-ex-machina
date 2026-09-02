@@ -17,6 +17,7 @@
 #include "sound.h"
 #include "ui.h"
 #include "dxm_splash.h"
+#include "dxm_icon.h"
 #include <math.h>
 
 static int sc_from_sdl(SDL_Scancode s){
@@ -106,6 +107,14 @@ int main(int argc,char **argv){
     if(!windowed) fl|=SDL_WINDOW_FULLSCREEN;
     SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,fl);
     if(!win){ fprintf(stderr,"window: %s\n",SDL_GetError()); return 1; }
+    /* The window/taskbar icon.  Windows also carries one as a resource for
+     * Explorer to show on the .exe, and macOS gets it from the bundle - this
+     * is what Linux has, and it costs nothing on the others. */
+    { SDL_Surface *ic=SDL_CreateSurfaceFrom(DXM_ICON_W,DXM_ICON_HT,
+                                            SDL_PIXELFORMAT_RGBA32,
+                                            (void *)dxm_icon,DXM_ICON_W*4);
+      if(ic){ SDL_SetWindowIcon(win,ic); SDL_DestroySurface(ic); } }
+
     SDL_GLContext ctx=SDL_GL_CreateContext(win);
     if(!ctx){ fprintf(stderr,"GL context: %s\n",SDL_GetError()); return 1; }
     SDL_GL_SetSwapInterval(1);

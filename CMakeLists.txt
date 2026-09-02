@@ -12,11 +12,19 @@ find_package(ZLIB REQUIRED)
 # DXM links no game.  A game is a .dxm module in the games directory, opened
 # at run time - so the shell builds and ships on its own, and adding a game
 # is a download rather than a rebuild.
+# Windows carries its icon as a compiled-in resource, not a file beside the
+# binary.  The .ico is generated once by tools/mkico.py and committed, so no
+# image tooling has to exist on the runner.
+if(WIN32)
+    enable_language(RC)
+    set(DXM_WIN_RC packaging/windows/dxm.rc)
+endif()
+
 add_executable(dxm
     src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c src/sound.c
     src/corehost.c src/coreload.c src/library.c src/ui.c src/dxm_splash.c
     src/sha256.c src/net.c src/catalog.c src/unzip.c src/install.c
-    src/png.c src/art.c)
+    src/png.c src/art.c ${DXM_WIN_RC})
 # NOTE: src/platform_dxm.c is deliberately NOT built here.  The adapter is
 # compiled INTO each core (ports vendor it as src/dxm_platform.c), because a
 # core loaded as a module cannot reach back into this executable for the

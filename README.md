@@ -68,7 +68,14 @@ which side needs updating.
 
 On macOS the release is a `DOS ex Machina.app` bundle. It is ad-hoc signed
 rather than notarised, so the first launch needs **right-click → Open** —
-double-clicking will refuse it - or you need to go to System Settings -> Privacy and Security -> General and click "Open Anyway".
+double-clicking will refuse it. If it still balks, System Settings → Privacy
+and Security → General has an **Open Anyway** button.
+
+On Linux the tarball runs from wherever you unpack it — `./dxm`. If you want
+it in your applications menu, `./install.sh` puts it under `~/.local`, writes
+a desktop entry and installs the icon. It needs no root, touches nothing
+system-wide, and does not modify your shell configuration or `PATH`; it
+prints exactly what to delete to undo it.
 
 ## Build
 

@@ -1,0 +1,4 @@
+/* The icon Explorer and the taskbar show for dxm.exe.  Windows has no
+ * convention for an icon file beside the binary - it has to be a resource
+ * compiled into the executable, which is what this is for. */
+IDI_ICON1 ICON "dxm.ico"
