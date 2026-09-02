@@ -19,6 +19,21 @@
 #include "dxm_splash.h"
 #include "dxm_icon.h"
 #include <math.h>
+#include <stdarg.h>
+
+/* Startup diagnostics go to stderr AND to dxm.log in the preferences
+ * directory.  stderr alone is useless for the case that matters: a machine
+ * where DXM was double-clicked and sits on the splash.  There is no console
+ * to read, and the report that comes back is "it hangs".  The file says how
+ * far it got and how long each step took, from either thread. */
+static FILE *g_log;
+static void dxm_log(const char *fmt,...){
+    char line[1024]; va_list ap; va_start(ap,fmt);
+    vsnprintf(line,sizeof line,fmt,ap); va_end(ap);
+    unsigned long long ms=SDL_GetTicksNS()/1000000ull;
+    fprintf(stderr,"[dxm] %6llu ms  %s\n",ms,line);
+    if(g_log){ fprintf(g_log,"%6llu ms  %s\n",ms,line); fflush(g_log); }
+}
 
 static int sc_from_sdl(SDL_Scancode s){
     switch(s){
@@ -74,9 +89,13 @@ typedef struct { int W,H; dxm_layout L; uint8_t *px;
 static int SDLCALL chassis_worker(void *ud){
     chassis_job *j=(chassis_job *)ud;
     Uint64 t0=SDL_GetTicksNS();
+    dxm_log("chassis worker: start, %dx%d",j->W,j->H);
     j->L=chassis_layout(j->W,j->H);
+    dxm_log("chassis worker: layout done");
     j->px=chassis_render(&j->L,j->W,j->H);
     j->ms=(SDL_GetTicksNS()-t0)/1000000;
+    dxm_log("chassis worker: render %s in %llu ms",
+            j->px?"done":"FAILED - no pixels",(unsigned long long)j->ms);
     j->done=1;
     return 0;
 }
@@ -99,6 +118,12 @@ int main(int argc,char **argv){
     }
     if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)){
         fprintf(stderr,"SDL_Init: %s\n",SDL_GetError()); return 1; }
+    const char *pref=SDL_GetPrefPath("DOSexMachina","dxm");
+    { char lp[1024]; snprintf(lp,sizeof lp,"%sdxm.log",pref?pref:"./");
+      g_log=fopen(lp,"w"); }
+    { int v=SDL_GetVersion();
+      dxm_log("DOS ex Machina 0.3 on %s, SDL %d.%d.%d",SDL_GetPlatform(),
+              SDL_VERSIONNUM_MAJOR(v),SDL_VERSIONNUM_MINOR(v),SDL_VERSIONNUM_MICRO(v)); }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
@@ -133,8 +158,23 @@ int main(int argc,char **argv){
     /* mouse arrives in WINDOW units; the panel works in drawable px */
     float win_wf=1,win_hf=1;
     { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
-      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H); }
+      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H);
+      dxm_log("window %dx%d px (%dx%d units), %s",W,H,ww,wh,
+              windowed?"windowed":"fullscreen"); }
     gpu *g=gpu_create(W,H);
+    if(!g){
+        /* Say so where it will be seen.  A person who double-clicked the
+         * program has no stderr; a message box they have. */
+        char msg[1400];
+        snprintf(msg,sizeof msg,
+                 "This computer's OpenGL driver does not provide OpenGL 3.3 "
+                 "core, which DOS ex Machina needs.\n\nDriver: %s\nMissing: %s",
+                 gpu_describe(),gpu_missing());
+        dxm_log("%s",msg);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
+        return 1;
+    }
+    dxm_log("GL: %s",gpu_describe());
 
     /* The machine is switched on before it is drawn: the splash and the
      * sound of it running come up first, and the chassis is built behind
@@ -149,6 +189,8 @@ int main(int argc,char **argv){
     SDL_AudioStream *ast=SDL_OpenAudioDeviceStream(
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&as,audio_cb,NULL);
     if(ast) SDL_ResumeAudioStreamDevice(ast);
+    if(ast) dxm_log("audio stream open");
+    else    dxm_log("audio: no device (%s) - silent",SDL_GetError());
     snd_init(44100);
     snd_power(1);                 /* fans and spindle spin up, immediately */
 
@@ -165,15 +207,23 @@ int main(int argc,char **argv){
          * a floor so a quick build does not flash the mark up and away. */
         const double FADE_IN=0.30, HOLD_MIN=0.95, FADE_OUT=0.45;
         Uint64 s0=SDL_GetTicksNS();
+        int frames=0; double beat=0;
         for(;;){
             SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
             double e=(SDL_GetTicksNS()-s0)/1e9;
             float a=(float)(e<FADE_IN ? e/FADE_IN : 1.0);
             gpu_draw_splash(g,a*a*(3.0f-2.0f*a));   /* ease, no linear ramp */
             SDL_GL_SwapWindow(win);
+            if(++frames==1) dxm_log("splash: first frame on screen");
+            /* a heartbeat, so a log from a machine that never leaves the
+             * splash shows whether the swaps come back and the worker ends */
+            if(e-beat>=2.0){ beat=e;
+                dxm_log("splash: %.1f s, %d frames, worker %s",e,frames,
+                        job.done?"done":"still running"); }
             if(quit_early) break;
             if(e>=HOLD_MIN && job.done) break;
         }
+        dxm_log("splash: over after %.2f s, %d frames",(SDL_GetTicksNS()-s0)/1e9,frames);
         Uint64 f0=SDL_GetTicksNS();
         while(!quit_early){
             SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
@@ -189,11 +239,12 @@ int main(int argc,char **argv){
     Uint64 mach_fade0=SDL_GetTicksNS();
     const double MACH_FADE=0.70;
     if(cth) SDL_WaitThread(cth,NULL);
-    fprintf(stderr,"[dxm] chassis %dx%d in %llu ms%s\n",
+    dxm_log("chassis %dx%d joined, %llu ms%s",
             W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
     dxm_layout L=job.L;
     uint8_t *chas=job.px;
     gpu_set_chassis(g,chas,W,H);
+    dxm_log("chassis uploaded");
 
 
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
@@ -210,17 +261,18 @@ int main(int argc,char **argv){
 
     ui_init(&k);
     static char cfgpath[1024];
-    { const char *pref=SDL_GetPrefPath("DOSexMachina","dxm");
-      snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
-      ui_load(cfgpath); }
+    snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
+    ui_load(cfgpath);
     /* What DXM can run is whatever is installed, not what it was built
      * with.  Scanning here means the prompt and the navigator agree about
      * the machine's contents from the first frame. */
     lib_scan();
+    dxm_log("library scanned: %d installed",lib_count());
     /* The cached catalogue first, so the navigator is populated instantly
      * and works with no network at all; then a refresh in the background. */
     cat_load_cached();
     cat_refresh_begin();
+    dxm_log("catalogue: cache read, refresh started");
     for(int i=0;i<lib_count();i++){
         const lib_game *g=lib_at(i);
         fprintf(stderr,"[dxm] %-12s %s\n",g->id,
@@ -229,6 +281,7 @@ int main(int argc,char **argv){
     if(lib_count()==0)
         fprintf(stderr,"[dxm] no games installed - %sgames\n",lib_root());
     dos_init();
+    dxm_log("dos ready, entering the frame loop");
 
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=quit_early;
@@ -410,6 +463,7 @@ int main(int argc,char **argv){
           if(ui_visible()) SDL_ShowCursor(); else SDL_HideCursor(); }
         SDL_GL_SwapWindow(win);
         frame++;
+        if(frame==1) dxm_log("first machine frame on screen");
         if(shot && frame>=(shot_frames?shot_frames:60)){
             int rw,rh; uint8_t *px=gpu_readback(g,&rw,&rh);
             write_bmp(shot,px,rw,rh); free(px);

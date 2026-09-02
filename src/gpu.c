@@ -11,6 +11,11 @@
 #include <string.h>
 #include <math.h>
 
+/* Names the loader could not resolve, kept so the failure can be SHOWN to
+ * the person in front of the machine, not just written to a stderr nobody
+ * is looking at.  Empty on macOS, where nothing is loaded. */
+static char gl_missing[1024];
+
 #ifdef __APPLE__
 #  define GL_SILENCE_DEPRECATION 1
 #  include <OpenGL/gl3.h>
@@ -22,12 +27,17 @@
  * drift out of step with either. */
 #  include <SDL3/SDL_opengl.h>
 #  include <SDL3/SDL.h>
+static void gl_note_missing(const char *n){
+    size_t l=strlen(gl_missing);
+    snprintf(gl_missing+l,sizeof gl_missing-l,"%s%s",l?", ":"",n);
+}
 #  define GLF(ret,name,args) static ret (APIENTRY *p_##name) args;
 #  include "glfuncs.h"
 #  undef GLF
 #  define GLF(ret,name,args) \
       p_##name = (ret (APIENTRY *) args)SDL_GL_GetProcAddress(#name); \
-      if(!p_##name){ fprintf(stderr,"[dxm] GL: no %s\n",#name); ok=0; }
+      if(!p_##name){ fprintf(stderr,"[dxm] GL: no %s\n",#name); ok=0; \
+                     gl_note_missing(#name); }
 static int gl_load(void){
     int ok=1;
 #  include "glfuncs.h"
@@ -688,3 +698,13 @@ void gpu_draw_overlay(gpu *g){
     glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
     glDisable(GL_BLEND);
 }
+
+const char *gpu_describe(void){
+    static char buf[512];
+    const char *v=(const char *)glGetString(GL_VENDOR);
+    const char *r=(const char *)glGetString(GL_RENDERER);
+    const char *ver=(const char *)glGetString(GL_VERSION);
+    snprintf(buf,sizeof buf,"%s / %s / GL %s",v?v:"?",r?r:"?",ver?ver:"?");
+    return buf;
+}
+const char *gpu_missing(void){ return gl_missing; }

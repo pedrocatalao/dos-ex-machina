@@ -6,9 +6,9 @@ A 1993 beige-box PC on your screen — case, CRT and all — booting a simulated
 DOS prompt, from which you install and run **natively ported** DOS games. The
 games run in the same tube, behind the same glass, with the same phosphor.
 
-> **Early development.** It builds and runs on macOS, Linux and Windows, but
-> only macOS has been through the whole thing with a real GPU — and the
-> catalogue has one game in it. Things will move around.
+> **Early development.** macOS is the platform it works on end to end. The
+> Linux and Windows builds start and then stop at the splash screen — a known
+> bug in 0.3, not a driver problem. See Status.
 
 Nothing here is a photograph. The machine is drawn procedurally at your
 display's resolution, from signed-distance geometry and a lighting model: the
@@ -133,12 +133,15 @@ runs in the tube → Esc → the prompt again → it relaunches. `--selftest` ru
 that launch/unwind/relaunch sequence twice, and is what proves PORTING §3.1
 and §3.2 hold.
 
-**Linux and Windows** build, package and launch — CI covers both on x86_64 and
-arm64, and the releases are self-contained. What has *not* been confirmed is
-how they look: the only machines available for testing were VMs with no
-OpenGL 3.3 driver, so the render itself is still unverified there. Everything
-short of that works — the tarball resolves its own SDL3, GL 3.3 initialises,
-the loader binds every entry point, and the frame loop runs.
+**Linux and Windows** build, package and start — and then **stop at the
+splash screen**. That has been seen on a Linux VM and on a Windows machine
+with a real GPU, so it is not the VM's missing driver: it is a bug in DXM,
+open as of 0.3, and the machine has never been seen drawn on either platform.
+Every run writes `dxm.log` to the preferences directory — Windows
+`%APPDATA%\DOSexMachina\dxm\`, Linux `~/.local/share/DOSexMachina/dxm/`,
+macOS `~/Library/Application Support/DOSexMachina/dxm/` — with a timestamp
+for each startup step, from both threads. If you hit it, that file is the
+bug report.
 
 The **core module** — the game side of the contract — is verified on all three
 platforms and both architectures by the game repository's CI.
@@ -154,7 +157,8 @@ functions were missing rather than failing silently.
 
 ## Known gaps
 
-- **The render is unverified on Linux and Windows** — see Status.
+- **Linux and Windows stop at the splash screen** — see Status. It happens
+  with a real GPU, so it is not a driver problem; `dxm.log` is the evidence.
 - **The catalogue has one game in it.**
 - The chassis knobs are drawn but not yet interactive; the F1 panel is the
   working control surface.

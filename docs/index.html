@@ -235,9 +235,12 @@
 
     </div>
     <p>Every build needs an <strong>OpenGL 3.3 core</strong> context, which
-    most virtual machines cannot provide. The render has only been confirmed
-    on macOS so far — see <a href="https://github.com/pedrocatalao/dos-ex-machina/releases/tag/v0.3-beta">the
-    release notes</a> for what that means on the other two.</p>
+    most virtual machines cannot provide. <strong>macOS is the one that
+    works.</strong> The Linux and Windows builds currently stop at the splash
+    screen — a known bug, not a driver problem — and are there for anyone
+    who wants to help pin it down: each run writes a <code>dxm.log</code>
+    that says how far it got. See <a href="https://github.com/pedrocatalao/dos-ex-machina/releases/tag/v0.3-beta">the
+    release notes</a>.</p>
     <p>Older builds and the full notes are on the
     <a href="https://github.com/pedrocatalao/dos-ex-machina/releases">releases page</a>.</p>
   </div>
@@ -254,10 +257,10 @@ cmake --build build -j8
 ./build/dxm</pre>
     <p>Then <code>NC</code> at the prompt, and Enter on a game.</p>
     <p><strong>macOS, Linux and Windows</strong>, on x86_64 and arm64, all
-    built by CI. macOS is the one that has been through the whole thing on a
-    real GPU; the Linux and Windows builds launch and initialise but their
-    render is still unverified, because the only machines to hand were VMs
-    without an OpenGL 3.3 driver.</p>
+    built by CI. macOS is the one that works end to end. The Linux and
+    Windows builds start and then stop at the splash screen — on a real GPU
+    too, so it is a bug in DXM rather than a driver problem, and it is the
+    open issue in 0.3.</p>
     <p>That is the one hard requirement: <strong>OpenGL 3.3 core</strong>.
     Most virtual machines cannot provide it.</p>
   </div>

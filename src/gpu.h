@@ -67,4 +67,9 @@ void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
 
 /* read the framebuffer back (for --shot); caller frees */
 uint8_t *gpu_readback(gpu *g, int *w, int *h);
+
+/* What the context actually is - vendor / renderer / version - and, after
+ * gpu_create has failed, which entry points the driver did not provide. */
+const char *gpu_describe(void);
+const char *gpu_missing(void);
 #endif
