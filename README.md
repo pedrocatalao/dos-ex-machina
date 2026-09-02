@@ -119,6 +119,20 @@ repo's CI — it is the shell that is behind, not the contract.
 - The font is an 8x8 ASCII subset row-doubled to 8x16, plus the CP437 line
   drawing the navigator needs — not full CP437.
 
+## License
+
+MIT — see [LICENSE](LICENSE). Three things worth stating alongside it:
+
+- **No game code or game data is in this repository.** A game arrives as a
+  separately licensed native port; its publisher retains every right in the
+  original work, and nothing here grants any right in any game.
+- **SDL3 is a dependency, not a component** — linked, not vendored, and
+  distributed by its own authors under the zlib license.
+- **The Sound Blaster wordmark** on the modelled case is a trademark of
+  Creative Technology Ltd. It appears as a period detail — the sticker these
+  machines carried — not as a claim of ownership or a suggestion of any
+  affiliation.
+
 ## Design notes
 
 [SPEC.md](SPEC.md) covers the machine: how the layout is solved from the host
