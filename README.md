@@ -6,6 +6,11 @@ A 1993 beige-box PC on your screen — case, CRT and all — booting a simulated
 DOS prompt, from which you launch **natively ported** DOS games. The games run
 in the same tube, behind the same glass, with the same phosphor.
 
+> **Early development.** It runs end to end on macOS — boot, prompt, game,
+> back to the prompt — but Linux and Windows are not there yet, and there is
+> no way to install a game beyond pointing it at files you already have.
+> Things will move around.
+
 Nothing here is a photograph. The machine is drawn procedurally at your
 display's resolution, from signed-distance geometry and a lighting model: the
 moulding partings, the speaker pods, the vent cuts, the ejector-pin marks and
