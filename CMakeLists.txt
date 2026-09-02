@@ -24,6 +24,12 @@ add_executable(dxm
 # ports vendor from, exactly like src/dxm_core.h.
 target_include_directories(dxm PRIVATE src)
 target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_DL_LIBS})
+# GL 1.1 is exported by the system library and has to be LINKED; everything
+# past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,
+# hence the framework; everywhere else CMake finds libGL / opengl32.
 if(APPLE)
     target_link_libraries(dxm PRIVATE "-framework OpenGL")
+else()
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(dxm PRIVATE OpenGL::GL)
 endif()

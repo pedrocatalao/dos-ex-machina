@@ -36,7 +36,7 @@ jobs:
             ${{ matrix.prefix }}-cc
             ${{ matrix.prefix }}-cmake
             ${{ matrix.prefix }}-ninja
-            ${{ matrix.prefix }}-SDL3
+            ${{ matrix.prefix }}-sdl3
             ${{ matrix.prefix }}-curl
             ${{ matrix.prefix }}-zlib
 
