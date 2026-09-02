@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOS ex Machina — a 1993 PC on your screen</title>
+<meta name="description" content="A procedurally-drawn 1993 beige-box PC with a simulated CRT that boots a DOS prompt and runs natively-ported DOS games. No emulation, no raster art.">
+<meta property="og:title" content="DOS ex Machina">
+<meta property="og:description" content="A 1993 PC on your screen — case, CRT and all — booting a DOS prompt and running native ports of DOS games behind the glass.">
+<meta property="og:image" content="https://pedrocatalao.github.io/dos-ex-machina/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05070d;          /* the black inside the tube            */
+    --panel:#0b1020;
+    --blue:#1e9bf0;        /* the logo blue                        */
+    --deep:#2c3ea8;
+    --beige:#bfaf8a;       /* the case                             */
+    --text:#c9d4e6;
+    --dim:#7c88a0;
+    --line:#1a2740;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'VT323',ui-monospace,monospace; font-size:21px; line-height:1.5;
+    overflow-x:hidden;
+  }
+  /* the scanlines the whole project is about, very lightly */
+  body::after{
+    content:""; position:fixed; inset:0; z-index:9; pointer-events:none;
+    background:repeating-linear-gradient(to bottom,
+      transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
+  }
+  a{color:var(--blue); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px; margin:0 auto; padding:0 24px}
+
+  header{
+    text-align:center; padding:64px 0 40px;
+    background:
+      radial-gradient(60% 90% at 50% 0%, rgba(30,155,240,.16), transparent 70%),
+      var(--bg);
+    border-bottom:1px solid var(--line);
+  }
+  header img{width:min(720px,88vw); height:auto; display:block; margin:0 auto}
+  .tag{margin-top:18px; font-size:26px; color:var(--text)}
+  .tag b{color:var(--blue); font-weight:normal}
+  .early{
+    display:inline-block; margin-top:22px; padding:5px 14px;
+    border:1px solid #6b4b12; background:#1d1405; color:#e8a33a;
+    font-size:19px; letter-spacing:.5px;
+  }
+  .cta{margin-top:30px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap}
+  .btn{
+    display:inline-block; padding:9px 22px; font-size:22px;
+    border:1px solid var(--blue); color:var(--blue); background:rgba(30,155,240,.07);
+  }
+  .btn:hover{background:var(--blue); color:#04070e; text-decoration:none}
+  .btn.ghost{border-color:var(--line); color:var(--dim); background:transparent}
+  .btn.ghost:hover{border-color:var(--dim); color:var(--text); background:transparent}
+
+  section{padding:56px 0; border-bottom:1px solid var(--line)}
+  h2{
+    font-size:30px; font-weight:normal; color:#fff; margin-bottom:6px;
+    letter-spacing:1px;
+  }
+  h2::before{content:"▎"; color:var(--blue); margin-right:8px}
+  .lede{color:var(--dim); margin-bottom:26px; max-width:70ch}
+  p{max-width:72ch; margin-bottom:14px}
+  figure{margin:26px 0}
+  figure img{width:100%; height:auto; display:block; border:1px solid var(--line)}
+  figcaption{color:var(--dim); font-size:18px; margin-top:8px; text-align:center}
+  .shots{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  @media(max-width:720px){ .shots{grid-template-columns:1fr} }
+
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:22px}
+  @media(max-width:860px){ .grid{grid-template-columns:1fr} }
+  .card{border:1px solid var(--line); background:var(--panel); padding:18px 20px}
+  .card h3{font-size:23px; font-weight:normal; color:var(--blue); margin-bottom:8px}
+  .card p{font-size:20px; color:var(--dim); margin:0}
+
+  pre{
+    background:#04070e; border:1px solid var(--line); padding:16px 18px;
+    overflow-x:auto; font-size:19px; color:#9fd4ff; margin:16px 0;
+  }
+  code{color:#9fd4ff}
+  ul{margin:0 0 14px 22px; max-width:72ch}
+  li{margin-bottom:6px}
+  footer{padding:40px 0 60px; color:var(--dim); font-size:19px; text-align:center}
+  footer a{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img src="logo.png" alt="DOS ex Machina">
+    <p class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
+    <div class="early">EARLY DEVELOPMENT — macOS only, one game in the catalogue</div>
+    <div class="cta">
+      <a class="btn" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
+      <a class="btn ghost" href="#build">Build it</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>What it is</h2>
+    <p class="lede">A beige box that boots a DOS prompt, and runs real games behind the glass.</p>
+    <p>DOS ex Machina draws a 1993 PC — the case, the moulding, the speaker
+    grilles, thirty years of wear — and puts a working CRT in the middle of
+    it. From the <code>C:\&gt;</code> prompt you browse a catalogue, download a
+    game, and play it in the tube.</p>
+    <p>The games are <strong>not emulated</strong>. Each one is a native C
+    port of the original, which also ships as a standalone game in its own
+    right. DXM is the optional machine you can put it inside.</p>
+    <div class="shots">
+      <figure><img src="screenshot-prompt.jpg" alt="The DOS prompt on the simulated CRT"></figure>
+      <figure><img src="screenshot-game.jpg" alt="SkyRoads running in the tube"></figure>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Nothing here is a photograph</h2>
+    <p class="lede">The machine is solved, not painted.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>The case</h3>
+        <p>Drawn procedurally at your display's resolution from signed-distance
+        geometry and a lighting model. Moulding partings, speaker pods, vent
+        cuts, ejector-pin marks, scuffs and yellowing — all computed.</p>
+      </div>
+      <div class="card">
+        <h3>The tube</h3>
+        <p>Phosphor persistence, barrel curvature, footprint-integrated
+        scanlines, an aperture-grille mask, bloom, and coloured light spilling
+        from the picture onto the plastic around it.</p>
+      </div>
+      <div class="card">
+        <h3>The sound</h3>
+        <p>Fan, hum and drive spindle synthesised at run time from measured
+        spectra. A PC speaker POST beep. The floppy is the only sample.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Getting a game</h2>
+    <p class="lede">Type NC. Press Enter. That is the whole of it.</p>
+    <figure>
+      <img src="screenshot-nc.jpg" alt="The navigator listing a game available to download">
+      <figcaption>The navigator — what is installed, and what could be</figcaption>
+    </figure>
+    <p>DXM ships with no games and links none. The catalogue is fetched at run
+    time and cached, so adding a title is an edit to a JSON file rather than a
+    new release — and a machine that has been online once keeps working
+    offline afterwards.</p>
+    <p>An install fetches the game's module and its data, checks both against
+    a SHA-256, and unpacks them into your preferences directory. After that it
+    runs with no network, forever. Game data is never mirrored: for freeware
+    titles the catalogue points at the publisher's own download.</p>
+  </div>
+</section>
+
+<section id="build">
+  <div class="wrap">
+    <h2>Build it</h2>
+    <p class="lede">Needs SDL3, libcurl and zlib. No game checkout required.</p>
+<pre>git clone https://github.com/pedrocatalao/dos-ex-machina
+cd dos-ex-machina
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j8
+./build/dxm</pre>
+    <p>Then <code>NC</code> at the prompt, and Enter on a game.</p>
+    <p><strong>macOS today.</strong> The core module already builds and is
+    verified on macOS, Linux and Windows across x86_64 and arm64 — it is the
+    shell that is behind, not the contract.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Porting a game</h2>
+    <p class="lede">Three exported symbols, and no dependencies of its own.</p>
+    <p>A game is a <code>.dxm</code> module opened at run time. It exports
+    <code>dxm_core_get_info</code>, <code>dxm_core_main</code> and
+    <code>dxm_core_audio</code>, hides everything else, and links no SDL and
+    no threading library — which is what makes it loadable everywhere DXM
+    runs. Its ABI version is checked before anything starts.</p>
+    <ul>
+      <li>No <code>exit()</code> — the machine has to survive the game</li>
+      <li>Restartable state, so it can be run twice in one process</li>
+      <li>Declared video modes, so the tube knows what it is showing</li>
+      <li>Audio pulled, not pushed</li>
+    </ul>
+    <p><a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/PORTING.md">PORTING.md</a>
+    is the normative contract;
+    <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/SPEC.md">SPEC.md</a>
+    covers the machine itself.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>MIT licensed. No game code or data lives in the repository.</p>
+    <p>The Sound Blaster wordmark on the modelled case is a trademark of
+    Creative Technology Ltd, shown as a period detail.</p>
+    <p style="margin-top:14px">
+      <a href="https://github.com/pedrocatalao/dos-ex-machina">github.com/pedrocatalao/dos-ex-machina</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
