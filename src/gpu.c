@@ -14,8 +14,61 @@
 #ifdef __APPLE__
 #  define GL_SILENCE_DEPRECATION 1
 #  include <OpenGL/gl3.h>
+#  define gl_load() (1)
 #else
+/* Everywhere but macOS, the system GL library exports only 1.1 and the rest
+ * has to come from the driver at run time.  glfuncs.h lists what we use; the
+ * pointers and the loader are both generated from it, so the list cannot
+ * drift out of step with either. */
 #  include <SDL3/SDL_opengl.h>
+#  include <SDL3/SDL.h>
+#  define GLF(ret,name,args) static ret (APIENTRY *p_##name) args;
+#  include "glfuncs.h"
+#  undef GLF
+#  define GLF(ret,name,args) \
+      p_##name = (ret (APIENTRY *) args)SDL_GL_GetProcAddress(#name); \
+      if(!p_##name){ fprintf(stderr,"[dxm] GL: no %s\n",#name); ok=0; }
+static int gl_load(void){
+    int ok=1;
+#  include "glfuncs.h"
+    return ok;
+}
+#  undef GLF
+/* From here the plain names mean the loaded pointers, so every call site in
+ * this file is unchanged.  Renaming rather than shadowing matters: some
+ * system GL headers do declare the 1.2/1.3 entry points, and a pointer with
+ * the same name would collide with the prototype. */
+#  define glActiveTexture           p_glActiveTexture
+#  define glAttachShader            p_glAttachShader
+#  define glBindBuffer              p_glBindBuffer
+#  define glBindFramebuffer         p_glBindFramebuffer
+#  define glBindVertexArray         p_glBindVertexArray
+#  define glBufferData              p_glBufferData
+#  define glCompileShader           p_glCompileShader
+#  define glCreateProgram           p_glCreateProgram
+#  define glCreateShader            p_glCreateShader
+#  define glDeleteShader            p_glDeleteShader
+#  define glEnableVertexAttribArray p_glEnableVertexAttribArray
+#  define glFramebufferTexture2D    p_glFramebufferTexture2D
+#  define glGenBuffers              p_glGenBuffers
+#  define glGenFramebuffers         p_glGenFramebuffers
+#  define glGenVertexArrays         p_glGenVertexArrays
+#  define glGetProgramInfoLog       p_glGetProgramInfoLog
+#  define glGetProgramiv            p_glGetProgramiv
+#  define glGetShaderInfoLog        p_glGetShaderInfoLog
+#  define glGetShaderiv             p_glGetShaderiv
+#  define glGetUniformLocation      p_glGetUniformLocation
+#  define glLinkProgram             p_glLinkProgram
+#  define glShaderSource            p_glShaderSource
+#  define glUniform1f               p_glUniform1f
+#  define glUniform1fv              p_glUniform1fv
+#  define glUniform1i               p_glUniform1i
+#  define glUniform2f               p_glUniform2f
+#  define glUniform3fv              p_glUniform3fv
+#  define glUniform4f               p_glUniform4f
+#  define glUniform4fv              p_glUniform4fv
+#  define glUseProgram              p_glUseProgram
+#  define glVertexAttribPointer     p_glVertexAttribPointer
 #endif
 
 #define PERSIST_W 640
@@ -385,6 +438,10 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h){
 }
 
 gpu *gpu_create(int w,int h){
+    if(!gl_load()){
+        fprintf(stderr,"[dxm] this GL context is missing functions DXM needs\n");
+        return NULL;
+    }
     gpu *g=calloc(1,sizeof *g); g->out_w=w; g->out_h=h;
     static const float quad[]={-1,-1, 3,-1, -1,3};
     glGenVertexArrays(1,&g->vao); glBindVertexArray(g->vao);

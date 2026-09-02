@@ -1,0 +1,77 @@
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false     # one arch failing must not cancel the other
+      matrix:
+        include:
+          - { runner: ubuntu-latest,    arch: x86_64 }
+          - { runner: ubuntu-24.04-arm, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL3 is not in Ubuntu 24.04's archive yet, so it is built from
+      # source and cached - the build itself is the slow part, not DXM.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git \
+            libcurl4-openssl-dev zlib1g-dev libgl1-mesa-dev \
+            libx11-dev libxext-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libxfixes-dev libwayland-dev libxkbcommon-dev libasound2-dev \
+            libpulse-dev
+
+      - name: Cache SDL3
+        id: sdl3-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/sdl3-install
+          key: sdl3-3.2.4-${{ matrix.arch }}-v1
+
+      - name: Build SDL3
+        if: steps.sdl3-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch release-3.2.4 https://github.com/libsdl-org/SDL sdl3-src
+          cmake -S sdl3-src -B sdl3-build -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$HOME/sdl3-install" \
+                -DSDL_STATIC=OFF
+          cmake --build sdl3-build
+          cmake --install sdl3-build
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_PREFIX_PATH="$HOME/sdl3-install"
+          cmake --build build -j$(nproc)
+
+      - name: Verify
+        run: |
+          test -x build/dxm
+          # The GL entry points past 1.1 are fetched at run time, so they must
+          # NOT appear as undefined symbols - if they do, the loader is being
+          # bypassed and the binary will not start on a stock driver.
+          if nm -D --undefined-only build/dxm | grep -E " glUniform|glCreateShader|glBindVertexArray"; then
+            echo "GL 3.x symbols are linked, not loaded"; exit 1
+          fi
+          ldd build/dxm | grep -q libcurl
+          echo "ok: GL loaded at run time, links curl"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dxm-linux-${{ matrix.arch }}
+          path: build/dxm

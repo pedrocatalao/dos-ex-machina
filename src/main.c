@@ -277,7 +277,11 @@ int main(int argc,char **argv){
             if(mark<0.0) mark=t;
             double E=t-mark;                      /* seconds in this stage */
             switch(stage){
+            /* Games live in C:\GAMES and run from there, so the test has to
+             * walk there like a user would. */
             case 0: if(dos_update(t)==DOS_PROMPT){
+                        for(const char *q="CD GAMES";*q;q++) dos_key(*q,0);
+                        dos_key('\r',0);
                         for(const char *q="SKYROADS";*q;q++) dos_key(*q,0);
                         dos_key('\r',0); mark=t; stage=1; }
                     break;
@@ -295,6 +299,8 @@ int main(int argc,char **argv){
                     } else if(E>12.0){ printf("FAIL: core never unwound\n"); fail=1; stage=4; }
                     break;
             case 3: if(E>1.5){
+                        /* the prompt comes back where the game left it, so
+                         * this is already C:\GAMES */
                         for(const char *q="SKYROADS";*q;q++) dos_key(*q,0);
                         dos_key('\r',0); mark=t; stage=1; }
                     break;

@@ -1,0 +1,66 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Windows (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, arch: x86_64, msystem: UCRT64,     prefix: mingw-w64-ucrt-x86_64 }
+          - { runner: windows-11-arm, arch: arm64,  msystem: CLANGARM64, prefix: mingw-w64-clang-aarch64 }
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: false
+          install: >-
+            git
+            ${{ matrix.prefix }}-cc
+            ${{ matrix.prefix }}-cmake
+            ${{ matrix.prefix }}-ninja
+            ${{ matrix.prefix }}-SDL3
+            ${{ matrix.prefix }}-curl
+            ${{ matrix.prefix }}-zlib
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Verify
+        run: |
+          test -f build/dxm.exe
+          echo "built dxm.exe"
+
+      # The DLLs the binary actually loaded, rather than a guessed list - the
+      # toolchain's runtime differs between UCRT64 and CLANGARM64.
+      - name: Package
+        run: |
+          mkdir -p dist/dxm
+          cp build/dxm.exe dist/dxm/
+          ldd build/dxm.exe | awk '/mingw|clang/ {print $3}' | sort -u \
+            | while read -r dll; do [ -f "$dll" ] && cp "$dll" dist/dxm/; done
+          cd dist && zip -r "../dxm-windows-${{ matrix.arch }}.zip" dxm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dxm-windows-${{ matrix.arch }}
+          path: dxm-windows-${{ matrix.arch }}.zip
