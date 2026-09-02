@@ -2,6 +2,7 @@
  * The game owns its control flow (SPEC §4.1), so synchronisation happens at
  * the plat_present() boundary and nowhere else. */
 #include "corehost.h"
+#include "coreload.h"
 #include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
@@ -24,7 +25,20 @@ static int      back;
 static volatile unsigned char keys[NKEYS];
 static int      chq[64]; static volatile int chq_r, chq_w;
 
-void sky_audio_render(int16_t *out,int nframes);   /* from the core */
+/* The core linked in at build time.  A module opened at run time replaces
+ * these through corehost_use_module(); everything below goes through the
+ * pointers so it cannot tell the two apart. */
+const dxm_core_info *dxm_core_get_info(void);
+int  dxm_core_main(const dxm_host *h,const char *dir);
+void dxm_core_audio(int16_t *out,int frames);
+
+static dxm_core_main_fn  f_main  = dxm_core_main;
+static dxm_core_audio_fn f_audio = dxm_core_audio;
+
+void corehost_use_module(const dxm_module *m){
+    if(m && m->handle){ f_main=m->main_fn; f_audio=m->audio_fn; }
+    else              { f_main=dxm_core_main; f_audio=dxm_core_audio; }
+}
 
 static double now_s(void){
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts);
@@ -59,14 +73,22 @@ static double h_now(void){ return now_s(); }
 static void   h_sleep(int ms){ usleep((useconds_t)ms*1000); }
 static void   h_log(const char *m){ fprintf(stderr,"[core] %s\n",m); }
 
+/* The core's one lock lives here, not in the core: the shell owns the
+ * thread, and a core shipped as a loadable module must not link a threading
+ * library of its own. */
+static pthread_mutex_t game_mu = PTHREAD_MUTEX_INITIALIZER;
+static void   h_lock(void)  { pthread_mutex_lock(&game_mu); }
+static void   h_unlock(void){ pthread_mutex_unlock(&game_mu); }
+
 static dxm_host HOST = {
     h_present, h_key_down, h_getch, h_should_quit, h_now, h_sleep, h_log,
+    h_lock, h_unlock,
     NULL, NULL
 };
 
 static void *thread_main(void *ud){
     (void)ud;
-    sky_core_main(&HOST, cur_data);
+    f_main(&HOST, cur_data);
     running=0;
     return NULL;
 }
@@ -114,7 +136,7 @@ void corehost_audio(int16_t *out,int nframes){
      * The mutex closes the same window during teardown. */
     pthread_mutex_lock(&mu);
     int ok = running && front >= 0;
-    if(ok) sky_audio_render(out,nframes);
+    if(ok) f_audio(out,nframes);
     else   memset(out,0,(size_t)nframes*4);
     pthread_mutex_unlock(&mu);
 }

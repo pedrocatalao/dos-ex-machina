@@ -8,6 +8,7 @@
 #include "dos.h"
 #include "chassis.h"
 #include "corehost.h"
+#include "coreload.h"
 #include "dxm_core.h"
 #include "crt.h"
 #include "sound.h"
@@ -70,6 +71,7 @@ static int SDLCALL chassis_worker(void *ud){
 
 int main(int argc,char **argv){
     int windowed=0, shot_frames=0, selftest=0, quit_early=0; const char *shot=NULL; const char *autocmd=NULL;
+    const char *corepath=NULL;      /* --core <file.dxm>: run a downloaded module */
     float ambient=0.4f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
@@ -80,6 +82,7 @@ int main(int argc,char **argv){
         else if(!strcmp(argv[i],"--shot")&&i+1<argc) shot=argv[++i];   /* honours fullscreen */
         else if(!strcmp(argv[i],"--frames")&&i+1<argc) shot_frames=atoi(argv[++i]);
         else if(!strcmp(argv[i],"--type")&&i+1<argc) autocmd=argv[++i];
+        else if(!strcmp(argv[i],"--core")&&i+1<argc) corepath=argv[++i];
         else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&win_w,&win_h);
         else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ ambient=(float)atof(argv[++i]);
             if(ambient<0)ambient=0; if(ambient>1)ambient=1; }
@@ -187,6 +190,21 @@ int main(int argc,char **argv){
     { const char *pref=SDL_GetPrefPath("DOSexMachina","dxm");
       snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
       ui_load(cfgpath); }
+    /* A core reaches us either linked in at build time or as a downloaded
+     * module.  Opening it here rather than at launch means a bad module is
+     * reported before the machine boots, not after the drive has spun up
+     * and the user is waiting for a game. */
+    static dxm_module mod;
+    if(corepath){
+        char err[256];
+        if(coreload_open(&mod,corepath,err,sizeof err)!=0){
+            fprintf(stderr,"[dxm] %s: %s\n",corepath,err);
+            return 1;
+        }
+        corehost_use_module(&mod);
+        fprintf(stderr,"[dxm] core: %s (%s, %d) from %s\n",
+                mod.info->title,mod.info->publisher,mod.info->year,corepath);
+    }
     dos_init();
 
     Uint64 t_start=SDL_GetTicksNS();
@@ -296,7 +314,7 @@ int main(int argc,char **argv){
         }
         const char *req=dos_launch_request();
         if(req){
-            const dxm_core_info *info=sky_core_info();
+            const dxm_core_info *info=mod.info?mod.info:dxm_core_get_info();
             const char *dd=getenv("DXM_DATA");
             snd_floppy(2.2);      /* the drive works while it loads */
             if(corehost_start(info, dd?dd:"/Users/pedro/Git/skyroads-mac/data")==0)

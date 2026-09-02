@@ -2,6 +2,10 @@
 #define DXM_COREHOST_H
 #include <stdint.h>
 #include "dxm_core.h"
+#include "coreload.h"
+/* Run a core that was opened from a module instead of the linked-in one.
+ * Pass NULL to go back to the built-in core. */
+void corehost_use_module(const dxm_module *m);
 int  corehost_start(const dxm_core_info *info, const char *data_dir);
 void corehost_stop(void);              /* ask the core to unwind, then join   */
 int  corehost_running(void);

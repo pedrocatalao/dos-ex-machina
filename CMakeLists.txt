@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dosexmachina C)
+project(dos_ex_machina C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter -O2")
 
@@ -16,7 +16,12 @@ add_subdirectory(${DXM_SKYROADS} ${CMAKE_BINARY_DIR}/skyroads EXCLUDE_FROM_ALL)
 
 add_executable(dxm
     src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c src/sound.c
-    src/corehost.c src/platform_dxm.c src/ui.c src/dxm_splash.c)
+    src/corehost.c src/coreload.c src/ui.c src/dxm_splash.c)
+# NOTE: src/platform_dxm.c is deliberately NOT built here.  The adapter is
+# compiled INTO each core (ports vendor it as src/dxm_platform.c), because a
+# core loaded as a module cannot reach back into this executable for the
+# plat_* symbols it needs.  The copy in src/ is the authoritative one that
+# ports vendor from, exactly like src/dxm_core.h.
 target_include_directories(dxm PRIVATE src ${DXM_SKYROADS}/src)
 target_link_libraries(dxm PRIVATE SDL3::SDL3 skyroads_core m)
 if(APPLE)

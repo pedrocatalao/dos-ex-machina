@@ -221,7 +221,7 @@ Small, behavior-neutral, done in the game repo:
 ## 5. Repo layout (this repo)
 
 ```
-dosexmachina/
+dos-ex-machina/
 ├── SPEC.md                  (this file)
 ├── CMakeLists.txt           FetchContent: skyroads-sdl @ pinned tag (SKY_CORE)
 ├── src/

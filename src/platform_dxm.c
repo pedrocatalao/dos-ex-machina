@@ -2,7 +2,6 @@
  * Implements the standard platform.h seam in terms of dxm_host.  Contains no
  * game-specific logic, so every port links this same file rather than writing
  * its own: that is what makes game N cheap. */
-#include <SDL3/SDL.h>
 #include "platform.h"
 #include "compat.h"
 #include "dxm_core.h"
@@ -13,7 +12,6 @@ volatile duint Time;
 void (*plat_f9_hook)(void);
 
 static const dxm_host *H;
-static SDL_Mutex *game_lock;
 static double  tick_origin;
 static jmp_buf exit_jmp;
 static int     exit_armed;
@@ -22,10 +20,7 @@ static int     exit_armed;
 static const dxm_mode MODE_13H = { 320, 200, DXM_FB_INDEX8, 5, 6, 400 };
 static uint8_t pal8[256*3];
 
-void dxm_adapter_bind(const dxm_host *h){
-    H=h; tick_origin=h->now();
-    if(!game_lock) game_lock=SDL_CreateMutex();
-}
+void dxm_adapter_bind(const dxm_host *h){ H=h; tick_origin=h->now(); }
 jmp_buf *dxm_adapter_exit_target(void){ exit_armed=1; return &exit_jmp; }
 
 int  plat_init(const char *title,int scale){ (void)title;(void)scale; return 0; }
@@ -73,13 +68,13 @@ int plat_getch_ext(void){
 }
 void   plat_sleep(int ms){ H->sleep_ms(ms); }
 
-/* The game's one lock.  It lives here rather than in the game so no port has
- * to pick a threading library of its own - which is what made the core
- * unbuildable on Windows when audio.c reached for <pthread.h>.  A call
- * before dxm_adapter_bind() is a no-op, which is correct: the core thread
- * has not started, so there is nothing to race. */
-void   plat_lock(void)  { if(game_lock) SDL_LockMutex(game_lock); }
-void   plat_unlock(void){ if(game_lock) SDL_UnlockMutex(game_lock); }
+/* The game's one lock, taken from the SHELL.  It cannot be created here:
+ * this file is compiled INTO the core, and a core shipped as a loadable
+ * module must link no threading library of its own or it stops being
+ * loadable.  A call before dxm_adapter_bind() is a no-op, which is correct
+ * - the core thread has not started, so there is nothing to race. */
+void   plat_lock(void)  { if(H && H->lock)   H->lock(); }
+void   plat_unlock(void){ if(H && H->unlock) H->unlock(); }
 double plat_now(void){ return H->now(); }
 void   plat_tick_update(void){ Time=(duint)((plat_now()-tick_origin)*TICK_HZ); }
 void   plat_osd(const char *msg){ H->log(msg); }
