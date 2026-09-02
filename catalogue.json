@@ -59,6 +59,16 @@
           "sha256": "a573178f228b27aff2643c80e46d09aaf211b3a808bb0d79a043260fd7b60660",
           "size": 109256
         },
+        "windows-x86_64": {
+          "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-windows-x86_64.dxm",
+          "sha256": "65e9157926b61178c64d7a03aff2565bbdf6ff873a0b308419c067ecfe694a3f",
+          "size": 201079
+        },
+        "windows-arm64": {
+          "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-windows-arm64.dxm",
+          "sha256": "a14eb156fa590840635c5452ec7e36d68906aec66fdbd6390cd5a4284c197a35",
+          "size": 155648
+        },
         "linux-arm64": {
           "url": "https://github.com/pedrocatalao/skyroads-sdl/releases/download/1.5/skyroads-linux-arm64.dxm",
           "sha256": "a9b247ce4b5171b0aeb4171719a95e9deb73068ee97db98e61952af2f7efb2b4",

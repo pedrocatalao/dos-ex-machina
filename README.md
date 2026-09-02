@@ -124,7 +124,7 @@ behind, not the contract.
 - **Linux and Windows.** `gpu.c` reaches for `<OpenGL/gl3.h>` directly and
   needs a GL loader elsewhere; `corehost.c` still uses pthreads, `<unistd.h>`
   and `clock_gettime`, all of which have direct SDL3 equivalents.
-- **The catalogue has one game in it**, with no Windows module listed yet.
+- **The catalogue has one game in it.**
 - The chassis knobs are drawn but not yet interactive; the F1 panel is the
   working control surface.
 - The font is an 8x8 ASCII subset row-doubled to 8x16, plus the CP437 line
