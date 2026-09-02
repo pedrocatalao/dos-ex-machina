@@ -18,9 +18,13 @@ jobs:
     strategy:
       fail-fast: false     # one arch failing must not cancel the other
       matrix:
+        # Built on 22.04, not latest.  A glibc binary runs on the version it
+        # was built against or newer and never older, so building on 24.04
+        # (glibc 2.39) shipped something that would not start on 22.04 or
+        # Debian 12.  22.04 is glibc 2.35, which covers everything current.
         include:
-          - { runner: ubuntu-latest,    arch: x86_64 }
-          - { runner: ubuntu-24.04-arm, arch: arm64 }
+          - { runner: ubuntu-22.04,     arch: x86_64 }
+          - { runner: ubuntu-22.04-arm, arch: arm64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/sdl3-install
-          key: sdl3-3.2.4-${{ matrix.arch }}-v1
+          key: sdl3-3.2.4-ubuntu22.04-${{ matrix.arch }}-v1
 
       - name: Build SDL3
         if: steps.sdl3-cache.outputs.cache-hit != 'true'
@@ -91,6 +95,7 @@ jobs:
             echo "unresolved after packaging:"; grep "not found" /tmp/deps.txt; exit 1
           fi
           grep SDL3 /tmp/deps.txt
+          echo "built against glibc $(ldd --version | head -1 | grep -oE '[0-9]+\.[0-9]+$')"
           tar -czf "dxm-linux-${{ matrix.arch }}.tar.gz" -C dist dxm
 
       - uses: actions/upload-artifact@v4

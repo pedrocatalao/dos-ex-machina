@@ -61,13 +61,20 @@ jobs:
         run: |
           mkdir -p dist/dxm/lib
           cp build/dxm dist/dxm/
-          for lib in $(otool -L build/dxm | awk 'NR>1 && $1 ~ /SDL3/ {print $1}'); do
-            [ -f "$lib" ] || continue
-            base=$(basename "$lib")
-            cp -L "$lib" dist/dxm/lib/
-            chmod u+w "dist/dxm/lib/$base"
-            install_name_tool -id "@rpath/$base" "dist/dxm/lib/$base"
-            install_name_tool -change "$lib" "@rpath/$base" dist/dxm/dxm
+          # Take SDL3 from where it was installed, rather than from otool's
+          # output: a CMake-built SDL3 already has an @rpath install name, so
+          # the paths otool prints are not files and every copy was skipped.
+          cp -L "$HOME"/sdl3-install/lib/libSDL3*.dylib dist/dxm/lib/
+          chmod u+w dist/dxm/lib/*.dylib
+          for dylib in dist/dxm/lib/*.dylib; do
+            install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
+          done
+          # And if the binary names an absolute path anyway - a Homebrew SDL3
+          # does - point that at @rpath too.  Entries already on @rpath need
+          # nothing.
+          for lib in $(otool -L dist/dxm/dxm | awk 'NR>1 && $1 ~ /SDL3/ {print $1}'); do
+            case "$lib" in @rpath/*) continue ;; esac
+            install_name_tool -change "$lib" "@rpath/$(basename "$lib")" dist/dxm/dxm
           done
           # install_name_tool invalidates the code signature, and on Apple
           # Silicon an unsigned binary will not launch at all.  Ad-hoc signing
