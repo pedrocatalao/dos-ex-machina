@@ -54,40 +54,46 @@ jobs:
           otool -L build/dxm | grep -q SDL3
           echo "universal, links SDL3"
 
-      # A zip someone can unpack and run.  SDL3 travels with it - it is built
-      # from source here, so a user would have nowhere to get it from - while
-      # curl, zlib and OpenGL come from the system, as they must.
-      - name: Package
+      # A .app, not a bare binary.  Two reasons: a folder of loose files is
+      # not how anyone expects to be handed a Mac program, and Gatekeeper's
+      # right-click -> Open escape hatch only exists for bundles - on a bare
+      # executable the user has to know about xattr.
+      - name: Package (.app)
         run: |
-          mkdir -p dist/dxm/lib
-          cp build/dxm dist/dxm/
-          # Take SDL3 from where it was installed, rather than from otool's
-          # output: a CMake-built SDL3 already has an @rpath install name, so
-          # the paths otool prints are not files and every copy was skipped.
-          cp -L "$HOME"/sdl3-install/lib/libSDL3*.dylib dist/dxm/lib/
-          chmod u+w dist/dxm/lib/*.dylib
-          for dylib in dist/dxm/lib/*.dylib; do
+          APP="dist/DOS ex Machina.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" \
+                   "$APP/Contents/Resources"
+          cp packaging/macos/Info.plist "$APP/Contents/"
+          ./tools/make_icns.sh assets/icon-src.png "$APP/Contents/Resources/dxm.icns"
+          cp build/dxm "$APP/Contents/MacOS/"
+          # SDL3 travels with it - it is built from source here, so a user
+          # would have nowhere to get it.  curl, zlib and OpenGL are system
+          # libraries and must stay that way.
+          cp -L "$HOME"/sdl3-install/lib/libSDL3*.dylib "$APP/Contents/Frameworks/"
+          chmod u+w "$APP/Contents/Frameworks/"*.dylib
+          for dylib in "$APP/Contents/Frameworks/"*.dylib; do
             install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
           done
-          # And if the binary names an absolute path anyway - a Homebrew SDL3
-          # does - point that at @rpath too.  Entries already on @rpath need
-          # nothing.
-          for lib in $(otool -L dist/dxm/dxm | awk 'NR>1 && $1 ~ /SDL3/ {print $1}'); do
+          # A CMake-built SDL3 already reports @rpath; a Homebrew one would
+          # give an absolute path.  Rewrite only what needs it.
+          for lib in $(otool -L "$APP/Contents/MacOS/dxm" | awk 'NR>1 && $1 ~ /SDL3/ {print $1}'); do
             case "$lib" in @rpath/*) continue ;; esac
-            install_name_tool -change "$lib" "@rpath/$(basename "$lib")" dist/dxm/dxm
+            install_name_tool -change "$lib" "@rpath/$(basename "$lib")" \
+                              "$APP/Contents/MacOS/dxm"
           done
-          # install_name_tool invalidates the code signature, and on Apple
-          # Silicon an unsigned binary will not launch at all.  Ad-hoc signing
-          # is enough - this is not notarisation, just a valid signature.
-          codesign --force --sign - dist/dxm/lib/*.dylib
-          codesign --force --sign - dist/dxm/dxm
-          # Nothing may still point at the build-time SDL3, or the zip only
-          # works on a machine that already had it.
-          otool -L dist/dxm/dxm | grep -i sdl3
-          if otool -L dist/dxm/dxm | grep -q "$HOME/sdl3-install"; then
+          # install_name_tool invalidates the signature, and on Apple Silicon
+          # an unsigned binary will not launch at all.  Ad-hoc is enough to
+          # load; it is NOT notarisation, so a download is still quarantined.
+          codesign --force --sign - "$APP/Contents/Frameworks/"*.dylib
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          plutil -lint "$APP/Contents/Info.plist"
+          otool -L "$APP/Contents/MacOS/dxm" | grep -i sdl3
+          if otool -L "$APP/Contents/MacOS/dxm" | grep -q "$HOME/sdl3-install"; then
             echo "still references the build tree"; exit 1
           fi
-          cd dist && zip -r -y "../dxm-macos-universal.zip" dxm
+          # -y keeps the symlinks a bundle relies on
+          cd dist && zip -r -y ../dxm-macos-universal.zip "DOS ex Machina.app"
 
       - uses: actions/upload-artifact@v4
         with:

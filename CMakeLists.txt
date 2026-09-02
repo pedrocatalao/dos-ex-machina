@@ -32,9 +32,12 @@ target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_
 # anything.  $ORIGIN is resolved by the loader at run time, so the directory
 # can be moved anywhere.
 if(APPLE)
+    # Two rpaths, because the binary ships in two shapes: a plain folder with
+    # lib/ beside the executable, and a .app where the convention is
+    # Contents/Frameworks.  Listing both means one build serves either.
     set_target_properties(dxm PROPERTIES
-        BUILD_RPATH   "@executable_path/lib"
-        INSTALL_RPATH "@executable_path/lib")
+        BUILD_RPATH   "@executable_path/lib;@executable_path/../Frameworks"
+        INSTALL_RPATH "@executable_path/lib;@executable_path/../Frameworks")
 elseif(UNIX)
     set_target_properties(dxm PROPERTIES
         BUILD_RPATH   "$ORIGIN/lib"

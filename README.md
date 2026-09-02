@@ -6,9 +6,9 @@ A 1993 beige-box PC on your screen — case, CRT and all — booting a simulated
 DOS prompt, from which you install and run **natively ported** DOS games. The
 games run in the same tube, behind the same glass, with the same phosphor.
 
-> **Early development.** It runs end to end on macOS — boot, prompt, browse,
-> download, play — but Linux and Windows are not there yet, and the catalogue
-> has one game in it. Things will move around.
+> **Early development.** It builds and runs on macOS, Linux and Windows, but
+> only macOS has been through the whole thing with a real GPU — and the
+> catalogue has one game in it. Things will move around.
 
 Nothing here is a photograph. The machine is drawn procedurally at your
 display's resolution, from signed-distance geometry and a lighting model: the
@@ -66,10 +66,16 @@ runs. `dxm_core_info.abi` is checked before anything starts, so a module built
 against a different version of the contract is refused with a message saying
 which side needs updating.
 
+On macOS the release is a `DOS ex Machina.app` bundle. It is ad-hoc signed
+rather than notarised, so the first launch needs **right-click → Open** —
+double-clicking will refuse it - or you need to go to System Settings -> Privacy and Security -> General and click "Open Anyway".
+
 ## Build
 
-Needs SDL3, libcurl and zlib. The last two are system libraries on every
-platform DXM targets, and curl already depends on zlib.
+Needs SDL3, libcurl and zlib, and an **OpenGL 3.3 core** context at run time.
+curl and zlib are system libraries everywhere DXM targets. SDL3 is not yet in
+Ubuntu's archive, so on Linux it has to be built from source or taken from the
+release tarball, which carries it.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -110,20 +116,33 @@ Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"`,
 
 ## Status
 
-Working end to end on macOS: boot → `C:\>` → `NC` → download a game → it runs
-in the tube → Esc → the prompt again → it relaunches. `--selftest` runs that
-launch/unwind/relaunch sequence twice, and is what proves PORTING §3.1 and
-§3.2 hold.
+**macOS** does the whole thing: boot → `C:\>` → `NC` → download a game → it
+runs in the tube → Esc → the prompt again → it relaunches. `--selftest` runs
+that launch/unwind/relaunch sequence twice, and is what proves PORTING §3.1
+and §3.2 hold.
 
-The **core module** builds and is verified on macOS, Linux and Windows, on
-both x86_64 and arm64, by the game repository's CI. It is the shell that is
-behind, not the contract.
+**Linux and Windows** build, package and launch — CI covers both on x86_64 and
+arm64, and the releases are self-contained. What has *not* been confirmed is
+how they look: the only machines available for testing were VMs with no
+OpenGL 3.3 driver, so the render itself is still unverified there. Everything
+short of that works — the tarball resolves its own SDL3, GL 3.3 initialises,
+the loader binds every entry point, and the frame loop runs.
+
+The **core module** — the game side of the contract — is verified on all three
+platforms and both architectures by the game repository's CI.
+
+## Requirements
+
+An **OpenGL 3.3 core** context. That rules out most virtual machines: virgl on
+an Apple Silicon host offers only a 2.1 compatibility profile, and Windows
+without a GPU driver gives Microsoft's software GL 1.1. On Linux you can force
+Mesa's software rasteriser with `LIBGL_ALWAYS_SOFTWARE=1`, which works but is
+far too slow to be pleasant. If DXM cannot get what it needs it says which
+functions were missing rather than failing silently.
 
 ## Known gaps
 
-- **Linux and Windows.** `gpu.c` reaches for `<OpenGL/gl3.h>` directly and
-  needs a GL loader elsewhere; `corehost.c` still uses pthreads, `<unistd.h>`
-  and `clock_gettime`, all of which have direct SDL3 equivalents.
+- **The render is unverified on Linux and Windows** — see Status.
 - **The catalogue has one game in it.**
 - The chassis knobs are drawn but not yet interactive; the F1 panel is the
   working control surface.

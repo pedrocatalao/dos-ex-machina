@@ -106,7 +106,7 @@
   <div class="wrap">
     <img src="logo.png" alt="DOS ex Machina">
     <p class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
-    <div class="early">EARLY DEVELOPMENT — macOS only, one game in the catalogue</div>
+    <div class="early">EARLY DEVELOPMENT — one game in the catalogue</div>
     <div class="cta">
       <a class="btn" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
       <a class="btn ghost" href="#build">Build it</a>
@@ -180,16 +180,20 @@
 <section id="build">
   <div class="wrap">
     <h2>Build it</h2>
-    <p class="lede">Needs SDL3, libcurl and zlib. No game checkout required.</p>
+    <p class="lede">Needs SDL3, libcurl and zlib, and an OpenGL 3.3 core context. No game checkout required.</p>
 <pre>git clone https://github.com/pedrocatalao/dos-ex-machina
 cd dos-ex-machina
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ./build/dxm</pre>
     <p>Then <code>NC</code> at the prompt, and Enter on a game.</p>
-    <p><strong>macOS today.</strong> The core module already builds and is
-    verified on macOS, Linux and Windows across x86_64 and arm64 — it is the
-    shell that is behind, not the contract.</p>
+    <p><strong>macOS, Linux and Windows</strong>, on x86_64 and arm64, all
+    built by CI. macOS is the one that has been through the whole thing on a
+    real GPU; the Linux and Windows builds launch and initialise but their
+    render is still unverified, because the only machines to hand were VMs
+    without an OpenGL 3.3 driver.</p>
+    <p>That is the one hard requirement: <strong>OpenGL 3.3 core</strong>.
+    Most virtual machines cannot provide it.</p>
   </div>
 </section>
 
