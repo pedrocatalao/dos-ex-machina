@@ -32,7 +32,7 @@ jobs:
           msystem: ${{ matrix.msystem }}
           update: false
           install: >-
-            git
+            git zip
             ${{ matrix.prefix }}-cc
             ${{ matrix.prefix }}-cmake
             ${{ matrix.prefix }}-ninja
@@ -54,10 +54,25 @@ jobs:
       # toolchain's runtime differs between UCRT64 and CLANGARM64.
       - name: Package
         run: |
+          set -x
           mkdir -p dist/dxm
           cp build/dxm.exe dist/dxm/
-          ldd build/dxm.exe | awk '/mingw|clang/ {print $3}' | sort -u \
-            | while read -r dll; do [ -f "$dll" ] && cp "$dll" dist/dxm/; done
+          # Copy the DLLs the binary actually loaded, following dependencies
+          # of dependencies - SDL3 pulls in more than dxm.exe names directly.
+          # Only the ones from the MSYS2 prefix: system DLLs stay put.
+          copy_deps() {
+            # ldd prints either /ucrt64/bin/x.dll or C:/msys64/ucrt64/bin/x.dll
+            # depending on the shell, so match the environment directory
+            # anywhere in the path rather than anchoring at the start.
+            ldd "$1" | awk '{print $3}' \
+              | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" | while read -r dll; do
+              base=$(basename "$dll")
+              [ -f "dist/dxm/$base" ] && continue
+              cp "$dll" dist/dxm/ && copy_deps "$dll"
+            done
+          }
+          copy_deps build/dxm.exe
+          ls -la dist/dxm/
           cd dist && zip -r "../dxm-windows-${{ matrix.arch }}.zip" dxm
 
       - uses: actions/upload-artifact@v4
