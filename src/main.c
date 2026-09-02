@@ -10,6 +10,8 @@
 #include "corehost.h"
 #include "coreload.h"
 #include "library.h"
+#include "catalog.h"
+#include "net.h"
 #include "dxm_core.h"
 #include "crt.h"
 #include "sound.h"
@@ -193,6 +195,10 @@ int main(int argc,char **argv){
      * with.  Scanning here means the prompt and the navigator agree about
      * the machine's contents from the first frame. */
     lib_scan();
+    /* The cached catalogue first, so the navigator is populated instantly
+     * and works with no network at all; then a refresh in the background. */
+    cat_load_cached();
+    cat_refresh_begin();
     for(int i=0;i<lib_count();i++){
         const lib_game *g=lib_at(i);
         fprintf(stderr,"[dxm] %-12s %s\n",g->id,

@@ -3,6 +3,8 @@
 #include "dos.h"
 #include "font.h"
 #include "library.h"
+#include "catalog.h"
+#include "install.h"
 #include "dxm_core.h"
 #include <string.h>
 #include <stdio.h>
@@ -124,6 +126,9 @@ typedef struct {
     const char *title;
     const char *by;
     const char *note;          /* why it cannot run, if it cannot */
+    const char *desc[CAT_DESC];
+    const cat_game *cat;       /* non-NULL if it can be downloaded */
+    int available;             /* a build exists for this machine  */
     int year;
     const uint8_t *art; int aw, ah;
     int installed;
@@ -136,6 +141,9 @@ typedef struct {
 static nc_entry nc_rows[LIB_MAX];
 static int      nc_n;
 
+/* The panel lists what is installed AND what could be.  Installed first,
+ * then whatever the catalogue offers that is not already here - so the
+ * machine's own contents lead, and the shop is underneath. */
 static void nc_rows_build(void){
     nc_n=0;
     for(int i=0;i<lib_count() && nc_n<LIB_MAX;i++){
@@ -146,6 +154,21 @@ static void nc_rows_build(void){
         e->by=g->by; e->year=g->year; e->installed=g->ready;
         e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
         e->note=g->note;
+    }
+    for(int i=0;i<cat_count() && nc_n<LIB_MAX;i++){
+        const cat_game *c=cat_at(i);
+        if(lib_find(c->id)) continue;             /* already on the machine */
+        nc_entry *e=&nc_rows[nc_n++];
+        memset(e,0,sizeof *e);
+        e->file=c->id; e->cmd=c->id; e->title=c->title;
+        e->by=c->by; e->year=c->year;
+        e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
+        e->cat=c;
+        /* A game with no build for this machine is listed but cannot be
+         * fetched - saying so is more use than leaving it out. */
+        e->note=c->have_module?NULL:"no build for this machine yet";
+        e->available=c->have_module;
+        for(int k=0;k<CAT_DESC;k++) e->desc[k]=c->desc[k][0]?c->desc[k]:NULL;
     }
 }
 
@@ -240,12 +263,69 @@ static void nc_draw(void){
      * dos_render(), which is the only place this program is not text */
     for(int r=NC_ART_T;r<=NC_ART_B;r++) nfill(r,NC_RX+1,NC_RW-2,' ',0x00);
     nrule(NC_RX,NC_ART_B+1,NC_RW);
-    /* A game that cannot run says why, in the space a description will take
-     * once the catalogue supplies one.  Silence there is the worst answer:
-     * the entry is visible, so something must account for it. */
-    if(!e->installed && e->note && e->note[0]){
-        nputs(NC_DESC_T,  NC_RX+2,"CANNOT RUN",A_HEAD);
-        nputs(NC_DESC_T+2,NC_RX+2,e->note,A_TEXT);
+    /* The description, then one line saying what Enter does here.  An entry
+     * with no account of itself is the worst case: it is on screen, so
+     * something has to explain it. */
+    int row=NC_DESC_T;
+    /* Wrap here rather than making the catalogue count columns.  A catalogue
+     * that has to know the panel width is a catalogue that breaks the first
+     * time the panel changes. */
+    { const int W=NC_RW-4;
+      char line[NC_RW]; int n=0;
+      for(int k=0;k<CAT_DESC;k++){
+        const char *d=e->desc[k];
+        if(!d) continue;
+        const char *w=d;
+        while(*w){
+            while(*w==' ') w++;
+            const char *end=w;
+            while(*end && *end!=' ') end++;
+            int len=(int)(end-w);
+            if(len>W) len=W;                       /* a word longer than the
+                                                      pane: cut it, do not
+                                                      lose the line */
+            if(n && n+1+len>W){
+                if(row<NC_BOT-4) nputs(row++,NC_RX+2,line,A_TEXT);
+                n=0;
+            }
+            if(n) line[n++]=' ';
+            memcpy(line+n,w,(size_t)len); n+=len; line[n]=0;
+            w=end;
+        }
+        if(n){ if(row<NC_BOT-4) nputs(row++,NC_RX+2,line,A_TEXT); n=0; line[0]=0; }
+      }
+    }
+    if(e->note && e->note[0]){
+        if(!e->installed && !e->available) nputs(row++,NC_RX+2,"UNAVAILABLE",A_HEAD);
+        nputs(row++,NC_RX+2,e->note,A_TEXT);
+    }
+    { inst_status is; install_poll(&is);
+      int busy = is.state==INST_RUNNING && !strcmp(is.id,e->file);
+      if(busy){
+          /* the bar, and the bytes under it - a percentage on its own tells
+           * you nothing about whether anything is still moving */
+          char bar[34]; int w=30;
+          int on=(int)(is.frac*w+0.5); if(on>w)on=w; if(on<0)on=0;
+          for(int k=0;k<w;k++) bar[k]=(char)(k<on?0xDB:0xB0);
+          bar[w]=0;
+          nputs(NC_BOT-4,NC_RX+2,is.stage,A_HEAD);
+          nputs(NC_BOT-3,NC_RX+2,bar,A_NAME);
+          { char b[48];
+            if(is.total>0) snprintf(b,sizeof b,"%.0f%%  %.1f of %.1f MB",
+                                    is.frac*100.0,is.got/1048576.0,is.total/1048576.0);
+            else           snprintf(b,sizeof b,"%.1f MB",is.got/1048576.0);
+            nputs(NC_BOT-2,NC_RX+2,b,A_TEXT); }
+      } else if(is.state==INST_FAILED && !strcmp(is.id,e->file)){
+          nputs(NC_BOT-3,NC_RX+2,"DOWNLOAD FAILED",A_HEAD);
+          nputs(NC_BOT-2,NC_RX+2,is.err,A_TEXT);
+      } else if(e->installed){
+          nputs(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
+      } else if(e->available){
+          char b[48];
+          double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
+          snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
+          nputs(NC_BOT-2,NC_RX+2,b,A_NAME);
+      }
     }
     nrule(NC_RX,NC_BOT-1,NC_RW);
     { char foot[64];
@@ -314,6 +394,14 @@ static void nc_key(int ch,int sc){
     else if(sc==DXM_SC_LEFT) { if(nc_sel-rows>=0) nc_sel-=rows; }
     else if(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n'){
         const nc_entry *e=&nc_rows[nc_sel];
+        inst_status is; install_poll(&is);
+        if(!e->installed && e->available && is.state!=INST_RUNNING){
+            install_clear();
+            install_start(e->cat);
+            floppy_req=1.4;               /* the drive answers, as it would */
+            nc_draw();
+            return;
+        }
         if(e->installed){
             nc_open=0;
             memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
@@ -451,6 +539,19 @@ static void mem_draw(long kb){
 
 dos_state dos_update(double t){
     now_t=t;
+    if(nc_open){
+        /* A fresh catalogue, or a finished install, changes what the panel
+         * should say - and a running one changes it every frame. */
+        if(cat_refresh_collect()>0) nc_rows_build();
+        inst_status is; install_poll(&is);
+        static inst_state was=INST_IDLE;
+        if(is.state==INST_DONE && was!=INST_DONE){
+            lib_scan(); nc_rows_build();
+            floppy_req=0.6;
+        }
+        if(is.state==INST_RUNNING || is.state!=was) nc_draw();
+        was=is.state;
+    }
     if(t0<0){ t0=t; next_boot=t+0.35; }
 
     /* loading pause between the command and the game taking over */
