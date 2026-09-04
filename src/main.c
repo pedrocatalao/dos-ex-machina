@@ -271,7 +271,7 @@ int main(int argc,char **argv){
      * collapses to a line, the line to a dot, the dot fades; then the
      * room goes dark and the program ends.  off_t0 is when it began. */
     double off_t0=-1.0;
-    const double OFF_END=2.0;
+    const double OFF_END=1.1;
     if(cth) SDL_WaitThread(cth,NULL);
     dxm_log("chassis %dx%d joined, %llu ms%s",
             W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
@@ -467,14 +467,14 @@ int main(int argc,char **argv){
           double fe=(SDL_GetTicksNS()-mach_fade0)/1e9;
           if(off_t0>=0.0){
               double o=t-off_t0;
-              if(o<0.30){                       /* vertical collapse */
-                  float p=(float)(o/0.30); p=p*p;
+              if(o<0.10){                       /* vertical collapse */
+                  float p=(float)(o/0.10); p=p*p;
                   rv=1.0f-0.985f*p; gain=1.0f+1.4f*p;
-              } else if(o<0.55){                /* the line shrinks to a dot */
-                  float p=(float)((o-0.30)/0.25);
+              } else if(o<0.18){                /* the line shrinks to a dot */
+                  float p=(float)((o-0.10)/0.08);
                   rv=0.015f; rh=1.0f-0.98f*p; gain=2.4f-0.6f*p;
               } else {                          /* the dot fades */
-                  float p=(float)((o-0.55)/0.75); if(p>1.0f) p=1.0f;
+                  float p=(float)((o-0.18)/0.45); if(p>1.0f) p=1.0f;
                   rv=0.015f; rh=0.02f; gain=1.8f*(1.0f-p)*(1.0f-p);
               }
               if(o>=OFF_END) quit=1;
@@ -528,7 +528,7 @@ int main(int argc,char **argv){
         }
         if(off_t0>=0.0){
             /* the room goes dark after the tube has, not with it */
-            double o=t-off_t0, f0=1.2;
+            double o=t-off_t0, f0=0.6;
             if(o>f0){ float a=(float)((o-f0)/(OFF_END-f0)); if(a>1.0f)a=1.0f;
                       gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
         }
