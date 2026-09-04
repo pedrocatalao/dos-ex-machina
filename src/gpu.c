@@ -120,7 +120,7 @@ struct gpu {
     GLuint prog_fade;
     int    ov_w, ov_h;
     double last_t; int have_last;
-    float led[2][4], led_col[2][3], led_on[2], led_round[2];
+    float led[2][4], led_col[2][3], led_on[2], led_round[2], led_clip[2];
 };
 
 static const char *VS =
@@ -170,6 +170,7 @@ static const char *FS_COMPOSITE =
 "uniform vec3  ledcol[2];\n"
 "uniform float ledon[2];\n"
 "uniform float ledround[2];\n"
+"uniform float ledclip[2];\n"
 "uniform float crt_lines, crt_cols, vgrid;\n"
 "uniform vec2  texsize, texelpx;   // tube texture, and one output pixel\n"
 "uniform float u_sharp;            // 1 on the DOS screen, 0 in a game\n"
@@ -376,6 +377,10 @@ static const char *FS_COMPOSITE =
 "    float core  = exp(-d2*0.75);\n"
 "    float wide  = exp(-d2*0.10);\n"
 "    float bleed = core*0.30 + wide*0.16;\n"
+"    // What sits above the LED - the power cap - is a separate face at a\n"
+"    // different height.  Its underside shadows the light, so the bleed\n"
+"    // stops there; a lamp does not light the front of a button above it.\n"
+"    bleed *= 1.0 - smoothstep(ledclip[i] - 1.5/outsize.y, ledclip[i], uv.y);\n"
 "    fin += ledcol[i] * (lens*1.50 + bleed) * ledon[i];\n"
 "  }\n"
 "  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"
@@ -522,11 +527,11 @@ gpu *gpu_create(int w,int h){
 void gpu_destroy(gpu *g){ if(g) free(g); }
 void gpu_resize(gpu *g,int w,int h){ g->out_w=w; g->out_h=h; }
 void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
-                 float on,float r,float gr,float b,int round){
+                 float on,float r,float gr,float b,int round,float clip){
     if(idx<0||idx>1) return;
     g->led[idx][0]=x; g->led[idx][1]=y; g->led[idx][2]=w; g->led[idx][3]=h;
     g->led_col[idx][0]=r; g->led_col[idx][1]=gr; g->led_col[idx][2]=b;
-    g->led_on[idx]=on; g->led_round[idx]=round?1.0f:0.0f;
+    g->led_on[idx]=on; g->led_round[idx]=round?1.0f:0.0f; g->led_clip[idx]=clip;
 }
 
 void gpu_set_chassis(gpu *g,const uint8_t *rgba,int w,int h){
@@ -628,6 +633,7 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform3fv(glGetUniformLocation(p,"ledcol"),2,&g->led_col[0][0]);
     glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);
     glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
+    glUniform1fv(glGetUniformLocation(p,"ledclip"),2,g->led_clip);
     glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
     glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
     glUniform2f(glGetUniformLocation(p,"texsize"),

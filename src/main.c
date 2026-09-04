@@ -455,13 +455,14 @@ int main(int argc,char **argv){
           float fl=0.72f+0.28f*(float)sin(t*47.0)*(float)sin(t*23.0);
           gpu_set_led(g,0, L.fdd_led[0]/W, 1.0f-(L.fdd_led[1]+L.fdd_led[3])/H,
                       L.fdd_led[2]/W, L.fdd_led[3]/H,
-                      lv*fl, 0.16f,1.0f,0.22f, 0);
+                      lv*fl, 0.16f,1.0f,0.22f, 0, 2.0f);
           /* power: steady, and it comes up with the machine */
           static float pwr=0.0f;
           pwr += ((quit?0.0f:1.0f)-pwr)*0.02f;
           gpu_set_led(g,1, L.pwr_led[0]/W, 1.0f-(L.pwr_led[1]+L.pwr_led[3])/H,
                       L.pwr_led[2]/W, L.pwr_led[3]/H,
-                      pwr, 0.20f,1.0f,0.26f, 1); }
+                      pwr, 0.20f,1.0f,0.26f, 1,
+                      1.0f-L.pwr_shelf/H); }
         k.aperture_r = L.aperture_r;      /* match the chassis hole */
         gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
                     L.tube_w/W, L.tube_h/H, &k, t);

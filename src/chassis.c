@@ -683,6 +683,7 @@ static void moulded_text(canvas *c,float x,float y,const char *s,float sc,
  * through them, protruding eject, inserted diskette), but every edge is now
  * an eased ramp at the LED's fidelity - no hard 1px lines anywhere. */
 static float g_fdd_led[4], g_pwr_led[4];   /* recorded LED placeholders */
+static float g_pwr_shelf;                  /* underside of the power cap */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float mm=h/25.4f; (void)w;
     float fw=101.6f*mm;
@@ -1308,10 +1309,12 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         /* power LED: a small round lens under the button */
         { float lr=1.35f*mm;
           float lcx=px0+pw*0.5f;
-          float lcy=mid-pw*0.39f+pw*0.78f+fmaxf(4.0f,band_h*0.09f);
+          float cap_lo=mid-pw*0.39f+pw*0.78f;        /* the cap's lower edge */
+          float lcy=cap_lo+fmaxf(4.0f,band_h*0.09f)+1.6f*mm;
           led(c,lcx,lcy,lr, 26,44,26);                        /* UNLIT */
           g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
-          g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f; }
+          g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f;
+          g_pwr_shelf=cap_lo; }
 
         /* The engraved mark, on the centre line of the base.  It is level
          * with the badge rather than lower down, which keeps it clear of
@@ -1522,5 +1525,6 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         }
     }
     for(int k=0;k<4;k++){ L->fdd_led[k]=g_fdd_led[k]; L->pwr_led[k]=g_pwr_led[k]; }
+    L->pwr_shelf=g_pwr_shelf;
     return C.px;
 }
