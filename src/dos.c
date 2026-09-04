@@ -130,6 +130,14 @@ const char *dos_launch_request(void){
 #define A_DIM   0x18    /* dark grey on blue  - what is not installed     */
 #define A_BAR   0x30    /* black on cyan      - the function key bar      */
 #define A_BARN  0x07    /* grey on black      - the key NUMBER            */
+#define A_DLG   0x70    /* black on light grey - a dialog                  */
+#define A_DLGK  0x74    /* red on light grey   - the keys a dialog takes   */
+#define A_SHDW  0x08    /* dark grey on black  - the shadow it casts       */
+
+/* the function keys, as plain DOS scancodes */
+#define SC_F1  0x3B
+#define SC_F2  0x3C
+#define SC_F3  0x3D
 
 typedef struct {
     const char *file;          /* as it appears in the panel   */
@@ -191,6 +199,12 @@ static void nc_rows_build(void){
 }
 
 static int nc_open, nc_sel;
+/* A dialog over the panels.  The navigator's keys go to it while it is up,
+ * and it says what Enter and Esc mean. */
+enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_QUIT, DLG_NOTE };
+static int  nc_dlg;
+static char nc_note[2][64];             /* what DLG_NOTE has to say */
+int dos_nc_open(void){ return nc_open; }
 
 /* panel geometry, in cells */
 #define NC_TOP    0
@@ -237,6 +251,30 @@ static void nbox(int x,int y,int w,int h,const char *title){
 static void nrule(int x,int y,int w){          /* a divider across a panel */
     cell(y,x,BX_TE,A_PANEL); cell(y,x+w-1,BX_TW,A_PANEL);
     nfill(y,x+1,w-2,BX_H,A_PANEL);
+}
+
+/* A grey box over the panels with a shadow to its lower right, the way
+ * Norton's own dialogs sat.  Lines are centred; the last carries the keys. */
+static void nc_dialog(const char *title,const char *const *lines,int n,
+                      const char *keys,int left){
+    int w=50, h=n+4, x=(DOS_COLS-w)/2, y=6;
+    /* the shadow first, so the box paints over its inner edge */
+    for(int r=y+1;r<y+h+1;r++) for(int c=x+2;c<x+w+2;c++)
+        if(r<DOS_ROWS&&c<DOS_COLS) att[r][c]=A_SHDW;
+    for(int r=y;r<y+h;r++) nfill(r,x,w,' ',A_DLG);
+    cell(y,x,BX_TL,A_DLG); cell(y,x+w-1,BX_TR,A_DLG);
+    cell(y+h-1,x,BX_BL,A_DLG); cell(y+h-1,x+w-1,BX_BR,A_DLG);
+    nfill(y,x+1,w-2,BX_H,A_DLG); nfill(y+h-1,x+1,w-2,BX_H,A_DLG);
+    for(int r=y+1;r<y+h-1;r++){ cell(r,x,BX_V,A_DLG); cell(r,x+w-1,BX_V,A_DLG); }
+    if(title){ int tn=(int)strlen(title);
+               nputs(y,x+(w-tn-2)/2+1,title,A_DLG);
+               cell(y,x+(w-tn-2)/2,' ',A_DLG); cell(y,x+(w-tn-2)/2+1+tn,' ',A_DLG); }
+    /* a table of keys reads left-aligned; a question reads centred */
+    for(int k=0;k<n;k++){
+        int ln=(int)strlen(lines[k]);
+        nputs(y+2+k,left?x+3:x+(w-ln)/2,lines[k],A_DLG);
+    }
+    if(keys){ int kn=(int)strlen(keys); nputs(y+h-2,x+(w-kn)/2,keys,A_DLGK); }
 }
 
 static void nc_draw(void){
@@ -368,20 +406,68 @@ static void nc_draw(void){
     nfill(22,0,DOS_COLS,' ',0x07);
     nputs(23,0,"C:\\>",0x07);
     nfill(23,4,DOS_COLS-4,' ',0x07);
+    /* Ten slots of eight cells - exactly the eighty columns.  The number
+     * sits right-aligned in two cells so "10" takes no more room than "1",
+     * and the label has six, which is what Norton's own bar gave it. */
     static const char *KEYS[10]={
-        "Help","Info","View","    ","    ","    ","    ","    ","    ","Quit" };
-    { int x=0;
-      for(int k=0;k<10;k++){
-        char num[3]; snprintf(num,sizeof num,"%d",k+1);
-        nputs(24,x,num,A_BARN); x+=(k==9)?2:1;
-        nputs(24,x,KEYS[k],A_BAR);
-        nfill(24,x+4,1,' ',A_BAR);
-        x+=5;
-      }
-      while(x<DOS_COLS) nfill(24,x++,1,' ',A_BAR); }
+        "Help  ","Delete","Reset ","      ","      ",
+        "      ","      ","      ","      ","Quit  " };
+    for(int k=0;k<10;k++){
+        char num[3]; snprintf(num,sizeof num,"%2d",k+1);
+        nputs(24,k*8,num,A_BARN);
+        nputs(24,k*8+2,KEYS[k],A_BAR);
+    }
+
+    /* ---- whatever is asking a question sits on top of it all ---- */
+    if(nc_dlg==DLG_HELP){
+        static const char *const L[]={
+            "ENTER      play the game, or download it",
+            "ARROWS     move between games",
+            "F2         delete the game from this machine",
+            "F3         reset saved games and settings",
+            "F10        switch the machine off",
+            "ESC        back to the prompt",
+        };
+        nc_dialog("NC HELP",L,7,"press any key",1);
+    } else if(nc_dlg==DLG_DELETE || nc_dlg==DLG_RESET){
+        const nc_entry *e=&nc_rows[nc_sel];
+        char l1[64], l2[64];
+        if(nc_dlg==DLG_DELETE){
+            snprintf(l1,sizeof l1,"Delete %s from this machine?",e->title);
+            snprintf(l2,sizeof l2,"The game and everything it saved.");
+        } else {
+            snprintf(l1,sizeof l1,"Reset %s?",e->title);
+            snprintf(l2,sizeof l2,"Saved games and settings go; the game stays.");
+        }
+        const char *L[]={l1,l2};
+        nc_dialog(nc_dlg==DLG_DELETE?"DELETE":"RESET",L,2,"ENTER yes    ESC no",0);
+    } else if(nc_dlg==DLG_QUIT){
+        static const char *const L[]={ "Switch the machine off?" };
+        nc_dialog("QUIT",L,1,"ENTER yes    ESC no",0);
+    } else if(nc_dlg==DLG_NOTE){
+        const char *L[]={nc_note[0],nc_note[1]};
+        nc_dialog(NULL,L,nc_note[1][0]?2:1,"press any key",0);
+    }
 }
 
 /* The artwork: pixels, so it goes on after the character cells. */
+/* The picture is pixels laid over the cells, so it does not know what
+ * has been drawn on top of it.  Ask the cell: under a dialog the pixel is
+ * not painted at all, and under the dialog's shadow it is painted dark,
+ * the way the shadow dims the text it falls on. */
+static void art_px(int dx,int dy,int r,int g,int b,float al){
+    int cr=(dy-DOS_PAD_Y)/16, cc=(dx-DOS_PAD_X)/8;
+    if(cr>=0&&cr<DOS_ROWS&&cc>=0&&cc<DOS_COLS){
+        uint8_t a=att[cr][cc];
+        if(a==A_DLG||a==A_DLGK) return;
+        if(a==A_SHDW){ r=r*35/100; g=g*35/100; b=b*35/100; }
+    }
+    uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
+    q[0]=(uint8_t)(q[0]*(1.0f-al)+r*al);
+    q[1]=(uint8_t)(q[1]*(1.0f-al)+g*al);
+    q[2]=(uint8_t)(q[2]*(1.0f-al)+b*al);
+}
+
 static void nc_art(void){
     if(nc_n==0) return;
     const nc_entry *e=&nc_rows[nc_sel];
@@ -417,8 +503,7 @@ static void nc_art(void){
                     const uint8_t *sp=px+((size_t)(y*step+v)*aw+(x*step+u))*4;
                     r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
                   }
-                uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
-                q[0]=(uint8_t)(r/n); q[1]=(uint8_t)(g/n); q[2]=(uint8_t)(b/n);
+                art_px(dx,dy,r/n,g/n,b/n,1.0f);
             }
         }
         return;
@@ -435,9 +520,7 @@ static void nc_art(void){
             const uint8_t *sp=px+((size_t)(y/sc)*aw+(x/sc))*4;
             float al=sp[3]/255.0f;
             if(al<=0.004f) continue;
-            uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
-            for(int k=0;k<3;k++)
-                q[k]=(uint8_t)(q[k]*(1.0f-al)+sp[k]*al);
+            art_px(dx,dy,sp[0],sp[1],sp[2],al);
         }
     }
 }
@@ -446,6 +529,58 @@ static void nc_art(void){
  * entries are laid out: down moves within a column, right moves a column. */
 static void nc_key(int ch,int sc){
     int rows=NC_LIST_B-NC_LIST_T+1;
+    if(nc_dlg){
+        int yes=(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n' || ch=='y' || ch=='Y');
+        int no =(sc==DXM_SC_ESC || ch==27 || ch=='n' || ch=='N');
+        int was=nc_dlg;
+        if(was==DLG_HELP || was==DLG_NOTE){ nc_dlg=DLG_NONE; nc_draw(); return; }
+        if(!yes && !no) return;
+        nc_dlg=DLG_NONE;
+        if(yes && was==DLG_QUIT){
+            nc_open=0;
+            memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
+            cur_att=0x07; cur_r=cur_c=0;
+            st=DOS_OFF;
+            return;
+        }
+        if(yes && was==DLG_DELETE){
+            const nc_entry *e=&nc_rows[nc_sel];
+            install_clear();
+            int left=lib_remove(e->file);
+            lib_scan(); nc_rows_build();
+            if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0;
+            if(left){ snprintf(nc_note[0],sizeof nc_note[0],"Some files could not be removed.");
+                      snprintf(nc_note[1],sizeof nc_note[1],"Try again after restarting DXM.");
+                      nc_dlg=DLG_NOTE; }
+            floppy_req=0.8;                 /* the drive does the work */
+        }
+        if(yes && was==DLG_RESET){
+            const nc_entry *e=&nc_rows[nc_sel];
+            char err[96];
+            if(lib_reset(e->file,err,sizeof err)==0){
+                snprintf(nc_note[0],sizeof nc_note[0],"%s is as it was installed.",e->title);
+                nc_note[1][0]=0;
+            } else {
+                snprintf(nc_note[0],sizeof nc_note[0],"Could not reset %s:",e->title);
+                snprintf(nc_note[1],sizeof nc_note[1],"%s",err);
+            }
+            nc_dlg=DLG_NOTE;
+            lib_scan(); nc_rows_build();
+            floppy_req=1.2;
+        }
+        nc_draw();
+        return;
+    }
+    if(sc==SC_F1){ nc_dlg=DLG_HELP; nc_draw(); return; }
+    if(sc==DXM_SC_F10){ nc_dlg=DLG_QUIT; nc_draw(); return; }
+    if(sc==SC_F2 || sc==SC_F3){
+        /* only for something that is actually on the machine */
+        if(nc_n && nc_rows[nc_sel].installed){
+            inst_status is; install_poll(&is);
+            if(is.state!=INST_RUNNING){ nc_dlg=(sc==SC_F2)?DLG_DELETE:DLG_RESET; nc_draw(); }
+        }
+        return;
+    }
     if(sc==DXM_SC_ESC || ch==27){
         nc_open=0;
         memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);

@@ -49,6 +49,11 @@ static int sc_from_sdl(SDL_Scancode s){
         case SDL_SCANCODE_LEFT:   return DXM_SC_LEFT;
         case SDL_SCANCODE_RIGHT:  return DXM_SC_RIGHT;
         case SDL_SCANCODE_F9:     return DXM_SC_F9;
+        case SDL_SCANCODE_F10:    return DXM_SC_F10;
+        /* plain DOS scancodes; the navigator's key bar lives on these */
+        case SDL_SCANCODE_F1:     return 0x3B;
+        case SDL_SCANCODE_F2:     return 0x3C;
+        case SDL_SCANCODE_F3:     return 0x3D;
         default: return 0;
     }
 }
@@ -338,7 +343,7 @@ int main(int argc,char **argv){
                     /* dev-only room-light adjust while at the prompt:
                      * F5 darker, F6 brighter (the real fiction control is a
                      * chassis knob, SPEC 6.8 - this is for tuning taste) */
-                    if(e.key.key==SDLK_F1){ ui_toggle(); }
+                    if(e.key.key==SDLK_F1 && !dos_nc_open()){ ui_toggle(); }
                     else if(e.key.key==SDLK_F5||e.key.key==SDLK_F6){
                         k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
                         if(k.ambient<0)k.ambient=0;

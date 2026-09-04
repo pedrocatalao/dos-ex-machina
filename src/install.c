@@ -99,7 +99,9 @@ static int SDLCALL worker(void *ud) {
             fail("%s", err);
             return 0;
         }
-        remove(zip);                      /* the archive has served its purpose */
+        /* The archive STAYS, beside the data it produced.  It is what a
+         * reset restores from - saved games and settings wiped, the game
+         * back as installed - with no network involved. */
     }
 
     SDL_LockMutex(mu);

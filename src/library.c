@@ -5,6 +5,7 @@
  * the same everywhere is worth more here than the handful of bytes a
  * hand-rolled pair of #ifdef branches would save. */
 #include "library.h"
+#include "unzip.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +29,31 @@ const char *lib_root(void) {
 static int exists(const char *path) {
     SDL_PathInfo st;
     return SDL_GetPathInfo(path, &st);
+}
+
+/* rm -rf, through SDL: SDL_RemovePath takes a file or an EMPTY directory,
+ * so the walk has to empty each one from the bottom up.  Counts what it
+ * could not remove rather than stopping - a locked file should not leave
+ * the rest of the tree behind. */
+static int rm_rf(const char *path);
+static SDL_EnumerationResult SDLCALL rm_entry(void *ud, const char *dirname,
+                                              const char *fname) {
+    int *fails = (int *)ud;
+    char full[LIB_PATH];
+    snprintf(full, sizeof full, "%s%c%s", dirname, DXM_SEP, fname);
+    SDL_PathInfo st;
+    if (SDL_GetPathInfo(full, &st) && st.type == SDL_PATHTYPE_DIRECTORY)
+        *fails += rm_rf(full);
+    else if (!SDL_RemovePath(full))
+        (*fails)++;
+    return SDL_ENUM_CONTINUE;
+}
+static int rm_rf(const char *path) {
+    int fails = 0;
+    if (!exists(path)) return 0;
+    SDL_EnumerateDirectory(path, rm_entry, &fails);
+    if (!SDL_RemovePath(path)) fails++;
+    return fails;
 }
 
 /* DOS data files are uppercase on disk and the probe names them in lower;
@@ -127,6 +153,35 @@ const dxm_module *lib_module(const lib_game *g) {
         return NULL;
     }
     return &mods[i];
+}
+
+int lib_remove(const char *id) {
+    /* the module may be open - on Windows an open DLL cannot be deleted */
+    for (int i = 0; i < n_games; i++)
+        if (lib_find(id) == &games[i]) { coreload_close(&mods[i]); memset(&mods[i], 0, sizeof mods[i]); }
+    char dir[LIB_PATH];
+    snprintf(dir, sizeof dir, "%sgames%c%s", lib_root(), DXM_SEP, id);
+    return rm_rf(dir);
+}
+
+int lib_reset(const char *id, char *err, size_t errsz) {
+    char dir[LIB_PATH], zip[LIB_PATH], data[LIB_PATH], dest[LIB_PATH];
+    snprintf(dir,  sizeof dir,  "%sgames%c%s", lib_root(), DXM_SEP, id);
+    snprintf(zip,  sizeof zip,  "%s%cdata.zip", dir, DXM_SEP);
+    snprintf(data, sizeof data, "%s%cdata", dir, DXM_SEP);
+    if (!exists(zip)) {
+        /* installed before the archive was kept: nothing to restore from */
+        snprintf(err, errsz, "no archive kept - delete and download again");
+        return -1;
+    }
+    if (rm_rf(data) != 0) {
+        snprintf(err, errsz, "could not clear the data directory");
+        return -1;
+    }
+    SDL_CreateDirectory(data);
+    snprintf(dest, sizeof dest, "%s%c", data, DXM_SEP);
+    int n = 0;
+    return unzip_extract(zip, dest, &n, err, errsz) == 0 ? 0 : -1;
 }
 
 int lib_make_dir(const char *id, char *out, size_t outsz) {

@@ -46,4 +46,14 @@ const dxm_module *lib_module(const lib_game *g);
 /* <pref>games/<id>, created if missing - where an install writes. */
 int lib_make_dir(const char *id, char *out, size_t outsz);
 
+/* Take a game off the machine: its whole directory.  Returns the number of
+ * things that could NOT be removed (0 = clean). */
+int lib_remove(const char *id);
+
+/* Put a game's data back the way it was installed - saved games, high
+ * scores and settings gone, the game itself kept.  Works from the archive
+ * the install left beside the data, so it needs no network.  Returns 0, or
+ * -1 with a reason in err. */
+int lib_reset(const char *id, char *err, size_t errsz);
+
 #endif

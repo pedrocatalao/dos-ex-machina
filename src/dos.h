@@ -13,6 +13,7 @@
 typedef enum { DOS_BOOT, DOS_PROMPT, DOS_RUNNING, DOS_OFF } dos_state;
 void       dos_init(void);
 void       dos_key(int ch, int scancode);
+int        dos_nc_open(void);           /* the navigator owns the keys */
 dos_state  dos_update(double t);
 const uint8_t *dos_render(void);        /* DOS_W x DOS_H RGB8 */
 const char *dos_launch_request(void);   /* non-NULL once, when a game starts */
