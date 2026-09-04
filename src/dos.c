@@ -140,6 +140,7 @@ const char *dos_launch_request(void){
 #define SC_F2  0x3C
 #define SC_F3  0x3D
 #define SC_F4  0x3E
+#define SC_TAB 0x0F
 
 typedef struct {
     const char *file;          /* as it appears in the panel   */
@@ -217,6 +218,8 @@ static void nc_rows_build(void){
 }
 
 static int nc_open, nc_sel;
+static int nc_focus;       /* 0 = the list, 1 = the description  */
+static int nc_dtop;        /* first description line on screen   */
 /* A dialog over the panels.  The navigator's keys go to it while it is up,
  * and it says what Enter and Esc mean. */
 enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_UPDATE, DLG_NOTE };
@@ -254,7 +257,7 @@ static void nputs(int r,int c,const char *s,uint8_t a){
     for(int k=0;s[k];k++) cell(r,c+k,(unsigned char)s[k],a);
 }
 /* a framed box, with its title inlaid in the top run */
-static void nbox(int x,int y,int w,int h,const char *title){
+static void nbox(int x,int y,int w,int h,const char *title,int active){
     cell(y,x,BX_TL,A_PANEL); cell(y,x+w-1,BX_TR,A_PANEL);
     cell(y+h-1,x,BX_BL,A_PANEL); cell(y+h-1,x+w-1,BX_BR,A_PANEL);
     nfill(y,x+1,w-2,BX_H,A_PANEL);
@@ -267,7 +270,7 @@ static void nbox(int x,int y,int w,int h,const char *title){
         int n=(int)strlen(title);
         int tx=x+(w-n-2)/2;
         cell(y,tx-1,' ',A_PANEL);
-        nputs(y,tx,title,A_HEAD);
+        nputs(y,tx,title,active?A_SEL:A_HEAD);
         cell(y,tx+n,' ',A_PANEL);
     }
 }
@@ -316,7 +319,7 @@ static void nc_draw(void){
     /* GAMES, not C:\GAMES - the panel is not a directory listing.  It shows
      * what is installed AND what could be, and only half of that is on the
      * disk that path would name. */
-    nbox(NC_LX,NC_TOP,NC_LW,NC_BOT-NC_TOP+1,"GAMES");
+    nbox(NC_LX,NC_TOP,NC_LW,NC_BOT-NC_TOP+1,"GAMES",nc_focus==0);
     /* One game a row, with when it arrived and when it last ran - the
      * "full" view of the real thing, where a file had a date beside it.
      * The headings sit in the first row; the list scrolls under them. */
@@ -336,7 +339,9 @@ static void nc_draw(void){
         int i=top+k; if(i>=nc_n) break;
         int y=NC_LIST_T+1+k;
         const nc_entry *e=&nc_rows[i];
-        uint8_t a=(i==nc_sel)?A_SEL:(e->installed?A_NAME:A_DIM);
+        /* the bar belongs to the focused panel: with the description
+         * active the list keeps its place but shows no cursor */
+        uint8_t a=(i==nc_sel&&nc_focus==0)?A_SEL:(e->installed?A_NAME:A_DIM);
         nfill(y,NC_LX+1,NC_LW-2,' ',a);
         cell(y,NC_LX+NC_SEP1,BX_V,a); cell(y,NC_LX+NC_SEP2,BX_V,a);
         /* What is NOT on the disk is marked after its name, where a
@@ -366,14 +371,14 @@ static void nc_draw(void){
 
     /* ---- right panel: the highlighted entry ---- */
     if(nc_n==0){
-        nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,"NOTHING INSTALLED");
+        nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,"NOTHING INSTALLED",nc_focus==1);
         nputs(NC_DESC_T,  NC_RX+2,"No games on this machine.",A_TEXT);
         nputs(NC_DESC_T+2,NC_RX+2,"Put a .dxm module and its",A_TEXT);
         nputs(NC_DESC_T+3,NC_RX+2,"data under:",A_TEXT);
         nputs(NC_DESC_T+5,NC_RX+2,"  games/<name>/",A_NAME);
     } else {
     const nc_entry *e=&nc_rows[nc_sel];
-    nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,e->title);
+    nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,e->title,nc_focus==1);
     /* the art well is painted black here; the pixels land on top of it in
      * dos_render(), which is the only place this program is not text */
     for(int r=NC_ART_T;r<=NC_ART_B;r++) nfill(r,NC_RX+1,NC_RW-2,' ',0x00);
@@ -381,10 +386,14 @@ static void nc_draw(void){
     /* The description, then one line saying what Enter does here.  An entry
      * with no account of itself is the worst case: it is on screen, so
      * something has to explain it. */
-    int row=NC_DESC_T;
     /* Wrap here rather than making the catalogue count columns.  A catalogue
      * that has to know the panel width is a catalogue that breaks the first
-     * time the panel changes. */
+     * time the panel changes.  The wrapped lines go into a list first, and
+     * a window of it is shown: with Tab on the panel, up and down move the
+     * window, since four rows is not much room for a description. */
+    enum { DL_MAX=48 };
+    static char  dl[DL_MAX][NC_RW]; static uint8_t da[DL_MAX];
+    int nl=0;
     { const int W=NC_RW-4;
       char line[NC_RW]; int n=0;
       for(int k=0;k<CAT_DESC;k++){
@@ -400,19 +409,31 @@ static void nc_draw(void){
                                                       pane: cut it, do not
                                                       lose the line */
             if(n && n+1+len>W){
-                if(row<NC_BOT-4) nputs(row++,NC_RX+2,line,A_TEXT);
+                if(nl<DL_MAX){ memcpy(dl[nl],line,(size_t)n+1); da[nl++]=A_TEXT; }
                 n=0;
             }
             if(n) line[n++]=' ';
             memcpy(line+n,w,(size_t)len); n+=len; line[n]=0;
             w=end;
         }
-        if(n){ if(row<NC_BOT-4) nputs(row++,NC_RX+2,line,A_TEXT); n=0; line[0]=0; }
+        if(n){ if(nl<DL_MAX){ memcpy(dl[nl],line,(size_t)n+1); da[nl++]=A_TEXT; }
+               n=0; line[0]=0; }
       }
     }
     if(e->note && e->note[0]){
-        if(!e->installed && !e->available) nputs(row++,NC_RX+2,"UNAVAILABLE",A_HEAD);
-        nputs(row++,NC_RX+2,e->note,A_TEXT);
+        if(!e->installed && !e->available && nl<DL_MAX){
+            snprintf(dl[nl],NC_RW,"UNAVAILABLE"); da[nl++]=A_HEAD; }
+        if(nl<DL_MAX){ snprintf(dl[nl],NC_RW,"%s",e->note); da[nl++]=A_TEXT; }
+    }
+    { const int avail=NC_BOT-4-NC_DESC_T;         /* rows the window has */
+      if(nc_dtop>nl-avail) nc_dtop=nl-avail;
+      if(nc_dtop<0) nc_dtop=0;
+      for(int k=0;k<avail && nc_dtop+k<nl;k++)
+          nputs(NC_DESC_T+k,NC_RX+2,dl[nc_dtop+k],da[nc_dtop+k]);
+      /* what is out of view is said on the frame, where a scroll bar
+       * would go, so the reader knows there is more */
+      if(nc_dtop>0)          cell(NC_DESC_T,        NC_RX+NC_RW-1,0x18,A_HEAD);
+      if(nc_dtop+avail<nl)   cell(NC_DESC_T+avail-1,NC_RX+NC_RW-1,0x19,A_HEAD);
     }
     { inst_status is; install_poll(&is);
       int busy = is.state==INST_RUNNING && !strcmp(is.id,e->file);
@@ -478,12 +499,14 @@ static void nc_draw(void){
         static const char *const L[]={
             "ENTER      play the game, or download it",
             "ARROWS     move between games",
+            "TAB        switch panels; arrows then scroll",
+            "           the description",
             "F2         delete the game from this machine",
             "F3         reset saved games and settings",
             "F4         update it to the release on offer",
             "F10, ESC   back to the prompt",
         };
-        nc_dialog("NC HELP",L,6,"press any key",1);
+        nc_dialog("NC HELP",L,8,"press any key",1);
     } else if(nc_dlg==DLG_DELETE || nc_dlg==DLG_RESET){
         const nc_entry *e=&nc_rows[nc_sel];
         char l1[64], l2[64];
@@ -652,10 +675,20 @@ static void nc_key(int ch,int sc){
         cur_att=0x07; cur_r=cur_c=0; prompt();
         return;
     }
-    if(sc==DXM_SC_DOWN)      { if(nc_sel+1<nc_n) nc_sel++; }
-    else if(sc==DXM_SC_UP)   { if(nc_sel>0) nc_sel--; }
-    else if(sc==DXM_SC_RIGHT){ nc_sel+=rows; if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0; }
-    else if(sc==DXM_SC_LEFT) { nc_sel-=rows; if(nc_sel<0) nc_sel=0; }
+    if(sc==SC_TAB){ if(nc_n) nc_focus=!nc_focus; nc_draw(); return; }
+    if(nc_focus==1){
+        /* the description has the keys: up and down move its window a
+         * line, left and right a page; nc_draw clamps to what there is */
+        const int avail=NC_BOT-4-NC_DESC_T;
+        if(sc==DXM_SC_DOWN)       nc_dtop++;
+        else if(sc==DXM_SC_UP)    { if(nc_dtop>0) nc_dtop--; }
+        else if(sc==DXM_SC_RIGHT) nc_dtop+=avail;
+        else if(sc==DXM_SC_LEFT)  { nc_dtop-=avail; if(nc_dtop<0) nc_dtop=0; }
+    }
+    else if(sc==DXM_SC_DOWN)      { if(nc_sel+1<nc_n){ nc_sel++; nc_dtop=0; } }
+    else if(sc==DXM_SC_UP)   { if(nc_sel>0){ nc_sel--; nc_dtop=0; } }
+    else if(sc==DXM_SC_RIGHT){ nc_sel+=rows; if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0; nc_dtop=0; }
+    else if(sc==DXM_SC_LEFT) { nc_sel-=rows; if(nc_sel<0) nc_sel=0; nc_dtop=0; }
     else if(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n'){
         const nc_entry *e=&nc_rows[nc_sel];
         inst_status is; install_poll(&is);
@@ -763,7 +796,8 @@ static void run(char *s){
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
     else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build(); in_games=1;
-                              nc_open=1; nc_sel=0; nc_draw(); return; }
+                              nc_open=1; nc_sel=0; nc_focus=0; nc_dtop=0;
+                              nc_draw(); return; }
     else if(!strcmp(s,"CD")||!strcmp(s,"CHDIR")){
         if(!arg||!*arg){ sayln(in_games?"C:\\GAMES":"C:\\"); }
         else if(!strcmp(arg,"\\")||!strcmp(arg,"/")) in_games=0;

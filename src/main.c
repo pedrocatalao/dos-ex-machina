@@ -55,6 +55,7 @@ static int sc_from_sdl(SDL_Scancode s){
         case SDL_SCANCODE_F2:     return 0x3C;
         case SDL_SCANCODE_F3:     return 0x3D;
         case SDL_SCANCODE_F4:     return 0x3E;
+        case SDL_SCANCODE_TAB:    return 0x0F;
         default: return 0;
     }
 }
