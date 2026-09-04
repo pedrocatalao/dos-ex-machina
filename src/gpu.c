@@ -435,6 +435,17 @@ static GLuint mkprog(const char *fs){
              fprintf(stderr,"link failed:\n%s\n",log); }
     glDeleteShader(v); glDeleteShader(f); return p;
 }
+/* Every target is CLEARED the moment it exists.  A texture created with
+ * NULL data has undefined contents, and on Linux/AMD that means whatever
+ * the previous owner of that VRAM left there - typically 8-bit desktop
+ * pixels.  Read as half floats, an opaque BGRA pixel puts 0xFF in the high
+ * byte of every second value: NaN or -Inf, in the same channel of every
+ * texel.  Persistence and burn-in feed back through max() and mix(), so a
+ * NaN in there never leaves; the composite then clamps it to 0, and one
+ * channel of the whole picture simply vanishes - green, on the machine
+ * this was seen on - while any stray +Inf shows as a speckle that never
+ * decays.  Apple and Windows hand out zeroed memory, which is why it
+ * never showed there. */
 static void mktarget(GLuint *fbo, GLuint *tex, int w, int h){
     glGenTextures(1,tex); glBindTexture(GL_TEXTURE_2D,*tex);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16F,w,h,0,GL_RGBA,GL_FLOAT,NULL);
@@ -444,6 +455,7 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h){
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
     glGenFramebuffers(1,fbo); glBindFramebuffer(GL_FRAMEBUFFER,*fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,*tex,0);
+    glClearColor(0,0,0,0); glClear(GL_COLOR_BUFFER_BIT);
     glBindFramebuffer(GL_FRAMEBUFFER,0);
 }
 

@@ -122,7 +122,7 @@ int main(int argc,char **argv){
     { char lp[1024]; snprintf(lp,sizeof lp,"%sdxm.log",pref?pref:"./");
       g_log=fopen(lp,"w"); }
     { int v=SDL_GetVersion();
-      dxm_log("DOS ex Machina 0.3 on %s, SDL %d.%d.%d",SDL_GetPlatform(),
+      dxm_log("DOS ex Machina 0.3.1 on %s, SDL %d.%d.%d",SDL_GetPlatform(),
               SDL_VERSIONNUM_MAJOR(v),SDL_VERSIONNUM_MINOR(v),SDL_VERSIONNUM_MICRO(v)); }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
