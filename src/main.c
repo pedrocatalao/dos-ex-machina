@@ -34,6 +34,10 @@ static void dxm_log(const char *fmt,...){
     fprintf(stderr,"[dxm] %6llu ms  %s\n",ms,line);
     if(g_log){ fprintf(g_log,"%6llu ms  %s\n",ms,line); fflush(g_log); }
 }
+static void gpu_log_cb(const char *m){ dxm_log("%s",m); }
+#ifndef DXM_VERSION
+#  define DXM_VERSION "dev"
+#endif
 
 static int sc_from_sdl(SDL_Scancode s){
     switch(s){
@@ -80,10 +84,8 @@ static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
  * million pixels of signed-distance work - and it touches no GL, so it runs
  * on a worker while the main thread holds the splash up.  Doing it inline
  * would freeze the fade for its whole duration. */
-/* `done` rather than SDL_GetThreadState: the worker knows when it has
- * finished, and saying so directly does not depend on an SDL version
- * reporting COMPLETE the way the one it was written against did.  It also
- * covers the no-threads path, where the work has already happened inline. */
+/* The worker reports completion itself, through `done`; that also covers
+ * the no-threads fallback, where the work has already happened inline. */
 typedef struct { int W,H; dxm_layout L; uint8_t *px;
                  volatile int done; Uint64 ms; } chassis_job;
 static int SDLCALL chassis_worker(void *ud){
@@ -122,7 +124,7 @@ int main(int argc,char **argv){
     { char lp[1024]; snprintf(lp,sizeof lp,"%sdxm.log",pref?pref:"./");
       g_log=fopen(lp,"w"); }
     { int v=SDL_GetVersion();
-      dxm_log("DOS ex Machina 0.3.1 on %s, SDL %d.%d.%d",SDL_GetPlatform(),
+      dxm_log("DOS ex Machina " DXM_VERSION " on %s, SDL %d.%d.%d",SDL_GetPlatform(),
               SDL_VERSIONNUM_MAJOR(v),SDL_VERSIONNUM_MINOR(v),SDL_VERSIONNUM_MICRO(v)); }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
@@ -131,7 +133,12 @@ int main(int argc,char **argv){
     SDL_WindowFlags fl=SDL_WINDOW_OPENGL|SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if(!windowed) fl|=SDL_WINDOW_FULLSCREEN;
     SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,fl);
-    if(!win){ fprintf(stderr,"window: %s\n",SDL_GetError()); return 1; }
+    if(!win){
+        dxm_log("window: %s",SDL_GetError());
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",
+                                 SDL_GetError(),NULL);
+        return 1;
+    }
     /* The window/taskbar icon.  Windows also carries one as a resource for
      * Explorer to show on the .exe, and macOS gets it from the bundle - this
      * is what Linux has, and it costs nothing on the others. */
@@ -141,7 +148,16 @@ int main(int argc,char **argv){
       if(ic){ SDL_SetWindowIcon(win,ic); SDL_DestroySurface(ic); } }
 
     SDL_GLContext ctx=SDL_GL_CreateContext(win);
-    if(!ctx){ fprintf(stderr,"GL context: %s\n",SDL_GetError()); return 1; }
+    if(!ctx){
+        /* The most likely failure on a machine that cannot run DXM at all:
+         * no OpenGL 3.3 core context to be had.  Say so on screen. */
+        char msg[600];
+        snprintf(msg,sizeof msg,"Could not create an OpenGL 3.3 core context, "
+                 "which DOS ex Machina needs.\n\n%s",SDL_GetError());
+        dxm_log("%s",msg);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
+        return 1;
+    }
     SDL_GL_SetSwapInterval(1);
     SDL_HideCursor();                       /* no OS chrome, ever (SPEC §2.1) */
 
@@ -161,6 +177,7 @@ int main(int argc,char **argv){
       win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H);
       dxm_log("window %dx%d px (%dx%d units), %s",W,H,ww,wh,
               windowed?"windowed":"fullscreen"); }
+    gpu_set_log(gpu_log_cb);
     gpu *g=gpu_create(W,H);
     if(!g){
         /* Say so where it will be seen.  A person who double-clicked the
@@ -197,8 +214,7 @@ int main(int argc,char **argv){
     chassis_job job={W,H,{0},NULL,0,0};
     SDL_Thread *cth=SDL_CreateThread(chassis_worker,"chassis",&job);
     if(!cth){
-        fprintf(stderr,"[dxm] no worker thread (%s) - drawing inline\n",
-                SDL_GetError());
+        dxm_log("no worker thread (%s) - drawing inline",SDL_GetError());
         chassis_worker(&job);
     }
 
@@ -275,11 +291,11 @@ int main(int argc,char **argv){
     dxm_log("catalogue: cache read, refresh started");
     for(int i=0;i<lib_count();i++){
         const lib_game *g=lib_at(i);
-        fprintf(stderr,"[dxm] %-12s %s\n",g->id,
+        dxm_log("game %-12s %s",g->id,
                 g->ready?"ready":(g->note[0]?g->note:"not ready"));
     }
     if(lib_count()==0)
-        fprintf(stderr,"[dxm] no games installed - %sgames\n",lib_root());
+        dxm_log("no games installed - %sgames",lib_root());
     dos_init();
     dxm_log("dos ready, entering the frame loop");
 
@@ -327,7 +343,7 @@ int main(int argc,char **argv){
                         k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
                         if(k.ambient<0)k.ambient=0;
                         if(k.ambient>1)k.ambient=1;
-                        fprintf(stderr,"[dxm] ambient = %.2f\n",k.ambient);
+                        dxm_log("ambient = %.2f",k.ambient);
                     }
                     else if(e.key.key=='\r') dos_key('\r',sc);
                     else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);

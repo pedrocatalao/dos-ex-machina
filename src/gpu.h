@@ -72,4 +72,9 @@ uint8_t *gpu_readback(gpu *g, int *w, int *h);
  * gpu_create has failed, which entry points the driver did not provide. */
 const char *gpu_describe(void);
 const char *gpu_missing(void);
+
+/* Where gpu.c's own messages go - shader compile errors, missing entry
+ * points.  Unset, they go to stderr; the host points this at its log so
+ * they reach the file too. */
+void gpu_set_log(void (*fn)(const char *msg));
 #endif

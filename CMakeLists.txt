@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dos_ex_machina C)
+project(dos_ex_machina VERSION 0.3.1 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter -O2")
 
@@ -31,6 +31,12 @@ add_executable(dxm
 # plat_* symbols it needs.  The copy in src/ is the authoritative one that
 # ports vendor from, exactly like src/dxm_core.h.
 target_include_directories(dxm PRIVATE src)
+# The version lives in project() above and nowhere else: the binary's log
+# banner takes it from here, and so does the macOS bundle - Info.plist is
+# generated from the .in template into the build tree, where the packaging
+# step picks it up.
+target_compile_definitions(dxm PRIVATE DXM_VERSION="${PROJECT_VERSION}")
+configure_file(packaging/macos/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist @ONLY)
 target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_DL_LIBS})
 # GL 1.1 is exported by the system library and has to be LINKED; everything
 # past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,

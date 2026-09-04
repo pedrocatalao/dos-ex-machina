@@ -10,6 +10,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdarg.h>
+
+static void (*g_logfn)(const char *);
+void gpu_set_log(void (*fn)(const char *)){ g_logfn=fn; }
+static void gpu_logf(const char *fmt,...){
+    char buf[4600]; va_list ap; va_start(ap,fmt);
+    vsnprintf(buf,sizeof buf,fmt,ap); va_end(ap);
+    if(g_logfn) g_logfn(buf); else fprintf(stderr,"[dxm] %s\n",buf);
+}
 
 /* Names the loader could not resolve, kept so the failure can be SHOWN to
  * the person in front of the machine, not just written to a stderr nobody
@@ -36,7 +45,7 @@ static void gl_note_missing(const char *n){
 #  undef GLF
 #  define GLF(ret,name,args) \
       p_##name = (ret (APIENTRY *) args)SDL_GL_GetProcAddress(#name); \
-      if(!p_##name){ fprintf(stderr,"[dxm] GL: no %s\n",#name); ok=0; \
+      if(!p_##name){ gpu_logf("GL: no %s",#name); ok=0; \
                      gl_note_missing(#name); }
 static int gl_load(void){
     int ok=1;
@@ -423,7 +432,7 @@ static GLuint mkshader(GLenum t, const char *src){
     GLuint s=glCreateShader(t); glShaderSource(s,1,&src,NULL); glCompileShader(s);
     GLint ok=0; glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){ char log[4096]; glGetShaderInfoLog(s,sizeof log,NULL,log);
-             fprintf(stderr,"shader compile failed:\n%s\n",log); }
+             gpu_logf("shader compile failed:\n%s",log); }
     return s;
 }
 static GLuint mkprog(const char *fs){
@@ -432,7 +441,7 @@ static GLuint mkprog(const char *fs){
     glAttachShader(p,v); glAttachShader(p,f); glLinkProgram(p);
     GLint ok=0; glGetProgramiv(p,GL_LINK_STATUS,&ok);
     if(!ok){ char log[4096]; glGetProgramInfoLog(p,sizeof log,NULL,log);
-             fprintf(stderr,"link failed:\n%s\n",log); }
+             gpu_logf("shader link failed:\n%s",log); }
     glDeleteShader(v); glDeleteShader(f); return p;
 }
 /* Every target is CLEARED the moment it exists.  A texture created with
@@ -461,7 +470,7 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h){
 
 gpu *gpu_create(int w,int h){
     if(!gl_load()){
-        fprintf(stderr,"[dxm] this GL context is missing functions DXM needs\n");
+        gpu_logf("this GL context is missing functions DXM needs");
         return NULL;
     }
     gpu *g=calloc(1,sizeof *g); g->out_w=w; g->out_h=h;
