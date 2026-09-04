@@ -412,13 +412,87 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
  * the floor between them sits in its own shade.  A fixed light-above /
  * dark-below pair - which is fine for lettering - would be wrong here,
  * because the mark is all circles and the walls face every direction. */
+/* Cut a depth field into the plastic.  dep is dw x dh, 0 = untouched
+ * surface, 1 = full depth; its top-left lands at (x,y).  Shading comes from
+ * the field's gradient - see corner_engraving() for why - so this serves
+ * any mark whose walls face every direction. */
+static void engrave_field(canvas *c,float x,float y,int dw,int dh,const float *dep){
+    float *bl=calloc((size_t)dw*dh,sizeof *bl);
+    if(!bl) return;
+    /* Soften it by a pixel before differentiating.  A tool leaves a wall
+     * with some width to it; off the raw mask the gradient lives in a
+     * single pixel and the cut reads as an outline drawn round the mark. */
+    for(int j=0;j<dh;j++)
+      for(int i=0;i<dw;i++){
+        float acc=0.0f; int n=0;
+        for(int v=-1;v<=1;v++)
+          for(int u=-1;u<=1;u++){
+            int si=i+u, sj=j+v;
+            if(si<0||sj<0||si>=dw||sj>=dh){ n++; continue; }
+            acc+=dep[(size_t)sj*dw+si]; n++;
+          }
+        bl[(size_t)j*dw+i]=acc/(float)n;
+      }
+    for(int j=0;j<dh;j++)
+      for(int i=0;i<dw;i++){
+        float d0=bl[(size_t)j*dw+i];
+        float gx=((i+1<dw)?bl[(size_t)j*dw+i+1]:d0)
+                -((i>0)   ?bl[(size_t)j*dw+i-1]:d0);
+        float gy=((j+1<dh)?bl[(size_t)(j+1)*dw+i]:d0)
+                -((j>0)   ?bl[(size_t)(j-1)*dw+i]:d0);
+        if(d0<0.004f && fabsf(gx)+fabsf(gy)<0.004f) continue;
+        /* the normal of a CUT tilts with the depth gradient, not against
+         * it, which is what puts the highlight on the far wall */
+        float lam=(gx*LIGHT_X+gy*LIGHT_Y)*0.5f;
+        px_shade(c,(int)x+i,(int)y+j,
+                 1.0f - d0*0.085f + lam*1.15f,
+                 fmaxf(lam,0.0f)*0.20f);
+      }
+    free(bl);
+}
+
+/* The IEC power mark - a broken ring with a bar through the break - cut
+ * into the cap.  Built as a distance field rather than baked, since it is
+ * two strokes and should stay crisp at any size. */
+static void power_symbol(canvas *c,float cx,float cy,float size){
+    int dw=(int)(size+4.0f), dh=dw;
+    if(dw<6) return;
+    float *dep=calloc((size_t)dw*dh,sizeof *dep);
+    if(!dep) return;
+    float R=size*0.36f, t=size*0.085f;      /* ring radius, stroke width */
+    float ox=dw*0.5f, oy=dh*0.5f+size*0.03f;/* the bar sits high; centre low */
+    for(int j=0;j<dh;j++)
+      for(int i=0;i<dw;i++){
+        float x=(float)i+0.5f-ox, y=(float)j+0.5f-oy;
+        float r=sqrtf(x*x+y*y);
+        /* the ring, minus a 76-degree gap centred on straight up */
+        float sd=fabsf(r-R)-t*0.5f;
+        float ang=atan2f(x,-y);             /* 0 = up, grows clockwise */
+        float gap=0.66f-fabsf(ang);         /* >0 inside the gap */
+        if(gap>0.0f){
+            /* end caps: distance to the two rounded stroke ends */
+            float ex1=R*sinf(0.66f), ey1=-R*cosf(0.66f);
+            float d1=sqrtf((x-ex1)*(x-ex1)+(y-ey1)*(y-ey1));
+            float d2=sqrtf((x+ex1)*(x+ex1)+(y-ey1)*(y-ey1));
+            sd=fminf(d1,d2)-t*0.5f;
+        }
+        /* the bar: from the ring's top down to just past the centre */
+        float bx=fabsf(x)-t*0.5f, by=fmaxf(-(R+t*0.5f)-y, y-size*0.04f);
+        float bsd=fmaxf(bx,by);
+        sd=fminf(sd,bsd);
+        float cov=0.5f-sd; if(cov<0.0f) cov=0.0f; if(cov>1.0f) cov=1.0f;
+        dep[(size_t)j*dw+i]=cov;
+      }
+    engrave_field(c,cx-ox,cy-oy,dw,dh,dep);
+    free(dep);
+}
+
 static void corner_engraving(canvas *c,float cx,float cy,float w){
     float h=w*(float)CORNER_STICKER_HT/(float)CORNER_STICKER_W;
     int dw=(int)w, dh=(int)h;
     if(dw<4||dh<4) return;
     float *dep=calloc((size_t)dw*dh,sizeof *dep);
-    float *bl =calloc((size_t)dw*dh,sizeof *bl);
-    if(!dep||!bl){ free(dep); free(bl); return; }
+    if(!dep) return;
 
     /* box-filter the alpha down to the size it actually landed at */
     { float sx=(float)CORNER_STICKER_W/(float)dw;
@@ -437,38 +511,8 @@ static void corner_engraving(canvas *c,float cx,float cy,float w){
             dep[(size_t)j*dw+i]=(float)a/(255.0f*(float)n);
         }
     }
-    /* Soften it by a pixel before differentiating.  A tool leaves a wall
-     * with some width to it; off the raw mask the gradient lives in a
-     * single pixel and the cut reads as an outline drawn round the mark. */
-    for(int j=0;j<dh;j++)
-      for(int i=0;i<dw;i++){
-        float acc=0.0f; int n=0;
-        for(int v=-1;v<=1;v++)
-          for(int u=-1;u<=1;u++){
-            int si=i+u, sj=j+v;
-            if(si<0||sj<0||si>=dw||sj>=dh){ n++; continue; }
-            acc+=dep[(size_t)sj*dw+si]; n++;
-          }
-        bl[(size_t)j*dw+i]=acc/(float)n;
-      }
-
-    float x=cx-w*0.5f, y=cy-h*0.5f;
-    for(int j=0;j<dh;j++)
-      for(int i=0;i<dw;i++){
-        float d0=bl[(size_t)j*dw+i];
-        float gx=((i+1<dw)?bl[(size_t)j*dw+i+1]:d0)
-                -((i>0)   ?bl[(size_t)j*dw+i-1]:d0);
-        float gy=((j+1<dh)?bl[(size_t)(j+1)*dw+i]:d0)
-                -((j>0)   ?bl[(size_t)(j-1)*dw+i]:d0);
-        if(d0<0.004f && fabsf(gx)+fabsf(gy)<0.004f) continue;
-        /* the normal of a CUT tilts with the depth gradient, not against
-         * it, which is what puts the highlight on the far wall */
-        float lam=(gx*LIGHT_X+gy*LIGHT_Y)*0.5f;
-        px_shade(c,(int)x+i,(int)y+j,
-                 1.0f - d0*0.085f + lam*1.15f,
-                 fmaxf(lam,0.0f)*0.20f);
-      }
-    free(dep); free(bl);
+    engrave_field(c,cx-w*0.5f,cy-h*0.5f,dw,dh,dep);
+    free(dep);
 }
 
 /* A vent cut: a through-hole, so what shows in it is the dark inside of the
@@ -1309,6 +1353,8 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
               (int)(PLASTIC_B*0.76f),1.16f,0.84f);
         bevel(c,px0+pw*0.045f,mid-pw*0.39f+pw*0.04f,pw*0.91f,pw*0.70f,
               fmaxf(1.0f,pw*0.06f),1);
+        /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
+        power_symbol(c,px0+pw*0.5f,mid-pw*0.39f+pw*0.04f+pw*0.35f,pw*0.30f);
         /* power LED: a small round lens under the button */
         { float lr=1.35f*mm;
           float lcx=px0+pw*0.5f;

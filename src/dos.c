@@ -404,8 +404,10 @@ static void nc_draw(void){
 
     /* ---- the command line, and the key bar ---- */
     nfill(22,0,DOS_COLS,' ',0x07);
-    nputs(23,0,"C:\\>",0x07);
-    nfill(23,4,DOS_COLS-4,' ',0x07);
+    /* the panel IS the games directory, so that is where the command
+     * line sits - and where the prompt is left when the panel closes */
+    nputs(23,0,"C:\\GAMES>",0x07);
+    nfill(23,9,DOS_COLS-9,' ',0x07);
     /* Ten slots of eight cells - exactly the eighty columns.  The number
      * sits right-aligned in two cells so "10" takes no more room than "1",
      * and the label has six, which is what Norton's own bar gave it. */
@@ -697,7 +699,7 @@ static void run(char *s){
         } else { say("File not found - "); sayln(arg?arg:""); }
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
-    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build();
+    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build(); in_games=1;
                               nc_open=1; nc_sel=0; nc_draw(); return; }
     else if(!strcmp(s,"CD")||!strcmp(s,"CHDIR")){
         if(!arg||!*arg){ sayln(in_games?"C:\\GAMES":"C:\\"); }
