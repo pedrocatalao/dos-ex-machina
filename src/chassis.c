@@ -211,27 +211,30 @@ static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
      *  - a saturated, fairly uniform body, deepening toward lower-right
      *  - a soft whitish hot spot in the upper-left quarter
      *  - NO glow halo on the surrounding plastic                        */
-    for(int j2=(int)(cy-rad*1.25f);j2<=(int)(cy+rad*1.25f);j2++)
-        for(int i2=(int)(cx-rad*1.25f);i2<=(int)(cx+rad*1.25f);i2++){
+    for(int j2=(int)(cy-rad*1.75f);j2<=(int)(cy+rad*1.75f);j2++)
+        for(int i2=(int)(cx-rad*1.75f);i2<=(int)(cx+rad*1.75f);i2++){
             float dx=(i2-cx)/rad, dy=(j2-cy)/rad;
             float d=sqrtf(dx*dx+dy*dy);
-            if(d>1.50f) continue;
+            if(d>1.72f) continue;
             if(d>0.94f){
                 /* The lens sits in a HOLE, and the hole is what reads 3D:
                  * dark ring, a soft shadow on the plastic above it, and a
-                 * lit chamfer lip on the plastic below it. */
-                if(d<=1.18f){                      /* the ring itself */
-                    float a=1.0f-fmaxf(0.0f,(d-1.06f)/0.12f);
+                 * lit chamfer lip on the plastic below it.  The hole is a
+                 * proper moulded well - the ring is wide and the chamfer
+                 * around it reaches well out into the plastic - rather than
+                 * a hairline, which read as a lens glued on the surface. */
+                if(d<=1.30f){                      /* the ring itself */
+                    float a=1.0f-fmaxf(0.0f,(d-1.14f)/0.16f);
                     a*=fminf(1.0f,(d-0.90f)/0.06f);
                     float top=(dy<0.0f)?1.0f:0.66f;
-                    px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+                    px_blend(c,i2,j2,26,22,14,a*0.90f*top);
                 } else {
-                    float t=(d-1.18f)/0.32f;       /* 0 at ring, 1 outside */
+                    float t=(d-1.30f)/0.42f;       /* 0 at ring, 1 outside */
                     if(dy<-0.15f)                  /* shadow above the hole */
-                        px_shade(c,i2,j2,1.0f-0.16f*(1.0f-t)*(-dy/d),0.0f);
+                        px_shade(c,i2,j2,1.0f-0.22f*(1.0f-t)*(-dy/d),0.0f);
                     else if(dy>0.15f)              /* lit lip below it */
-                        px_shade(c,i2,j2,1.0f+0.20f*(1.0f-t)*(dy/d),
-                                 (1.0f-t)*(dy/d)*0.06f);
+                        px_shade(c,i2,j2,1.0f+0.26f*(1.0f-t)*(dy/d),
+                                 (1.0f-t)*(dy/d)*0.08f);
                 }
                 continue;
             }
