@@ -71,8 +71,17 @@ static void px_blend(canvas *c,int x,int y,int r,int g,int b,float a){
     p[2]=(uint8_t)(p[2]*(1-a)+b*a); p[3]=255;
 }
 /* deterministic integer hash — identical on all three platforms (SPEC 6.7) */
+/* The mixing constants are chosen to overflow 32 bits - that IS the mix - so
+ * every product has to be taken in UNSIGNED arithmetic, where wrapping is
+ * defined.  Multiplying the signed int and casting afterwards is signed
+ * overflow, and GCC is entitled to assume that never happens: at -O2 it read
+ * `x*374761393` in the scratch loop below as proof that x could never reach 6,
+ * deleted that loop's `n<230` exit test as unreachable, and left the chassis
+ * worker spinning forever behind a splash that never ended.  Clang does not
+ * draw the same conclusion, which is why macOS never showed it.  The values
+ * are unchanged - it is the same wrap, spelled legally. */
 static float hash2(int x,int y,int s){
-    unsigned h=(unsigned)(x*374761393)+(unsigned)(y*668265263)+(unsigned)(s*1442695041);
+    unsigned h=(unsigned)x*374761393u+(unsigned)y*668265263u+(unsigned)s*1442695041u;
     h=(h^(h>>13))*1274126177u; h^=h>>16;
     return (float)(h&1023)/1023.0f;
 }
