@@ -111,7 +111,7 @@ static int SDLCALL chassis_worker(void *ud){
 
 int main(int argc,char **argv){
     int windowed=0, shot_frames=0, selftest=0, quit_early=0; const char *shot=NULL; const char *autocmd=NULL;
-    float ambient=0.4f;             /* room light: 0 dark room .. 1 bright */
+    float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
         if(!strcmp(argv[i],"--dump-audio")&&i+1<argc)
@@ -274,13 +274,15 @@ int main(int argc,char **argv){
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
      * scan, vgrid, sharp_text, warp, margin, overscan, aperture_r,
      * crt_lines, crt_cols */
-    /* The imperfection effects all default to ZERO: a machine in good
-     * repair.  Non-zero h-sync and RGB shift in particular put every
-     * character at a different sub-pixel phase, which reads as the same
-     * glyph having a thin left edge here and a thin right edge there. */
-    gpu_knobs k={0.5f, 1.0f, 0.55f, 0.0f, 0.0f, 0.0f, 0.0f,
-                 ambient, 0.0f, 0.0f, 0.0f, 0.55f, 0.45f,
-                 0.62f, 0.20f, 1.0f, DXM_WARP, 0.0f, 1.0f, 0.0f, 400, DOS_W};
+    /* The shipped look: a machine that has been used, tuned by eye on the
+     * F1 panel and copied from its crt.cfg.  The imperfections are all
+     * small - h-sync and RGB shift in particular are kept low, since past a
+     * point they put every character at a different sub-pixel phase and
+     * the same glyph reads thin-edged on one side here and the other there.
+     * The panel's own file overrides all of this once it exists. */
+    gpu_knobs k={0.219f, 0.710f, 0.190f, 0.044f, 0.190f, 0.029f, 0.087f,
+                 ambient, 0.229f, 0.029f, 0.048f, 0.646f, 0.490f,
+                 0.414f, 0.077f, 1.0f, DXM_WARP, 0.0f, 1.0f, 0.0f, 400, DOS_W};
 
     ui_init(&k);
     static char cfgpath[1024];

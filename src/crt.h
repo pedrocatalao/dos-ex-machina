@@ -9,7 +9,7 @@
 #define DXM_CRT_H
 #include <math.h>
 
-#define DXM_WARP      0.18f    /* default curvature (a knob, SPEC 6.8)  */
+#define DXM_WARP      0.125f   /* default curvature (a knob, SPEC 6.8)  */
 #define DXM_WARP_K    0.30f    /* r^2 term                              */
 #define DXM_WARP_NORM 0.32f    /* edge-midpoint normalisation           */
 
