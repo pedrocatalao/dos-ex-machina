@@ -55,6 +55,13 @@ void gpu_draw_splash(gpu *g,float alpha);
 /* black veil over the finished frame: 1 = black, 0 = nothing */
 void gpu_draw_fade(gpu *g,float a);
 
+/* The tube's state as a piece of electronics: how much of the raster the
+ * deflection is drawing (h,v: 1 = full, 0 = collapsed to a line or a dot)
+ * and how hard the beam is driven (gain: 1 = normal).  Power-on warms up
+ * from small and dim; power-off collapses to a line, then a dot, then
+ * nothing.  Room light and the glass are unaffected - only the picture. */
+void gpu_set_tube_power(gpu *g,float h,float v,float gain);
+
 /* The settings panel, drawn on the CPU and composited last. */
 void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h);
 void gpu_draw_overlay(gpu *g);

@@ -261,6 +261,17 @@ int main(int argc,char **argv){
      * so the two reads as one continuous power-on rather than a cut. */
     Uint64 mach_fade0=SDL_GetTicksNS();
     const double MACH_FADE=0.70;
+    /* Power on: the mains switch, and the monitor's degauss thump as its
+     * coil kicks in.  The picture then WARMS UP over the next second or so
+     * - small and dim first, filling out as the tube comes to temperature -
+     * rather than simply being there. */
+    snd_relay(); snd_degauss();
+    const double WARM=1.6;
+    /* Power off runs the other way: switch, fans spin down, the raster
+     * collapses to a line, the line to a dot, the dot fades; then the
+     * room goes dark and the program ends.  off_t0 is when it began. */
+    double off_t0=-1.0;
+    const double OFF_END=2.0;
     if(cth) SDL_WaitThread(cth,NULL);
     dxm_log("chassis %dx%d joined, %llu ms%s",
             W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
@@ -447,7 +458,35 @@ int main(int argc,char **argv){
             dos_key('\r',0);
             autocmd = e ? e+1 : NULL;
         }
-        if(dos_update(t)==DOS_OFF){ snd_power(0); quit=1; }
+        if(dos_update(t)==DOS_OFF && off_t0<0.0){
+            off_t0=t; snd_power(0); snd_relay();
+            dxm_log("power off");
+        }
+        /* the tube's state this frame: warming up, steady, or dying */
+        { float rh=1.0f, rv=1.0f, gain=1.0f;
+          double fe=(SDL_GetTicksNS()-mach_fade0)/1e9;
+          if(off_t0>=0.0){
+              double o=t-off_t0;
+              if(o<0.30){                       /* vertical collapse */
+                  float p=(float)(o/0.30); p=p*p;
+                  rv=1.0f-0.985f*p; gain=1.0f+1.4f*p;
+              } else if(o<0.55){                /* the line shrinks to a dot */
+                  float p=(float)((o-0.30)/0.25);
+                  rv=0.015f; rh=1.0f-0.98f*p; gain=2.4f-0.6f*p;
+              } else {                          /* the dot fades */
+                  float p=(float)((o-0.55)/0.75); if(p>1.0f) p=1.0f;
+                  rv=0.015f; rh=0.02f; gain=1.8f*(1.0f-p)*(1.0f-p);
+              }
+              if(o>=OFF_END) quit=1;
+          } else if(fe<WARM && !selftest){
+              /* the raster opens quickly and then creeps the last of the
+               * way, the way a cold tube settles: a cubic ease-OUT, all
+               * the speed at the start and none at the end */
+              float u=1.0f-(float)(fe/WARM);
+              float p=1.0f-u*u*u;
+              rh=0.96f+0.04f*p; rv=0.90f+0.10f*p; gain=p*p;
+          }
+          gpu_set_tube_power(g,rh,rv,gain); }
 
         /* pick the tube source: the running core, or the DOS text screen */
         int cw,ch,cl;
@@ -469,7 +508,7 @@ int main(int argc,char **argv){
                       lv*fl, 0.16f,1.0f,0.22f, 0, 2.0f);
           /* power: steady, and it comes up with the machine */
           static float pwr=0.0f;
-          pwr += ((quit?0.0f:1.0f)-pwr)*0.02f;
+          pwr += ((off_t0>=0.0?0.0f:1.0f)-pwr)*(off_t0>=0.0?0.25f:0.02f);
           gpu_set_led(g,1, L.pwr_led[0]/W, 1.0f-(L.pwr_led[1]+L.pwr_led[3])/H,
                       L.pwr_led[2]/W, L.pwr_led[3]/H,
                       pwr, 0.20f,1.0f,0.26f, 1,
@@ -486,6 +525,12 @@ int main(int argc,char **argv){
                 float a=(float)(1.0-fe/MACH_FADE);
                 gpu_draw_fade(g,a*a*(3.0f-2.0f*a));
             }
+        }
+        if(off_t0>=0.0){
+            /* the room goes dark after the tube has, not with it */
+            double o=t-off_t0, f0=1.2;
+            if(o>f0){ float a=(float)((o-f0)/(OFF_END-f0)); if(a>1.0f)a=1.0f;
+                      gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
         }
 
           if(ui_visible()) SDL_ShowCursor(); else SDL_HideCursor(); }

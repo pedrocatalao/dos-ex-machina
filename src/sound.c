@@ -55,9 +55,14 @@ static float  fan_lp1, fan_lp2, fan_hp, hiss_lp;
 static float  spin = 0.0f;        /* spindle: 0 stopped .. 1 at speed */
 static float  fan_env = 0.0f;     /* fan blades, slower to come up     */
 static int    powered = 0;
+/* one-shots: the switch's clack and the degauss coil's thump */
+static double rel_t = -1.0, dg_t = -1.0;    /* seconds since fired, <0 idle */
+static float  rel_lp = 0.0f;
 
 void snd_init(int rate){ SR = rate>0?rate:44100; }
 void snd_power(int on){ powered = on; }
+void snd_relay(void){ rel_t = 0.0; }
+void snd_degauss(void){ dg_t = 0.0; }
 void snd_beep(double ms){
     spk_total = spk_left = (int)(SR*ms/1000.0);
     spk_phase = 0.0;
@@ -91,8 +96,32 @@ void snd_mix(int16_t *out,int nframes){
     for(int i=0;i<nframes;i++){
         float s = 0.0f;
         float target = powered ? 1.0f : 0.0f;
-        spin    += (target-spin)    * (float)(1.0/(sr*2.2));  /* platter  */
-        fan_env += (target-fan_env) * (float)(1.0/(sr*4.0));  /* fade in  */
+        /* up slowly - a fan takes seconds to reach speed - but down faster:
+         * with the mains gone the platter coasts and the blades stop */
+        spin    += (target-spin)    * (float)(1.0/(sr*(powered?2.2:1.2)));
+        fan_env += (target-fan_env) * (float)(1.0/(sr*(powered?4.0:1.5)));
+
+        /* --- the switch: a sharp clack, a little ring, a low thud --- */
+        if(rel_t >= 0.0){
+            float n = nrand();
+            rel_lp += (n - rel_lp)*0.35f;
+            float att = (float)exp(-rel_t*420.0);              /* the contact */
+            float ring = (float)(sin(rel_t*6.28318530718*1350.0)*exp(-rel_t*110.0));
+            float thud = (float)(sin(rel_t*6.28318530718*95.0)*exp(-rel_t*38.0));
+            s += rel_lp*att*0.55f + ring*0.10f + thud*0.16f;
+            rel_t += 1.0/sr;
+            if(rel_t > 0.25) rel_t = -1.0;
+        }
+        /* --- degauss: the coil's mains-frequency buzz, decaying, with a
+         * thump as it kicks in --- */
+        if(dg_t >= 0.0){
+            float env  = (float)exp(-dg_t*7.0);
+            float buzz = (float)(sin(dg_t*6.28318530718*50.0) + 0.35*sin(dg_t*6.28318530718*100.0));
+            float thump= (float)(sin(dg_t*6.28318530718*42.0)*exp(-dg_t*22.0));
+            s += buzz*0.075f*env + thump*0.20f;
+            dg_t += 1.0/sr;
+            if(dg_t > 1.0) dg_t = -1.0;
+        }
 
         if(spin > 0.002f){
             /* --- body hum --- */

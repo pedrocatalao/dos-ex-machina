@@ -121,6 +121,7 @@ struct gpu {
     int    ov_w, ov_h;
     double last_t; int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2], led_clip[2];
+    float raster_h, raster_v, tube_gain;
 };
 
 static const char *VS =
@@ -171,6 +172,8 @@ static const char *FS_COMPOSITE =
 "uniform float ledon[2];\n"
 "uniform float ledround[2];\n"
 "uniform float ledclip[2];\n"
+"uniform vec2  u_raster;         // deflection: fraction of the raster drawn\n"
+"uniform float u_gain;           // beam drive\n"
 "uniform float crt_lines, crt_cols, vgrid;\n"
 "uniform vec2  texsize, texelpx;   // tube texture, and one output pixel\n"
 "uniform float u_sharp;            // 1 on the DOS screen, 0 in a game\n"
@@ -270,6 +273,9 @@ static const char *FS_COMPOSITE =
 "      // show between the last lit pixel and the dish.\n"
 "      vec2 e = u_overscan / max(rect.zw*outsize*0.5, vec2(1.0));\n"
 "      vec2 sb = (b - 0.5)/(1.0 + e)/max(1.0 - 2.0*margin, 1e-3) + 0.5;\n"
+"      // the deflection: a smaller raster means the same picture drawn\n"
+"      // in less of the glass, with the rest unlit\n"
+"      sb = 0.5 + (sb - 0.5)/max(u_raster, vec2(1e-3));\n"
 "      vec2 cb = clamp(sb, 0.0, 1.0);\n"
 "      vec2 od = max(max(-sb, sb - vec2(1.0)), vec2(0.0));\n"
 "      float outd = length(od);          // 0 inside the raster\n"
@@ -299,15 +305,15 @@ static const char *FS_COMPOSITE =
 "      vec3 mask = vec3(0.94);\n"
 "      mask.r += 0.20*step(gx,0.333); mask.g += 0.20*step(0.333,gx)*step(gx,0.666);\n"
 "      mask.b += 0.20*step(0.666,gx);\n"
-"      col = max(s,0.0)*bm*mask;\n"
+"      col = max(s,0.0)*bm*mask*u_gain;\n"
 "\n"
 "      // BURN-IN: the slow accumulator, added as a faint ghost\n"
 "      vec3 burn = texture(burnsrc, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += burn * u_burn * 0.55 * mask;\n"
+"      col += burn * u_burn * 0.55 * mask * u_gain;\n"
 "\n"
 "      // BLOOM: light bleeding between lit pixels\n"
 "      vec3 bl = texture(bloom, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += bl*u_bloom*0.34*exp(-outd*11.0)*mask;\n"
+"      col += bl*u_bloom*0.34*exp(-outd*11.0)*mask*u_gain;\n"
 "\n"
 "      // GLOW LINE: the bright band drifting slowly down the tube, left by\n"
 "      // the refresh beating against the eye\n"
@@ -479,6 +485,7 @@ gpu *gpu_create(int w,int h){
         return NULL;
     }
     gpu *g=calloc(1,sizeof *g); g->out_w=w; g->out_h=h;
+    g->raster_h=g->raster_v=g->tube_gain=1.0f;
     static const float quad[]={-1,-1, 3,-1, -1,3};
     glGenVertexArrays(1,&g->vao); glBindVertexArray(g->vao);
     glGenBuffers(1,&g->vbo); glBindBuffer(GL_ARRAY_BUFFER,g->vbo);
@@ -532,6 +539,10 @@ void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
     g->led[idx][0]=x; g->led[idx][1]=y; g->led[idx][2]=w; g->led[idx][3]=h;
     g->led_col[idx][0]=r; g->led_col[idx][1]=gr; g->led_col[idx][2]=b;
     g->led_on[idx]=on; g->led_round[idx]=round?1.0f:0.0f; g->led_clip[idx]=clip;
+}
+
+void gpu_set_tube_power(gpu *g,float h,float v,float gain){
+    g->raster_h=h; g->raster_v=v; g->tube_gain=gain;
 }
 
 void gpu_set_chassis(gpu *g,const uint8_t *rgba,int w,int h){
@@ -634,6 +645,8 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
     glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);
     glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
     glUniform1fv(glGetUniformLocation(p,"ledclip"),2,g->led_clip);
+    glUniform2f(glGetUniformLocation(p,"u_raster"),g->raster_h,g->raster_v);
+    glUniform1f(glGetUniformLocation(p,"u_gain"),g->tube_gain);
     glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
     glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
     glUniform2f(glGetUniformLocation(p,"texsize"),
