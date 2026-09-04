@@ -309,72 +309,89 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
     float lw=w;                              /* the print IS the label */
     float lh=lw*(float)SB_LOGO_HT/(float)SB_LOGO_W;
     float h=lh;
-    float x=cx-w*0.5f, y=cy-h*0.5f;
     float rad=h*0.10f, hw=w*0.5f, hh=h*0.5f;
+    /* Applied by hand, so not quite square: a degree clockwise.  Everything
+     * below works in the label's own frame - a canvas pixel is turned back
+     * through that angle and asked where on the label it falls. */
+    const float ang=1.0f*3.14159265f/180.0f;
+    const float ca=cosf(ang), sa=sinf(ang);
+    float sw=h*0.13f;                        /* shadow reach */
+    float reach=sqrtf(hw*hw+hh*hh)+sw+2.0f;  /* covers the turned corners */
+    int j0=(int)(cy-reach), j1=(int)(cy+reach)+1;
+    int i0=(int)(cx-reach), i1=(int)(cx+reach)+1;
+    float sx=(float)SB_LOGO_W/lw, sy=(float)SB_LOGO_HT/lh;
     g_grain=0;                               /* printed vinyl has no grain */
 
     /* the shadow it casts on the pod, which is what puts it on top */
-    { float sw=h*0.13f;
-      for(int j2=(int)(y-sw-1);j2<(int)(y+h+sw+1);j2++)
-        for(int i2=(int)(x-sw-1);i2<(int)(x+w+sw+1);i2++){
-            float sd=rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad);
-            if(sd<=0.0f||sd>sw) continue;
-            float t=sd/sw, dyn=((float)j2-cy)/hh;
-            /* deeper below, away from the key light */
-            float side=0.55f+0.60f*fmaxf(0.0f,dyn);
-            px_shade(c,i2,j2,1.0f-0.17f*(1.0f-t)*(1.0f-t)*side,0.0f);
-        }
-    }
+    for(int j2=j0;j2<j1;j2++)
+      for(int i2=i0;i2<i1;i2++){
+          float dx=(float)i2-cx, dy=(float)j2-cy;
+          float lx=dx*ca+dy*sa, ly=-dx*sa+dy*ca;
+          float sd=rr_sd(lx,ly,0.0f,0.0f,hw,hh,rad);
+          if(sd<=0.0f||sd>sw) continue;
+          float t=sd/sw, dyn=ly/hh;
+          /* deeper below, away from the key light */
+          float side=0.55f+0.60f*fmaxf(0.0f,dyn);
+          px_shade(c,i2,j2,1.0f-0.17f*(1.0f-t)*(1.0f-t)*side,0.0f);
+      }
 
-    /* the artwork, box-filtered down to whatever size it landed at */
-    { float lx=cx-lw*0.5f, ly=cy-lh*0.5f;
-      float sx=(float)SB_LOGO_W/lw, sy=(float)SB_LOGO_HT/lh;
-      for(int j2=0;j2<(int)lh;j2++)
-        for(int i2=0;i2<(int)lw;i2++){
-            int u0=(int)(i2*sx), u1=(int)((i2+1)*sx); if(u1<=u0) u1=u0+1;
-            int v0=(int)(j2*sy), v1=(int)((j2+1)*sy); if(v1<=v0) v1=v0+1;
-            if(u1>SB_LOGO_W) u1=SB_LOGO_W;
-            if(v1>SB_LOGO_HT) v1=SB_LOGO_HT;
-            int r=0,g=0,b=0,n=0;
-            for(int v=v0;v<v1;v++)
-              for(int u=u0;u<u1;u++){
-                const uint8_t *sp=sb_logo+((size_t)v*SB_LOGO_W+u)*4;
-                r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
-              }
-            if(!n) continue;
-            /* A label that has sat on a warm case for thirty years is not
-             * the print file any more.  Two corrections:
-             *
-             * The black.  Print black on vinyl is not 0,0,0 - nothing on
-             * this machine is - and the artwork comes off an SVG where it
-             * is.  Lift the black point onto the same dark blue-grey the
-             * 486 badge is printed in, as a levels move rather than a flat
-             * add, so white stays white and everything between scales.
-             *
-             * Then desaturate a touch and take the top off the brightness. */
-            { const float BK_R=0x22, BK_G=0x26, BK_B=0x30;
-              float R=BK_R+(float)r/n*(255.0f-BK_R)/255.0f;
-              float G=BK_G+(float)g/n*(255.0f-BK_G)/255.0f;
-              float B=BK_B+(float)b/n*(255.0f-BK_B)/255.0f;
-              float lum=0.299f*R+0.587f*G+0.114f*B;
-              const float DULL=0.15f, FADE=0.95f;
-              R=(R+(lum-R)*DULL)*FADE;
-              G=(G+(lum-G)*DULL)*FADE;
-              B=(B+(lum-B)*DULL)*FADE;
-              px_blend(c,(int)lx+i2,(int)ly+j2,(int)R,(int)G,(int)B,1.0f); }
-        }
-    }
+    /* the artwork, box-filtered down to whatever size it landed at, with
+     * the die-cut edge anti-aliased off the same distance the shadow uses */
+    for(int j2=j0;j2<j1;j2++)
+      for(int i2=i0;i2<i1;i2++){
+          float dx=(float)i2-cx, dy=(float)j2-cy;
+          float lx=dx*ca+dy*sa, ly=-dx*sa+dy*ca;
+          float cov=0.5f-rr_sd(lx,ly,0.0f,0.0f,hw,hh,rad);
+          if(cov<=0.0f) continue;
+          if(cov>1.0f) cov=1.0f;
+          float uc=(lx+hw)*sx, vc=(ly+hh)*sy;   /* source texel footprint */
+          int u0=(int)floorf(uc-sx*0.5f), u1=(int)ceilf(uc+sx*0.5f);
+          int v0=(int)floorf(vc-sy*0.5f), v1=(int)ceilf(vc+sy*0.5f);
+          if(u0<0) u0=0; if(v0<0) v0=0;
+          if(u1>SB_LOGO_W) u1=SB_LOGO_W; if(v1>SB_LOGO_HT) v1=SB_LOGO_HT;
+          if(u1<=u0) u1=u0+1; if(v1<=v0) v1=v0+1;
+          if(u0>=SB_LOGO_W||v0>=SB_LOGO_HT) continue;
+          int r=0,g=0,b=0,n=0;
+          for(int v=v0;v<v1;v++)
+            for(int u=u0;u<u1;u++){
+              const uint8_t *sp=sb_logo+((size_t)v*SB_LOGO_W+u)*4;
+              r+=sp[0]; g+=sp[1]; b+=sp[2]; n++;
+            }
+          if(!n) continue;
+          /* A label that has sat on a warm case for thirty years is not
+           * the print file any more.  Two corrections:
+           *
+           * The black.  Print black on vinyl is not 0,0,0 - nothing on
+           * this machine is - and the artwork comes off an SVG where it
+           * is.  Lift the black point onto the same dark blue-grey the
+           * 486 badge is printed in, as a levels move rather than a flat
+           * add, so white stays white and everything between scales.
+           *
+           * Then desaturate a touch and take the top off the brightness. */
+          { const float BK_R=0x22, BK_G=0x26, BK_B=0x30;
+            float R=BK_R+(float)r/n*(255.0f-BK_R)/255.0f;
+            float G=BK_G+(float)g/n*(255.0f-BK_G)/255.0f;
+            float B=BK_B+(float)b/n*(255.0f-BK_B)/255.0f;
+            float lum=0.299f*R+0.587f*G+0.114f*B;
+            const float DULL=0.15f, FADE=0.95f;
+            R=(R+(lum-R)*DULL)*FADE;
+            G=(G+(lum-G)*DULL)*FADE;
+            B=(B+(lum-B)*DULL)*FADE;
+            px_blend(c,i2,j2,(int)R,(int)G,(int)B,cov); }
+      }
 
     /* Vinyl is glossy, but not new vinyl-glossy: a worn label scatters, so
      * the catch is broader and weaker.  Narrowing and brightening it is
      * what would put it back to looking freshly applied. */
-    for(int j2=(int)y;j2<(int)(y+h);j2++)
-      for(int i2=(int)x;i2<(int)(x+w);i2++){
-        if(rr_sd((float)i2,(float)j2,cx,cy,hw,hh,rad)>0.0f) continue;
-        float u=((float)i2-x)/w + (((float)j2-y)/h)*0.50f;
-        float d=(u-0.40f)/0.28f;
-        float a=expf(-d*d)*0.085f;
-        if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
+    for(int j2=j0;j2<j1;j2++)
+      for(int i2=i0;i2<i1;i2++){
+          float dx=(float)i2-cx, dy=(float)j2-cy;
+          float lx=dx*ca+dy*sa, ly=-dx*sa+dy*ca;
+          if(rr_sd(lx,ly,0.0f,0.0f,hw,hh,rad)>0.0f) continue;
+          float u=(lx+hw)/w + ((ly+hh)/h)*0.50f;
+          float d=(u-0.40f)/0.28f;
+          float a=expf(-d*d)*0.085f;
+          if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
       }
     g_grain=1;
 }
@@ -1077,6 +1094,11 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     canvas *c=&C;
     g_lbl=fmaxf(1.0f,(float)H/760.0f);
     float inset=H*0.052f, edge=W*0.024f;
+    /* ONE physical scale for everything that has a real-world size - the
+     * drives, the LEDs, the stickers.  Tied to the DISPLAY height, not to
+     * any band or pod, so a wide screen gets more case around the same
+     * objects rather than bigger objects. */
+    float mm=H/268.0f;
     float bz=L->tube_h*BEZEL_BAND;      /* measured off the reference */
     float hous=L->tube_h*BEZEL_HOUSING;
     /* the two partings, and where the upper one sits - the top band is the
@@ -1209,14 +1231,17 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             }
             grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
             grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
-            /* the sound-card sticker, on the RIGHT pod under the holes */
-            { float sw=pw*0.46f;
+            /* The sound-card sticker, on the RIGHT pod under the holes.  A
+             * FIXED physical size, like the badge: sized off the pod it was
+             * 4 mm wide on a 4:3 screen and 59 mm on an ultrawide, because
+             * the pods are whatever is left beside the tube.  A real sticker
+             * is one size; when the pod cannot hold it, it is not there. */
+            { float sw=18.0f*mm;
               float y0=gy+gh*0.94f, y1=py+ph;      /* holes end .. pod ends */
               float sh=sw*0.5f;                    /* what sb_sticker builds */
-              if(y1-y0>sh*1.30f)
+              if(sw<=pw*0.80f && y1-y0>sh*1.30f)
                 sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
             }
-            /* the sound-card sticker, on the RIGHT pod under the holes */
         }
     }
 
@@ -1230,10 +1255,6 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
          * it read as a groove cut into one moulding instead. */
         panel_gap(c,0.0f,gap_lo,(float)W,gap_d);
         float mid=band_y+band_h*0.46f;
-        float mm=H/268.0f;              /* ONE physical scale, tied to the
-                                           DISPLAY, not the band - so slimming
-                                           the band does not shrink the
-                                           devices mounted on it */
 
         /* badge: the logo, kept, but narrow */
         float pbw=fminf(W*0.115f,L->tube_h*0.34f);
