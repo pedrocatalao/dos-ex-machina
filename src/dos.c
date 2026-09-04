@@ -636,7 +636,14 @@ dos_state dos_update(double t){
     if(nc_open){
         /* A fresh catalogue, or a finished install, changes what the panel
          * should say - and a running one changes it every frame. */
-        if(cat_refresh_collect()>0) nc_rows_build();
+        /* The catalogue is fetched on a thread, so it arrives AFTER the panel
+         * has already been painted.  Rebuilding the rows is therefore only
+         * half of it: without the redraw the text screen keeps the empty list
+         * it was drawn with, and the catalogue appears only on the NEXT run,
+         * off the disk cache.  The other two rows_build sites already
+         * repaint - this one did not, which is why a first run on a machine
+         * with no cache showed an empty navigator until a key was pressed. */
+        if(cat_refresh_collect()>0){ nc_rows_build(); nc_draw(); }
         inst_status is; install_poll(&is);
         static inst_state was=INST_IDLE;
         if(is.state==INST_DONE && was!=INST_DONE){
