@@ -39,6 +39,20 @@ static CURL *setup(const char *url, prog *g, char *err, size_t errsz) {
     curl_easy_setopt(c, CURLOPT_MAXREDIRS, 8L);
     curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);   /* 404 is a failure */
     curl_easy_setopt(c, CURLOPT_USERAGENT, "dos-ex-machina");
+    /* Trust the OPERATING SYSTEM's certificate store, not libcurl's built-in
+     * default.  On Windows that default is a path baked in when libcurl was
+     * compiled - it points inside the MSYS2 tree the CI runner built in, and
+     * no such directory exists on a machine that has merely unzipped a
+     * release.  Every HTTPS request there failed with CURLE_SSL_CACERT_BADFILE
+     * before a byte moved: no catalogue, no downloads, and a navigator that
+     * looked simply empty.  Packaging cannot catch it either, because the
+     * missing piece is a data file and ldd only ever reports DLLs.  The system
+     * store is always present and stays current with no file shipped beside
+     * the binary; backends that already use it ignore the flag, so macOS and
+     * Linux are unaffected. */
+#ifdef CURLSSLOPT_NATIVE_CA
+    curl_easy_setopt(c, CURLOPT_SSL_OPTIONS, (long)CURLSSLOPT_NATIVE_CA);
+#endif
     curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 15L);
     /* No total timeout: a slow connection on a 6 MB download is not an
      * error.  Instead, give up if it stalls under 1 KB/s for 30s. */
