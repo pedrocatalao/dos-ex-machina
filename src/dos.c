@@ -219,7 +219,7 @@ static void nc_rows_build(void){
 static int nc_open, nc_sel;
 /* A dialog over the panels.  The navigator's keys go to it while it is up,
  * and it says what Enter and Esc mean. */
-enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_UPDATE, DLG_QUIT, DLG_NOTE };
+enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_UPDATE, DLG_NOTE };
 static int  nc_dlg;
 static char nc_note[2][64];             /* what DLG_NOTE has to say */
 int dos_nc_open(void){ return nc_open; }
@@ -481,10 +481,9 @@ static void nc_draw(void){
             "F2         delete the game from this machine",
             "F3         reset saved games and settings",
             "F4         update it to the release on offer",
-            "F10        switch the machine off",
-            "ESC        back to the prompt",
+            "F10, ESC   back to the prompt",
         };
-        nc_dialog("NC HELP",L,7,"press any key",1);
+        nc_dialog("NC HELP",L,6,"press any key",1);
     } else if(nc_dlg==DLG_DELETE || nc_dlg==DLG_RESET){
         const nc_entry *e=&nc_rows[nc_sel];
         char l1[64], l2[64];
@@ -503,9 +502,6 @@ static void nc_draw(void){
         snprintf(l1,sizeof l1,"Update %s from %s to %s?",e->title,e->version,e->offered);
         const char *L[]={l1,"Saved games are kept; settings may not be."};
         nc_dialog("UPDATE",L,2,"ENTER yes    ESC no",0);
-    } else if(nc_dlg==DLG_QUIT){
-        static const char *const L[]={ "Switch the machine off?" };
-        nc_dialog("QUIT",L,1,"ENTER yes    ESC no",0);
     } else if(nc_dlg==DLG_NOTE){
         const char *L[]={nc_note[0],nc_note[1]};
         nc_dialog(NULL,L,nc_note[1][0]?2:1,"press any key",0);
@@ -597,13 +593,6 @@ static void nc_key(int ch,int sc){
         if(was==DLG_HELP || was==DLG_NOTE){ nc_dlg=DLG_NONE; nc_draw(); return; }
         if(!yes && !no) return;
         nc_dlg=DLG_NONE;
-        if(yes && was==DLG_QUIT){
-            nc_open=0;
-            memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
-            cur_att=0x07; cur_r=cur_c=0;
-            st=DOS_OFF;
-            return;
-        }
         if(yes && was==DLG_DELETE){
             const nc_entry *e=&nc_rows[nc_sel];
             install_clear();
@@ -641,7 +630,8 @@ static void nc_key(int ch,int sc){
         return;
     }
     if(sc==SC_F1){ nc_dlg=DLG_HELP; nc_draw(); return; }
-    if(sc==DXM_SC_F10){ nc_dlg=DLG_QUIT; nc_draw(); return; }
+    /* F10 and Esc both leave the panel, back to the prompt */
+    if(sc==DXM_SC_ESC || ch==27 || sc==DXM_SC_F10){
     if(sc==SC_F4){
         if(nc_n && nc_rows[nc_sel].update){
             inst_status is; install_poll(&is);
@@ -657,7 +647,6 @@ static void nc_key(int ch,int sc){
         }
         return;
     }
-    if(sc==DXM_SC_ESC || ch==27){
         nc_open=0;
         memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
         cur_att=0x07; cur_r=cur_c=0; prompt();
