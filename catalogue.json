@@ -6,6 +6,9 @@
     "The list of games DOS ex Machina can install. Fetched at run time, so",
     "adding a game is an edit here rather than a new DXM release.",
     "",
+    "'version' is the PORT's release - what the navigator shows beside the",
+    "name, and what the installer writes down beside the module.",
+    "",
     "'abi' is the contract version a game's module was built against; DXM",
     "refuses one it does not speak, and can say which side needs updating.",
     "",
@@ -35,6 +38,7 @@
       "title": "SkyRoads",
       "by": "Bluemoon Interactive",
       "year": 1993,
+      "version": "1.5",
       "abi": 2,
       "desc": [
         "Drive a skimmer along roads suspended over thirty alien worlds.",

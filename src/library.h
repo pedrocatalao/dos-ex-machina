@@ -12,6 +12,7 @@
 #ifndef DXM_LIBRARY_H
 #define DXM_LIBRARY_H
 #include "coreload.h"
+#include <stdint.h>
 
 #define LIB_MAX  32
 #define LIB_PATH 1024
@@ -25,6 +26,8 @@ typedef struct {
     char data[LIB_PATH];
     int  ready;                  /* module loaded AND its data probe found */
     char note[96];               /* if not ready, why - shown to the user  */
+    char version[16];            /* the release installed; "" = unknown    */
+    int64_t played_ns;           /* when it last ran; 0 = never            */
 } lib_game;
 
 /* The preferences directory, with a trailing separator.  Everything DXM
@@ -45,6 +48,14 @@ const dxm_module *lib_module(const lib_game *g);
 
 /* <pref>games/<id>, created if missing - where an install writes. */
 int lib_make_dir(const char *id, char *out, size_t outsz);
+
+/* Let go of a game's module.  An update overwrites game.dxm, and on Windows
+ * a loaded DLL cannot be overwritten; lib_module() reopens it on next use. */
+void lib_unload(const lib_game *g);
+
+/* Note that the game has just been started.  Kept as a file beside the
+ * module, so it survives a reset and goes with a delete. */
+void lib_touch_played(const lib_game *g);
 
 /* Take a game off the machine: its whole directory.  Returns the number of
  * things that could NOT be removed (0 = clean). */

@@ -1,6 +1,7 @@
 /* dos.c — boot theater, the prompt, and the command set (SPEC §7).
  * The prompt is the UI: there is no other way to reach anything. */
 #include "dos.h"
+#include <SDL3/SDL.h>      /* SDL_TimeToDateTime, for the table's dates */
 #include "font.h"
 #include "library.h"
 #include "catalog.h"
@@ -138,6 +139,7 @@ const char *dos_launch_request(void){
 #define SC_F1  0x3B
 #define SC_F2  0x3C
 #define SC_F3  0x3D
+#define SC_F4  0x3E
 
 typedef struct {
     const char *file;          /* as it appears in the panel   */
@@ -151,6 +153,10 @@ typedef struct {
     int year;
     const uint8_t *art; int aw, ah;
     int installed;
+    const char *version;               /* on disk if installed, else offered */
+    const char *offered;               /* the catalogue's current release */
+    int update;                        /* offered differs from what is on disk */
+    int64_t played_ns;                 /* for the table's date column */
 } nc_entry;
 
 /* Entries come from the library, not from a table here: DXM links no game,
@@ -171,14 +177,25 @@ static void nc_rows_build(void){
         memset(e,0,sizeof *e);
         e->file=g->id; e->cmd=g->id; e->title=g->title;
         e->by=g->by; e->year=g->year; e->installed=g->ready;
+        e->played_ns=g->played_ns;
+        e->version=g->version[0]?g->version:NULL;
         e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
         /* An installed game still wants its picture AND its description -
          * the catalogue is the only place either lives, and they do not stop
          * being true once the game is on the disk. */
         e->cat=cat_find(g->id);
-        if(e->cat)
+        if(e->cat){
             for(int k=0;k<CAT_DESC;k++)
                 e->desc[k]=e->cat->desc[k][0]?e->cat->desc[k]:NULL;
+            /* installed before the release was recorded: the catalogue's
+             * word is the best there is */
+            if(!e->version && e->cat->version[0]) e->version=e->cat->version;
+            e->offered=e->cat->version[0]?e->cat->version:NULL;
+            /* an update is a release on offer that is not the one on disk,
+             * for a machine the catalogue has a build for */
+            e->update=e->cat->have_module && e->version && e->offered
+                      && strcmp(e->version,e->offered)!=0;
+        }
         e->note=g->note;
     }
     for(int i=0;i<cat_count() && nc_n<LIB_MAX;i++){
@@ -190,6 +207,7 @@ static void nc_rows_build(void){
         e->by=c->by; e->year=c->year;
         e->art=dxm_road; e->aw=DXM_ROAD_W; e->ah=DXM_ROAD_HT;
         e->cat=c;
+        e->version=c->version[0]?c->version:NULL;
         /* A game with no build for this machine is listed but cannot be
          * fetched - saying so is more use than leaving it out. */
         e->note=c->have_module?NULL:"no build for this machine yet";
@@ -201,7 +219,7 @@ static void nc_rows_build(void){
 static int nc_open, nc_sel;
 /* A dialog over the panels.  The navigator's keys go to it while it is up,
  * and it says what Enter and Esc mean. */
-enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_QUIT, DLG_NOTE };
+enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_UPDATE, DLG_QUIT, DLG_NOTE };
 static int  nc_dlg;
 static char nc_note[2][64];             /* what DLG_NOTE has to say */
 int dos_nc_open(void){ return nc_open; }
@@ -213,9 +231,14 @@ int dos_nc_open(void){ return nc_open; }
 #define NC_LW     40
 #define NC_RX     40
 #define NC_RW     40
-#define NC_LIST_T 1                    /* first list row                 */
+#define NC_LIST_T 1                    /* the column headings            */
 #define NC_LIST_B 19                   /* last list row                  */
-#define NC_COLS   3                    /* the panel is multi-column      */
+/* the table's columns, as cell offsets inside the panel frame */
+#define NC_C_NAME 1
+#define NC_C_VER  16
+#define NC_C_PLAY 27
+#define NC_SEP1   15
+#define NC_SEP2   26
 #define NC_ART_T  1                    /* art rows in the right panel    */
 #define NC_ART_B  12
 #define NC_DESC_T 14
@@ -253,6 +276,14 @@ static void nrule(int x,int y,int w){          /* a divider across a panel */
     nfill(y,x+1,w-2,BX_H,A_PANEL);
 }
 
+/* DOS wrote its dates day-month-year with two-digit years, and so does
+ * this: a 1993 machine would not know what else to do with a 2026. */
+static void nc_date(int64_t ns,char *out,size_t n){
+    SDL_DateTime dt;
+    if(ns<=0 || !SDL_TimeToDateTime(ns,&dt,true)){ out[0]=0; return; }
+    snprintf(out,n,"%02d-%02d-%02d",dt.day,dt.month,dt.year%100);
+}
+
 /* A grey box over the panels with a shadow to its lower right, the way
  * Norton's own dialogs sat.  Lines are centred; the last carries the keys. */
 static void nc_dialog(const char *title,const char *const *lines,int n,
@@ -286,30 +317,46 @@ static void nc_draw(void){
      * what is installed AND what could be, and only half of that is on the
      * disk that path would name. */
     nbox(NC_LX,NC_TOP,NC_LW,NC_BOT-NC_TOP+1,"GAMES");
-    { int rows=NC_LIST_B-NC_LIST_T+1;
-      int cw=(NC_LW-2)/NC_COLS;                /* 12 cells a column */
-      /* the column separators, which is what makes it read as a panel
-       * rather than as three lists that happen to be side by side */
-      for(int k=1;k<NC_COLS;k++){
-        int cx=NC_LX+1+k*cw-1;
-        for(int r=NC_LIST_T;r<=NC_LIST_B;r++) cell(r,cx,BX_V,A_PANEL);
+    /* One game a row, with when it arrived and when it last ran - the
+     * "full" view of the real thing, where a file had a date beside it.
+     * The headings sit in the first row; the list scrolls under them. */
+    { int rows=NC_LIST_B-NC_LIST_T;             /* rows for entries */
+      static int top=0;
+      if(nc_sel<top) top=nc_sel;
+      if(nc_sel>=top+rows) top=nc_sel-rows+1;
+      if(top<0) top=0;
+      nputs(NC_LIST_T,NC_LX+NC_C_NAME+1,"Name",A_HEAD);
+      nputs(NC_LIST_T,NC_LX+NC_C_VER,"Version",A_HEAD);
+      nputs(NC_LIST_T,NC_LX+NC_C_PLAY,"Last played",A_HEAD);
+      for(int r=NC_LIST_T;r<=NC_LIST_B;r++){
+        cell(r,NC_LX+NC_SEP1,BX_V,A_PANEL);
+        cell(r,NC_LX+NC_SEP2,BX_V,A_PANEL);
       }
-      for(int i=0;i<nc_n;i++){
-        int colk=i/rows, rowk=i%rows;
-        if(colk>=NC_COLS) break;
-        int x=NC_LX+1+colk*cw, y=NC_LIST_T+rowk;
-        uint8_t a=(i==nc_sel)?A_SEL:(nc_rows[i].installed?A_NAME:A_DIM);
-        nfill(y,x,cw-1,' ',a);
-        /* The header stays C:\GAMES because the installed ones really are
-         * there.  What is NOT on the disk is marked instead, so the panel
-         * still reads as a directory listing with a few things left to
-         * fetch.  The mark goes after the name, where a listing puts a
-         * file's attributes. */
-        nputs(y,x+1,nc_rows[i].file,a);
-        if(!nc_rows[i].installed){
-            int ax=x+1+(int)strlen(nc_rows[i].file)+1;
-            if(ax < x+cw-1) cell(y,ax,0x19,a);
+      for(int k=0;k<rows;k++){
+        int i=top+k; if(i>=nc_n) break;
+        int y=NC_LIST_T+1+k;
+        const nc_entry *e=&nc_rows[i];
+        uint8_t a=(i==nc_sel)?A_SEL:(e->installed?A_NAME:A_DIM);
+        nfill(y,NC_LX+1,NC_LW-2,' ',a);
+        cell(y,NC_LX+NC_SEP1,BX_V,a); cell(y,NC_LX+NC_SEP2,BX_V,a);
+        /* What is NOT on the disk is marked after its name, where a
+         * listing puts a file's attributes; its version is the one on
+         * offer, and it has never been played here. */
+        nputs(y,NC_LX+NC_C_NAME+1,e->file,a);
+        if(e->version){
+            nputs(y,NC_LX+NC_C_VER,e->version,a);
+            /* a newer release on offer: the mark points up, the way the
+             * not-yet-fetched mark points down */
+            if(e->update) cell(y,NC_LX+NC_C_VER+(int)strlen(e->version)+1,0x18,a);
         }
+        if(!e->installed){
+            int ax=NC_LX+NC_C_NAME+1+(int)strlen(e->file)+1;
+            if(ax<NC_LX+NC_SEP1) cell(y,ax,0x19,a);
+            continue;
+        }
+        char d[12];
+        nc_date(e->played_ns,d,sizeof d);
+        nputs(y,NC_LX+NC_C_PLAY,e->played_ns>0?d:"never",a);
       }
     }
     nrule(NC_LX,NC_BOT-1,NC_LW);
@@ -387,6 +434,12 @@ static void nc_draw(void){
           nputs(NC_BOT-3,NC_RX+2,"DOWNLOAD FAILED",A_HEAD);
           nputs(NC_BOT-2,NC_RX+2,is.err,A_TEXT);
       } else if(e->installed){
+          if(e->update){
+              char b[48];
+              double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
+              snprintf(b,sizeof b,"F4 to update to %s  (%.1f MB)",e->offered,mb);
+              nputs(NC_BOT-3,NC_RX+2,b,A_HEAD);
+          }
           nputs(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
       } else if(e->available){
           char b[48];
@@ -412,7 +465,7 @@ static void nc_draw(void){
      * sits right-aligned in two cells so "10" takes no more room than "1",
      * and the label has six, which is what Norton's own bar gave it. */
     static const char *KEYS[10]={
-        "Help  ","Delete","Reset ","      ","      ",
+        "Help  ","Delete","Reset ","Update","      ",
         "      ","      ","      ","      ","Quit  " };
     for(int k=0;k<10;k++){
         char num[3]; snprintf(num,sizeof num,"%2d",k+1);
@@ -427,6 +480,7 @@ static void nc_draw(void){
             "ARROWS     move between games",
             "F2         delete the game from this machine",
             "F3         reset saved games and settings",
+            "F4         update it to the release on offer",
             "F10        switch the machine off",
             "ESC        back to the prompt",
         };
@@ -443,6 +497,12 @@ static void nc_draw(void){
         }
         const char *L[]={l1,l2};
         nc_dialog(nc_dlg==DLG_DELETE?"DELETE":"RESET",L,2,"ENTER yes    ESC no",0);
+    } else if(nc_dlg==DLG_UPDATE){
+        const nc_entry *e=&nc_rows[nc_sel];
+        char l1[64];
+        snprintf(l1,sizeof l1,"Update %s from %s to %s?",e->title,e->version,e->offered);
+        const char *L[]={l1,"Saved games are kept; settings may not be."};
+        nc_dialog("UPDATE",L,2,"ENTER yes    ESC no",0);
     } else if(nc_dlg==DLG_QUIT){
         static const char *const L[]={ "Switch the machine off?" };
         nc_dialog("QUIT",L,1,"ENTER yes    ESC no",0);
@@ -527,10 +587,9 @@ static void nc_art(void){
     }
 }
 
-/* Arrow keys walk the panel in COLUMN-MAJOR order, because that is how the
- * entries are laid out: down moves within a column, right moves a column. */
+/* Up and down walk the table a row at a time; left and right a page. */
 static void nc_key(int ch,int sc){
-    int rows=NC_LIST_B-NC_LIST_T+1;
+    int rows=NC_LIST_B-NC_LIST_T;           /* a page of the table */
     if(nc_dlg){
         int yes=(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n' || ch=='y' || ch=='Y');
         int no =(sc==DXM_SC_ESC || ch==27 || ch=='n' || ch=='N');
@@ -556,6 +615,14 @@ static void nc_key(int ch,int sc){
                       nc_dlg=DLG_NOTE; }
             floppy_req=0.8;                 /* the drive does the work */
         }
+        if(yes && was==DLG_UPDATE){
+            const nc_entry *e=&nc_rows[nc_sel];
+            const lib_game *g=lib_find(e->file);
+            if(g) lib_unload(g);            /* the download overwrites game.dxm */
+            install_clear();
+            install_start(e->cat);          /* the same path as a first install */
+            floppy_req=1.4;
+        }
         if(yes && was==DLG_RESET){
             const nc_entry *e=&nc_rows[nc_sel];
             char err[96];
@@ -575,6 +642,13 @@ static void nc_key(int ch,int sc){
     }
     if(sc==SC_F1){ nc_dlg=DLG_HELP; nc_draw(); return; }
     if(sc==DXM_SC_F10){ nc_dlg=DLG_QUIT; nc_draw(); return; }
+    if(sc==SC_F4){
+        if(nc_n && nc_rows[nc_sel].update){
+            inst_status is; install_poll(&is);
+            if(is.state!=INST_RUNNING){ nc_dlg=DLG_UPDATE; nc_draw(); }
+        }
+        return;
+    }
     if(sc==SC_F2 || sc==SC_F3){
         /* only for something that is actually on the machine */
         if(nc_n && nc_rows[nc_sel].installed){
@@ -591,8 +665,8 @@ static void nc_key(int ch,int sc){
     }
     if(sc==DXM_SC_DOWN)      { if(nc_sel+1<nc_n) nc_sel++; }
     else if(sc==DXM_SC_UP)   { if(nc_sel>0) nc_sel--; }
-    else if(sc==DXM_SC_RIGHT){ if(nc_sel+rows<nc_n) nc_sel+=rows; }
-    else if(sc==DXM_SC_LEFT) { if(nc_sel-rows>=0) nc_sel-=rows; }
+    else if(sc==DXM_SC_RIGHT){ nc_sel+=rows; if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0; }
+    else if(sc==DXM_SC_LEFT) { nc_sel-=rows; if(nc_sel<0) nc_sel=0; }
     else if(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n'){
         const nc_entry *e=&nc_rows[nc_sel];
         inst_status is; install_poll(&is);

@@ -104,6 +104,14 @@ static int SDLCALL worker(void *ud) {
          * back as installed - with no network involved. */
     }
 
+    /* Which release this is, written beside the module.  The catalogue
+     * knows the CURRENT release; only this file knows the one on disk. */
+    if (job.version[0]) {
+        snprintf(path, sizeof path, "%s%cversion", dir, DXM_SEP);
+        FILE *f = fopen(path, "wb");
+        if (f) { fprintf(f, "%s\n", job.version); fclose(f); }
+    }
+
     SDL_LockMutex(mu);
     st.frac = 1.0;
     st.state = INST_DONE;

@@ -138,6 +138,7 @@ static int parse(const char *json) {
         get_str(g, "id",    e->id,    sizeof e->id);
         get_str(g, "title", e->title, sizeof e->title);
         get_str(g, "by",    e->by,    sizeof e->by);
+        get_str(g, "version", e->version, sizeof e->version);
         e->year = (int)get_num(g, "year");
         e->abi  = (int)get_num(g, "abi");
         get_file(g, "art", &e->art);

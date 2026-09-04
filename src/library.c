@@ -101,6 +101,20 @@ static void add_game(const char *id) {
     snprintf(g->title, sizeof g->title, "%s", m.info->title);
     snprintf(g->by,    sizeof g->by,    "%s", m.info->publisher);
     g->year = m.info->year;
+    /* the dates the panel shows: the module's own timestamp, and the
+     * marker lib_touch_played() leaves */
+    { SDL_PathInfo st; char pl[LIB_PATH];
+      snprintf(pl, sizeof pl, "%splayed", g->dir);
+      if (SDL_GetPathInfo(pl, &st)) g->played_ns = st.modify_time;
+      /* the release the installer wrote down; absent on older installs */
+      snprintf(pl, sizeof pl, "%sversion", g->dir);
+      FILE *f = fopen(pl, "rb");
+      if (f) {
+          if (fgets(g->version, sizeof g->version, f)) {
+              char *nl = strpbrk(g->version, "\r\n"); if (nl) *nl = 0;
+          }
+          fclose(f);
+      } }
     if (m.info->data_probe && !probe_found(g->data, m.info->data_probe))
         snprintf(g->note, sizeof g->note, "data missing (%s)",
                  m.info->data_probe);
@@ -153,6 +167,24 @@ const dxm_module *lib_module(const lib_game *g) {
         return NULL;
     }
     return &mods[i];
+}
+
+void lib_unload(const lib_game *g) {
+    int i = (int)(g - games);
+    if (i < 0 || i >= n_games || !mods[i].handle) return;
+    coreload_close(&mods[i]);
+    memset(&mods[i], 0, sizeof mods[i]);
+}
+
+void lib_touch_played(const lib_game *g) {
+    char pl[LIB_PATH];
+    snprintf(pl, sizeof pl, "%splayed", g->dir);
+    /* rewriting it is what moves the timestamp; the content is a courtesy */
+    FILE *f = fopen(pl, "wb");
+    if (!f) return;
+    SDL_Time now = 0; SDL_GetCurrentTime(&now);
+    fprintf(f, "%lld\n", (long long)now);
+    fclose(f);
 }
 
 int lib_remove(const char *id) {

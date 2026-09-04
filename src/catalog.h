@@ -21,6 +21,7 @@ typedef struct {
 typedef struct {
     char id[32], title[64], by[80];
     int  year, abi;
+    char version[16];            /* the PORT's release, e.g. "1.5" */
     char desc[CAT_DESC][64];
     cat_file art, module, data;
     char data_kind[16];          /* "freeware" | "byo"        */

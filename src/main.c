@@ -54,6 +54,7 @@ static int sc_from_sdl(SDL_Scancode s){
         case SDL_SCANCODE_F1:     return 0x3B;
         case SDL_SCANCODE_F2:     return 0x3C;
         case SDL_SCANCODE_F3:     return 0x3D;
+        case SDL_SCANCODE_F4:     return 0x3E;
         default: return 0;
     }
 }
@@ -425,8 +426,10 @@ int main(int argc,char **argv){
                 /* DXM_DATA still overrides, for working on a port without
                  * installing it first. */
                 const char *dd=getenv("DXM_DATA");
-                if(corehost_start(m->info, dd?dd:g->data)==0)
+                if(corehost_start(m->info, dd?dd:g->data)==0){
                     core_started=1;
+                    lib_touch_played(g);
+                }
             }
             if(!core_started) dos_core_failed();
         }
