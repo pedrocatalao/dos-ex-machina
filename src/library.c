@@ -5,6 +5,7 @@
  * the same everywhere is worth more here than the handful of bytes a
  * hand-rolled pair of #ifdef branches would save. */
 #include "library.h"
+#include <stdlib.h>
 #include "unzip.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -35,23 +36,39 @@ static int exists(const char *path) {
  * so the walk has to empty each one from the bottom up.  Counts what it
  * could not remove rather than stopping - a locked file should not leave
  * the rest of the tree behind. */
-static int rm_rf(const char *path);
-static SDL_EnumerationResult SDLCALL rm_entry(void *ud, const char *dirname,
+/* The listing is taken FIRST and deleted afterwards.  Removing entries
+ * from under a running readdir is allowed to skip some on Linux, which
+ * left files behind, made the rmdir fail, and kept the game on the list. */
+typedef struct { char (*name)[256]; int n, cap; } dirlist;
+static SDL_EnumerationResult SDLCALL ls_entry(void *ud, const char *dirname,
                                               const char *fname) {
-    int *fails = (int *)ud;
-    char full[LIB_PATH];
-    snprintf(full, sizeof full, "%s%c%s", dirname, DXM_SEP, fname);
-    SDL_PathInfo st;
-    if (SDL_GetPathInfo(full, &st) && st.type == SDL_PATHTYPE_DIRECTORY)
-        *fails += rm_rf(full);
-    else if (!SDL_RemovePath(full))
-        (*fails)++;
+    (void)dirname;
+    dirlist *l = (dirlist *)ud;
+    if (!strcmp(fname, ".") || !strcmp(fname, "..")) return SDL_ENUM_CONTINUE;
+    if (l->n == l->cap) {
+        int cap = l->cap ? l->cap * 2 : 32;
+        void *p = realloc(l->name, (size_t)cap * sizeof *l->name);
+        if (!p) return SDL_ENUM_FAILURE;
+        l->name = p; l->cap = cap;
+    }
+    snprintf(l->name[l->n++], sizeof l->name[0], "%s", fname);
     return SDL_ENUM_CONTINUE;
 }
 static int rm_rf(const char *path) {
     int fails = 0;
     if (!exists(path)) return 0;
-    SDL_EnumerateDirectory(path, rm_entry, &fails);
+    dirlist l = { NULL, 0, 0 };
+    SDL_EnumerateDirectory(path, ls_entry, &l);
+    for (int i = 0; i < l.n; i++) {
+        char full[LIB_PATH];
+        snprintf(full, sizeof full, "%s%c%s", path, DXM_SEP, l.name[i]);
+        SDL_PathInfo st;
+        if (SDL_GetPathInfo(full, &st) && st.type == SDL_PATHTYPE_DIRECTORY)
+            fails += rm_rf(full);
+        else if (!SDL_RemovePath(full))
+            fails++;
+    }
+    free(l.name);
     if (!SDL_RemovePath(path)) fails++;
     return fails;
 }
@@ -202,9 +219,10 @@ int lib_reset(const char *id, char *err, size_t errsz) {
     snprintf(zip,  sizeof zip,  "%s%cdata.zip", dir, DXM_SEP);
     snprintf(data, sizeof data, "%s%cdata", dir, DXM_SEP);
     if (!exists(zip)) {
-        /* installed before the archive was kept: nothing to restore from */
-        snprintf(err, errsz, "no archive kept - delete and download again");
-        return -1;
+        /* installed before the archive was kept: nothing here to restore
+         * from - the caller can fetch the data again instead */
+        snprintf(err, errsz, "no archive kept");
+        return 1;
     }
     if (rm_rf(data) != 0) {
         snprintf(err, errsz, "could not clear the data directory");

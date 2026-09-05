@@ -638,14 +638,24 @@ static void nc_key(int ch,int sc){
         if(yes && was==DLG_RESET){
             const nc_entry *e=&nc_rows[nc_sel];
             char err[96];
-            if(lib_reset(e->file,err,sizeof err)==0){
+            int r=lib_reset(e->file,err,sizeof err);
+            if(r==0){
                 snprintf(nc_note[0],sizeof nc_note[0],"%s is as it was installed.",e->title);
                 nc_note[1][0]=0;
+                nc_dlg=DLG_NOTE;
+            } else if(r>0 && e->cat && e->cat->have_module){
+                /* installed before the archive was kept: fetch the data
+                 * again over what is there - the same panel shows the
+                 * progress, and the archive is kept this time */
+                const lib_game *g=lib_find(e->file);
+                if(g) lib_unload(g);
+                install_clear();
+                install_start_data(e->cat);
             } else {
                 snprintf(nc_note[0],sizeof nc_note[0],"Could not reset %s:",e->title);
-                snprintf(nc_note[1],sizeof nc_note[1],"%s",err);
+                snprintf(nc_note[1],sizeof nc_note[1],"%s",r>0?"no archive, and nothing to fetch":err);
+                nc_dlg=DLG_NOTE;
             }
-            nc_dlg=DLG_NOTE;
             lib_scan(); nc_rows_build();
             floppy_req=1.2;
         }

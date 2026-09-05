@@ -63,8 +63,9 @@ int lib_remove(const char *id);
 
 /* Put a game's data back the way it was installed - saved games, high
  * scores and settings gone, the game itself kept.  Works from the archive
- * the install left beside the data, so it needs no network.  Returns 0, or
- * -1 with a reason in err. */
+ * the install left beside the data, so it needs no network.  Returns 0;
+ * 1 if there is no archive to restore from (data untouched - fetch it
+ * again instead); -1 with a reason in err. */
 int lib_reset(const char *id, char *err, size_t errsz);
 
 #endif

@@ -16,6 +16,9 @@ typedef struct {
 } inst_status;
 
 int  install_start(const cat_game *g);
+/* the data only, over what is there: a reset for a game installed before
+ * the archive was kept beside it */
+int  install_start_data(const cat_game *g);
 void install_cancel(void);
 void install_poll(inst_status *out);
 void install_clear(void);      /* forget a finished result */

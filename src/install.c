@@ -24,6 +24,7 @@ static SDL_Mutex   *mu;
 static SDL_Thread  *th;
 static volatile int cancel;
 static cat_game     job;
+static int          data_only;    /* skip the module: a reset */
 
 static void set_stage(const char *what, int step, int steps) {
     SDL_LockMutex(mu);
@@ -58,18 +59,20 @@ static int SDLCALL worker(void *ud) {
     }
 
     /* ---- 1. the module ---- */
-    set_stage("Downloading game", 1, STEPS);
-    snprintf(path, sizeof path, "%s%cgame.dxm", dir, DXM_SEP);
-    if (net_get_file(job.module.url, path, on_progress, NULL, &cancel,
-                     err, sizeof err) != 0) {
-        fail("%s", err);
-        return 0;
-    }
-    set_stage("Verifying", 1, STEPS);
-    if (!sha256_matches(path, job.module.sha256)) {
-        remove(path);
-        fail("the download does not match its checksum%s", NULL);
-        return 0;
+    if (!data_only) {
+        set_stage("Downloading game", 1, STEPS);
+        snprintf(path, sizeof path, "%s%cgame.dxm", dir, DXM_SEP);
+        if (net_get_file(job.module.url, path, on_progress, NULL, &cancel,
+                         err, sizeof err) != 0) {
+            fail("%s", err);
+            return 0;
+        }
+        set_stage("Verifying", 1, STEPS);
+        if (!sha256_matches(path, job.module.sha256)) {
+            remove(path);
+            fail("the download does not match its checksum%s", NULL);
+            return 0;
+        }
     }
 
     /* ---- 2. the data ---- */
@@ -119,9 +122,13 @@ static int SDLCALL worker(void *ud) {
     return 0;
 }
 
-int install_start(const cat_game *g) {
+static int start(const cat_game *g, int only_data);
+int install_start(const cat_game *g)      { return start(g, 0); }
+int install_start_data(const cat_game *g) { return start(g, 1); }
+static int start(const cat_game *g, int only_data) {
     if (!mu) mu = SDL_CreateMutex();
     if (st.state == INST_RUNNING) return -1;
+    data_only = only_data;
     if (th) { SDL_WaitThread(th, NULL); th = NULL; }
     job = *g;
     memset(&st, 0, sizeof st);
