@@ -204,6 +204,32 @@ static void text(canvas *c,float x,float y,const char *s,float sc,int r,int g,in
                 }
     }
 }
+/* The same lettering at ANY scale.  text() blows the 8x8 glyphs up by a
+ * whole number, which is right for moulded type but leaves no size between
+ * 1x and 2x.  This one box-filters the bitmap into each destination pixel
+ * - sixteen samples a pixel - so a label can be 1.4x and stay even. */
+static void text_smooth(canvas *c,float x,float y,const char *s,float sc,int r,int g,int b){
+    if(sc<0.5f) sc=0.5f;
+    float gw=8.0f*sc;
+    for(int n=0;s[n];n++){
+        const uint8_t *gl=font_glyph((unsigned char)s[n]);
+        float gx=x+n*gw;
+        for(int j=0;j<(int)ceilf(gw);j++)
+          for(int i=0;i<(int)ceilf(gw);i++){
+            int on=0;
+            for(int sy=0;sy<4;sy++)
+              for(int sx=0;sx<4;sx++){
+                float u=((float)i+(sx+0.5f)/4.0f)/sc, v=((float)j+(sy+0.5f)/4.0f)/sc;
+                int ui=(int)u, vi=(int)v;
+                if(ui>=0&&ui<8&&vi>=0&&vi<8 && (gl[vi]&(0x80>>ui))) on++;
+              }
+            if(!on) continue;
+            float a=(float)on/16.0f;
+            px_blend(c,(int)(gx+i),(int)(y+j)+1,255,255,255,0.13f*a);  /* the lit lower edge */
+            px_blend(c,(int)(gx+i),(int)(y+j),r,g,b,a);
+          }
+    }
+}
 static void led(canvas *c,float cx,float cy,float rad,int r,int g,int b){
     /* Matched to the reference PNG's LEDs at 16x magnification:
      *  - a THIN dark outline hugging the lens (heavier at the top), not a
@@ -1149,6 +1175,34 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
  * else, and the knurl is what makes it read as round - a plain disc would
  * be a button.  pos 0..1 runs the index through 270 degrees, from seven
  * o'clock round to five. */
+/* The well a rectangular part sits in, built the way the LED's and the
+ * knobs' are: a dark ring hugging the part, a soft shadow on the plastic
+ * above where the lip throws it, a lit chamfer lip below.  ring and reach
+ * are in px; the rect is the part's own outline. */
+static void well_rect(canvas *c,float x,float y,float w,float h,float rad,
+                      float ring,float reach){
+    float cx=x+w*0.5f, cy=y+h*0.5f, hw=w*0.5f, hh=h*0.5f;
+    int saved=g_grain; g_grain=0;
+    for(int j2=(int)(y-reach)-1;j2<=(int)(y+h+reach)+1;j2++)
+      for(int i2=(int)(x-reach)-1;i2<=(int)(x+w+reach)+1;i2++){
+        float sd=rr_sd((float)i2+0.5f,(float)j2+0.5f,cx,cy,hw,hh,rad);
+        if(sd<=-0.5f || sd>reach) continue;
+        float up=-((float)j2+0.5f-cy)/hh; if(up>1.0f)up=1.0f; if(up<-1.0f)up=-1.0f;
+        if(sd<=ring){                              /* the ring itself */
+            float a=fminf(1.0f,sd+0.5f)*(1.0f-fmaxf(0.0f,(sd-ring*0.6f)/(ring*0.4f)));
+            float top=(up>0.0f)?1.0f:0.66f;
+            px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+        } else {
+            float t=(sd-ring)/(reach-ring);        /* 0 at ring, 1 outside */
+            if(up>0.15f)                           /* shadow above */
+                px_shade(c,i2,j2,1.0f-0.20f*(1.0f-t)*up,0.0f);
+            else if(up<-0.15f)                     /* lit lip below */
+                px_shade(c,i2,j2,1.0f+0.24f*(1.0f-t)*(-up),(1.0f-t)*(-up)*0.07f);
+        }
+      }
+    g_grain=saved;
+}
+
 static void rotary(canvas *c,float cx,float cy,float r,float pos){
     const float PI=3.14159265f;
     float ang=(-135.0f+270.0f*pos)*PI/180.0f;   /* 0 = twelve o'clock */
@@ -1583,9 +1637,15 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
         float pw=16.0f*mm;                       /* a 16mm power cap */
         /* painted, and centred over the cap */
         { const char *pl="POWER";
-          float tw3=(float)strlen(pl)*8.0f*g_lbl;
-          text(c,px0+(pw-tw3)*0.5f, mid-pw*0.39f-g_lbl*11, pl, g_lbl, 86,82,74); }
-        /* thin cut around the button, cap nearly filling it */
+          /* a step down from the moulded lettering's scale (the bitmap
+           * font only scales by whole numbers), and clear of the well's
+           * shadow above the button */
+          float ls=fmaxf(1.0f,g_lbl*0.70f);
+          float tw3=(float)strlen(pl)*8.0f*ls;
+          float ly=mid-pw*0.39f-1.9f*mm-8.0f*ls-0.7f*mm;
+          text_smooth(c,px0+(pw-tw3)*0.5f, ly, pl, ls, 112,107,96); }
+        /* the well the button sits in, then the thin cut, then the cap */
+        well_rect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,0.45f*mm,1.9f*mm);
         rrect(c,px0,mid-pw*0.39f,pw,pw*0.78f,pw*0.10f,64,61,56,0.80f,0.92f);
         /* the cap is moulded in the same darker brown as the drive, not in
          * the case colour - the same multipliers floppy_drive() uses */
@@ -1596,6 +1656,20 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
               fmaxf(1.0f,pw*0.06f),1);
         /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
         power_symbol(c,px0+pw*0.5f,mid-pw*0.39f+pw*0.04f+pw*0.35f,pw*0.30f);
+        /* the shadow the cap throws down onto the lip and the case: the
+         * knobs' bell, run along the cap's lower edge */
+        { float cx0=px0+pw*0.045f, cw=pw*0.91f, cb=mid-pw*0.39f+pw*0.04f+pw*0.70f;
+          float sw=2.6f*mm, rad=pw*0.08f;
+          int saved=g_grain; g_grain=0;
+          for(int j2=(int)cb;j2<=(int)(cb+sw)+1;j2++)
+            for(int i2=(int)(cx0-sw);i2<=(int)(cx0+cw+sw)+1;i2++){
+              float sd=rr_sd((float)i2+0.5f,(float)j2+0.5f,cx0+cw*0.5f,
+                             cb-pw*0.35f,cw*0.5f,pw*0.35f,rad);
+              if(sd<=0.0f || sd>=sw || (float)j2+0.5f<cb) continue;
+              float t=sd/sw, f=(1.0f-t)*(1.0f-t)*(1.0f-t)*(1.0f+3.0f*t);
+              px_shade(c,i2,j2,1.0f-0.22f*f,0.0f);
+            }
+          g_grain=saved; }
         /* power LED: a small round lens under the button */
         { float lr=1.35f*mm;
           float lcx=px0+pw*0.5f;
