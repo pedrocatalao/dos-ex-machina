@@ -1477,20 +1477,39 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             float u = side ? (float)i2/edge : 1.0f-(float)i2/edge;
             /* cosine falloff - a cylinder turning away from the light */
             float sh = 0.42f + 0.58f*cosf(u*1.28f);
-            /* the corner catches a highlight just off the face */
+            /* the corner catches a highlight just off the face - on the
+             * BASE.  The monitor's sides are set back behind a wall (see
+             * below), and a wall has no rolled corner to catch anything. */
             float lit = expf(-((u-0.10f)*(u-0.10f))/0.0075f)*0.16f;
             int x = (int)x0 + i2;
             for(int j2=0;j2<H;j2++){
+                float l = ((float)j2>=gap_lo+gap_d*0.5f) ? lit : 0.0f;   /* from the floor down */
                 uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
                 for(int k=0;k<3;k++){
-                    float v=q[k]*sh + lit*255.0f;
+                    float v=q[k]*sh + l*255.0f;
                     q[k]=(uint8_t)(v<0?0:v>255?255:v);
                 }
             }
         }
       }
-      seam(c,edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
-      seam(c,(float)W-edge,0,(float)H,1,fmaxf(1.0f,W*0.0012f));
+      /* the base's corner seam, and the monitor's step wall above it: a
+       * plain dark line, the wall seen edge-on */
+      /* the wall runs down to the parting's floor, where the base's own
+       * corner seam takes over - the two meet on the same row */
+      { float yfloor=gap_lo+gap_d*0.5f;
+        seam(c,edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
+        seam(c,(float)W-edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
+        float ww=fmaxf(1.5f,W*0.0011f);
+        for(int side=0;side<2;side++){
+          float xw = side ? (float)W-edge : edge;
+          for(int j2=0;j2<(int)yfloor;j2++)
+            for(int i2=(int)(xw-ww-1);i2<=(int)(xw+ww+1);i2++){
+                float d=fabsf((float)i2+0.5f-xw)/ww;
+                if(d>1.0f) continue;
+                px_shade(c,i2,j2,1.0f-0.42f*(1.0f-d*d),0.0f);
+            }
+        } }
+
     }
 
     /* bezel band -> aperture -> glass.  The housing face itself is NOT
@@ -1611,7 +1630,69 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
          * turned-away side strips as well: the parting between two parts
          * goes right round the case, and stopping it at the front face made
          * it read as a groove cut into one moulding instead. */
-        panel_gap(c,0.0f,gap_lo,(float)W,gap_d);
+        /* The parting runs between the two walls, not across the sides:
+         * out there the base's top surface meets the monitor's set-back
+         * side directly, as the ledge, and a groove crossing that would
+         * cut through geometry that has no groove in it. */
+        panel_gap(c,edge,gap_lo,(float)W-2.0f*edge,gap_d);
+    /* Along the MONITOR only - from the top down to the parting - the
+     * sides are set back from the front face: the display shell is a
+     * touch narrower than the base it stands on.  Applied AFTER the
+     * parting is cut, so the groove's lit lip is shaded on the recessed
+     * strip too, rather than running bright across it.  What sells a step back is
+     * not the strip being darker but the occlusion beside the wall: the
+     * floor of the recess falls into shade right next to the step and
+     * comes back out over a couple of millimetres.  The base below and
+     * the top band above keep their edge flush. */
+    { float mmr=(float)H/268.0f;
+      /* from the very top of the machine - the roll included, since the
+       * shell is narrower all the way up - down to the lower parting,
+       * where it stops dead: the groove is the step's own edge */
+      float y1=gap_lo+gap_d*0.5f;      /* down to the parting's floor */
+      float occ=4.0f*mmr;
+      for(int side=0;side<2;side++){
+        float x0 = side ? (float)W-edge : 0.0f;
+        for(int i2=0;i2<(int)edge;i2++){
+            /* distance from the step wall, in px */
+            float dw = side ? (float)i2 : edge-1.0f-(float)i2;
+            float t = dw/occ; if(t>1.0f) t=1.0f;
+            float m = 0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
+            int x=(int)x0+i2;
+            for(int j2=0;j2<(int)y1;j2++){
+                uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
+                for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v>255?255:v); }
+            }
+        }
+      }
+      /* The ledge between them.  Where the flush base meets the set-back
+       * monitor side there is a horizontal surface - the top of the base's
+       * wall - and from a little above it shows as a thin lit shelf along
+       * the foot of the recess: brightest at its front edge, falling into
+       * a crease where it meets the monitor's wall behind. */
+      { /* the same rows and the same profile as the parting's rising side,
+         * so its highlight runs out to the edges as one line */
+        for(int side=0;side<2;side++){
+          float x0 = side ? (float)W-edge : 0.0f;
+          for(int i2=0;i2<(int)edge;i2++){
+              int x=(int)x0+i2;
+              /* the crease beside the wall carries on into the back of the
+               * ledge and fades out toward its lip, so the floor and the
+               * ledge meet on the same tone instead of stepping */
+              float dw = side ? (float)i2 : edge-1.0f-(float)i2;
+              float tw = dw/occ; if(tw>1.0f) tw=1.0f;
+              float crease = 0.32f*(1.0f-tw)*(1.0f-tw);
+              for(int j2=(int)(gap_lo+gap_d*0.5f);j2<(int)(gap_lo+gap_d)+1;j2++){
+                  float t=((float)j2+0.5f-gap_lo)/gap_d;  /* 0.5 floor .. 1 lip */
+                  if(t>1.0f) break;
+                  float prof=0.5f-0.5f*cosf(t*6.28318f);
+                  float lam=-sinf(t*6.28318f)*0.91f;      /* rising: lit */
+                  float back=1.0f-(t-0.5f)*2.0f;          /* 1 at the floor, 0 at the lip */
+                  float m=(1.0f+lam*0.40f-prof*0.15f)*(1.0f-crease*back)*(0.87f+0.13f*(1.0f-back));
+                  uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
+                  for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v<0?0:v>255?255:v); }
+              }
+          }
+        } } }
         float mid=band_y+band_h*0.46f;
 
         /* badge: the logo, kept, but narrow */
