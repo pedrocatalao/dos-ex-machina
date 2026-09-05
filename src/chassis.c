@@ -1610,7 +1610,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                   g_knob[1][0]=kx1; g_knob[1][1]=ky; g_knob[1][2]=kr;
                   knobs_placed=1;
               } }
-            /* The maker's mark: DXM, silk-screened above the right pod and
+            /* The maker's mark: DXM, silk-screened above the LEFT pod and
              * centred on it.  Printed, not moulded - the
              * same grey and the same lettering as the POWER label, only
              * larger - and centred in the flat between the top parting
@@ -1619,8 +1619,8 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
               float top2=gap_hi+gap_d+1.5f*mm, bot2=py-1.0f*mm;
               if(bot2-top2>=8.0f*ls+1.0f*mm){
                   float tw2=3.0f*8.0f*ls;
-                  text_smooth(c,pxs[1]+(pw-tw2)*0.5f,(top2+bot2)*0.5f-4.0f*ls-1.2f*mm,
-                              "DXM",ls,128,123,111);
+                  text_smooth(c,pxs[0]+(pw-tw2)*0.5f,(top2+bot2)*0.5f-4.0f*ls-1.2f*mm,
+                              "DXM",ls,146,141,128);
               } }
         }
     }
