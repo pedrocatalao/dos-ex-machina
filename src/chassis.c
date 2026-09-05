@@ -730,6 +730,12 @@ static void moulded_text(canvas *c,float x,float y,const char *s,float sc,
  * through them, protruding eject, inserted diskette), but every edge is now
  * an eased ramp at the LED's fidelity - no hard 1px lines anywhere. */
 static float g_fdd_led[4], g_pwr_led[4];   /* recorded LED placeholders */
+/* The knobs: where they are, and the plastic under each one, kept so a turn
+ * redraws only the knob and not the machine. */
+static float    g_knob[2][3];
+static uint8_t *g_knob_bg[2];              /* the square beneath, RGBA */
+static int      g_knob_bx[2], g_knob_by[2], g_knob_bs[2];
+static uint8_t *g_knob_patch;
 static float g_pwr_shelf;                  /* underside of the power cap */
 static void floppy_drive(canvas *c,float x,float y,float w,float h){
     float mm=h/25.4f; (void)w;
@@ -1137,6 +1143,209 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
       }
 }
 
+/* A rotary control: a short cylinder of dark plastic standing off the
+ * band, knurled round its edge so fingers can turn it, with a flat face
+ * carrying a white index line.  The face is lit from above like everything
+ * else, and the knurl is what makes it read as round - a plain disc would
+ * be a button.  pos 0..1 runs the index through 270 degrees, from seven
+ * o'clock round to five. */
+static void rotary(canvas *c,float cx,float cy,float r,float pos){
+    const float PI=3.14159265f;
+    float ang=(-135.0f+270.0f*pos)*PI/180.0f;   /* 0 = twelve o'clock */
+    /* Seen a little from above, the way the eject button is: the face is
+     * an ellipse, squashed by the viewing angle, and above it shows a band
+     * of the cylinder's side - the top of the knob, foreshortened - which
+     * faces the key light and is the brightest thing here.  Below the
+     * face the side is hidden and a contact shadow takes over.  It is the
+     * same knob as before; only the camera has moved. */
+    /* The three tones, as multipliers on the case colour.  Each part is
+     * its own number so one can be tuned without moving the others. */
+    const float TONE_DOME=1.42f;                    /* the face proper */
+    const float TONE_RING=1.42f;                   /* the chamfer round it */
+    const float TONE_GRIP=1.30f;                   /* the knurled side */
+    const float SQ=0.98f;                          /* ellipse: vertical/horizontal */
+    float ry=r*SQ;                                 /* face half-height */
+    float hs=r*0.20f;                              /* visible side, foreshortened */
+    float off=r*0.10f;                             /* face centre sits a touch low */
+    float sw=r*0.70f;                              /* shadow reach below */
+    int saved=g_grain; g_grain=0;
+    int lim=(int)(r+hs+sw+3.0f);
+    /* The opening the shaft comes through: a thin dark cut in the case
+     * around the knob's BASE, which from this angle is the ellipse the
+     * side band ends on, above the face.  Drawn first so the knob covers
+     * whatever of it lies behind the body; what shows is the arc above
+     * and down the sides, the way the eject button's recess shows. */
+    { float gap=fmaxf(1.8f,r*0.11f), bcy=cy+off-hs;
+      for(int j2=(int)cy-lim;j2<=(int)cy+lim;j2++)
+        for(int i2=(int)cx-lim;i2<=(int)cx+lim;i2++){
+          float dx=(float)i2+0.5f-cx, dy=(float)j2+0.5f-bcy;
+          float rho=sqrtf((dx/r)*(dx/r)+(dy/ry)*(dy/ry));
+          float sd=(rho-1.0f)*r;                 /* px outside the base */
+          if(sd<-0.5f || sd>gap+1.0f) continue;
+          float a=fminf(1.0f,sd+0.5f)*fminf(1.0f,gap+1.0f-sd);
+          px_shade(c,i2,j2,1.0f-0.50f*a,0.0f);
+        } }
+    for(int j2=(int)cy-lim;j2<=(int)cy+lim;j2++)
+      for(int i2=(int)cx-lim;i2<=(int)cx+lim;i2++){
+        float dx=(float)i2+0.5f-cx, dy=(float)j2+0.5f-(cy+off);
+        float ux=dx/r; if(fabsf(ux)>1.0f+2.0f/r) continue;
+        float yr=(fabsf(ux)<1.0f)?ry*sqrtf(1.0f-ux*ux):0.0f;   /* rim height here */
+        float rho=sqrtf(ux*ux+(dy/ry)*(dy/ry));                  /* 1 on the face rim */
+        int R,G,B; float spec=0.0f, base, cov, tone;
+
+        if(rho>1.0f && dy>0.0f){
+            /* below the face: the contact shadow, and nothing else */
+            float sd=(rho-1.0f)*ry;
+            if(sd<sw){
+                /* a smooth bell: no edge at the knob, none at the far end */
+                float t=sd/sw, f=(1.0f-t)*(1.0f-t)*(1.0f-t)*(1.0f+3.0f*t);
+                px_shade(c,i2,j2,1.0f-0.22f*f,0.0f); }
+            continue;
+        }
+        if(rho>1.0f){
+            /* above the face: the cylinder's side, if this pixel is within
+             * its foreshortened height; lit by how much it faces up */
+            float above=-dy-yr;                    /* distance above the rim */
+            if(above>hs+1.0f || fabsf(ux)>=1.0f) continue;
+            cov=fminf(1.0f,hs+1.0f-above);
+            float up=sqrtf(1.0f-ux*ux);            /* the normal's upward part */
+            float th=atan2f(ux,up);                /* angle round the axis */
+            float ridge=sinf(th*28.0f);
+            float lit=0.5f+0.5f*ridge*(-sinf(th+0.6f));
+            base=(0.45f+0.28f*lit)*(0.66f+0.40f*up);
+            /* darkest right behind the face, where the chamfer overhangs
+             * the side - a crease, not a bright ledge - and falling off
+             * again at the far edge into the panel */
+            base*=0.76f+0.24f*fminf(1.0f,above/(hs*0.5f));
+            base*=1.0f-0.28f*fmaxf(0.0f,(above-hs*0.55f)/(hs*0.45f));
+            R=(int)(PLASTIC_R*TONE_GRIP*base); G=(int)(PLASTIC_G*(TONE_GRIP-0.06f)*base);
+            B=(int)(PLASTIC_B*(TONE_GRIP+0.04f)*base);
+            if(R>255)R=255; if(G>255)G=255; if(B>255)B=255;
+            px_blend(c,i2,j2,R,G,B,cov);
+            continue;
+        }
+        /* the face */
+        cov=fminf(1.0f,(1.0f-rho)*ry+0.5f);
+        float up=-dy/fmaxf(ry*rho,1e-3f);          /* +1 at the top of the rim */
+        float th=atan2f(ux,-dy/ry);
+        if(rho>0.78f){
+            /* the edge of the face: a rounded chamfer, bright along the top
+             * and shaded along the bottom, carrying a faint trace of the
+             * knurl.  Not a dark ring - the knurl proper is the side, seen
+             * above the face, and from here the face's edge is just the
+             * moulding turning away. */
+            float ridge=sinf(th*28.0f);
+            float k=(rho-0.78f)/0.22f;                 /* 0 inner .. 1 rim */
+            /* darker than the face it surrounds: this is the moulding
+             * turning away from the viewer toward the grip */
+            base=(0.54f+0.08f*up)*(1.0f-0.22f*k)+0.02f*ridge*k;
+            spec=0.0f; tone=TONE_RING;
+        } else {
+            /* the dome: light runs off it toward the lower right */
+            float nx=ux*0.75f, ny=(dy/ry)*0.75f;
+            float lam=0.55f+0.45f*(-ny*0.85f-nx*0.35f);
+            base=(0.40f*lam+0.18f)*(1.0f-0.10f*rho*rho);
+            float hx=(ux+0.30f)/0.34f, hy=(dy/ry+0.36f)/0.34f;
+            spec=expf(-(hx*hx+hy*hy))*0.16f;
+            tone=TONE_DOME;
+        }
+        R=(int)(PLASTIC_R*tone*base); G=(int)(PLASTIC_G*(tone-0.06f)*base);
+        B=(int)(PLASTIC_B*(tone+0.02f)*base);
+        if(R>255)R=255; if(G>255)G=255; if(B>255)B=255;
+        px_blend(c,i2,j2,R,G,B,cov);
+        if(spec>0.0f) px_shade(c,i2,j2,1.0f,spec);
+        /* the index: a painted mark across the dome, an off-white that
+         * has seen thirty years of thumbs, sitting in a shallow groove so
+         * it reads as filled rather than printed */
+        { float px=sinf(ang), py=-cosf(ang);
+          float ex=ux*r, ey=(dy/ry)*r;             /* un-squashed */
+          float along=ex*px+ey*py, across=fabsf(ex*py-ey*px);
+          float hw=r*0.075f+0.5f;
+          if(along>r*0.20f && along<r*0.66f){
+              if(across<hw){
+                  float a=fminf(1.0f,(hw-across))*0.86f;
+                  px_blend(c,i2,j2,214,208,192,a);
+              } else if(across<hw+1.0f){
+                  /* the groove's edge, a hair darker all round */
+                  float e=1.0f-(across-hw);
+                  px_shade(c,i2,j2,1.0f-0.12f*e,0.0f);
+              } } }
+      }
+    g_grain=saved;
+}
+
+/* The monitor's own symbols, cut into the band under each knob: a sun for
+ * brightness, a half-filled disc for contrast.  Distance fields, like the
+ * power mark, so they stay crisp at any size. */
+static void knob_icons(canvas *c,float bx,float by,float cx2,float cy2,float s){
+    int dw=(int)(s*2.6f)+4, dh=dw;
+    float *dep=calloc((size_t)dw*dh,sizeof *dep);
+    if(!dep) return;
+    float t=fmaxf(1.0f,s*0.16f);
+    /* sun: a ring and eight rays */
+    for(int j=0;j<dh;j++) for(int i=0;i<dw;i++){
+        float x=(float)i+0.5f-dw*0.5f, y=(float)j+0.5f-dh*0.5f, r=sqrtf(x*x+y*y);
+        float sd=fabsf(r-s*0.45f)-t*0.5f;
+        float ang=atan2f(y,x);
+        float k=roundf(ang/(3.14159265f/4.0f))*(3.14159265f/4.0f);
+        float rx=cosf(k), ry=sinf(k);
+        float along=x*rx+y*ry, across=fabsf(x*ry-y*rx);
+        float ray=fmaxf(fmaxf(s*0.72f-along,along-s*1.15f),across-t*0.5f);
+        sd=fminf(sd,ray);
+        float cov=0.5f-sd; dep[(size_t)j*dw+i]=cov<0?0:(cov>1?1:cov);
+    }
+    engrave_field(c,bx-dw*0.5f,by-dh*0.5f,dw,dh,dep);
+    /* contrast: a ring, its right half filled */
+    for(int j=0;j<dh;j++) for(int i=0;i<dw;i++){
+        float x=(float)i+0.5f-dw*0.5f, y=(float)j+0.5f-dh*0.5f, r=sqrtf(x*x+y*y);
+        float sd=fabsf(r-s*0.78f)-t*0.5f;
+        float half=fmaxf(r-s*0.78f,-x);          /* inside the disc, x>0 */
+        sd=fminf(sd,half);
+        float cov=0.5f-sd; dep[(size_t)j*dw+i]=cov<0?0:(cov>1?1:cov);
+    }
+    engrave_field(c,cx2-dw*0.5f,cy2-dh*0.5f,dw,dh,dep);
+    free(dep);
+}
+
+/* keep the plastic under a knob, draw the knob, and put the band's facing
+ * alpha back - a moulded control does not catch the tube's light as if it
+ * were the reveal dish */
+static void knob_place(canvas *c,int which,float cx,float cy,float r,float pos){
+    /* the square must hold everything rotary() draws - side band above,
+     * shadow ring below - or a redraw clips them with straight edges */
+    int bs=(int)(2.0f*(r+r*0.20f+r*0.70f+3.0f))+2, bx=(int)(cx-bs*0.5f), by=(int)(cy-bs*0.5f);
+    free(g_knob_bg[which]);
+    g_knob_bg[which]=malloc((size_t)bs*bs*4);
+    g_knob_bx[which]=bx; g_knob_by[which]=by; g_knob_bs[which]=bs;
+    if(!g_knob_bg[which]) return;
+    for(int j=0;j<bs;j++) for(int i=0;i<bs;i++){
+        int x=bx+i, y=by+j; uint8_t *d=g_knob_bg[which]+((size_t)j*bs+i)*4;
+        if(x<0||y<0||x>=c->w||y>=c->h){ memset(d,0,4); continue; }
+        memcpy(d,c->px+((size_t)y*c->w+x)*4,4);
+    }
+    rotary(c,cx,cy,r,pos);
+    for(int j=0;j<bs;j++) for(int i=0;i<bs;i++){
+        int x=bx+i, y=by+j; if(x<0||y<0||x>=c->w||y>=c->h) continue;
+        c->px[((size_t)y*c->w+x)*4+3]=g_knob_bg[which][((size_t)j*bs+i)*4+3];
+    }
+    g_knob[which][0]=cx; g_knob[which][1]=cy; g_knob[which][2]=r;
+}
+
+const uint8_t *chassis_knob_set(int which,float pos,int *x,int *y,int *w,int *h){
+    if(which<0||which>1||!g_knob_bg[which]) return NULL;
+    int bs=g_knob_bs[which];
+    g_knob_patch=realloc(g_knob_patch,(size_t)bs*bs*4);
+    if(!g_knob_patch) return NULL;
+    memcpy(g_knob_patch,g_knob_bg[which],(size_t)bs*bs*4);
+    canvas P; P.w=bs; P.h=bs; P.px=g_knob_patch;
+    if(pos<0.0f) pos=0.0f; if(pos>1.0f) pos=1.0f;
+    rotary(&P,g_knob[which][0]-g_knob_bx[which],g_knob[which][1]-g_knob_by[which],
+           g_knob[which][2],pos);
+    for(size_t k=0;k<(size_t)bs*bs;k++) g_knob_patch[k*4+3]=g_knob_bg[which][k*4+3];
+    *x=g_knob_bx[which]; *y=g_knob_by[which]; *w=bs; *h=bs;
+    return g_knob_patch;
+}
+
 uint8_t *chassis_render(dxm_layout *L,int W,int H){
     canvas C; C.w=W; C.h=H; C.px=calloc((size_t)W*H,4);
     canvas *c=&C;
@@ -1154,6 +1363,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
     float gap_d=fmaxf(3.0f,2.0f*(float)H/268.0f);
     float gap_lo=L->tube_y+L->tube_h+hous+inset*0.22f-inset*0.30f;
     float gap_hi=L->tube_y-(gap_lo-(L->tube_y+L->tube_h))-gap_d;
+    int knobs_placed=0;                 /* under the right pod, or on the band */
 
     rrect(c,0,0,(float)W,(float)H,0.0f,PLASTIC_R,PLASTIC_G,PLASTIC_B,1.03f,0.90f);
 
@@ -1290,6 +1500,24 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
               if(sw<=pw*0.80f && y1-y0>sh*1.30f)
                 sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
             }
+            /* The monitor's two knobs, brightness and contrast, in the
+             * strip under the right pod, above the parting to the base -
+             * the picture's controls on the picture's half of the case.
+             * Only their places are fixed here; the knobs themselves go on
+             * LAST, after the wear and the yellowing, so the plastic saved
+             * under each is the plastic around it.  A screen too short or
+             * too narrow for them here gets them on the band instead. */
+            { float kr=3.9f*mm;
+              float top=py+ph, strip=gap_lo-top;
+              if(strip>=kr*2.0f+6.6f*mm && pw>=kr*5.9f){
+                  float cx2=pxs[1]+pw*0.5f;
+                  float ky=top+kr+5.2f*mm;
+                  float kx0=cx2-kr*1.75f, kx1=cx2+kr*1.75f;
+                  knob_icons(c,kx0,ky+kr+3.0f*mm,kx1,ky+kr+3.0f*mm,1.4f*mm);
+                  g_knob[0][0]=kx0; g_knob[0][1]=ky; g_knob[0][2]=kr;
+                  g_knob[1][0]=kx1; g_knob[1][1]=ky; g_knob[1][2]=kr;
+                  knobs_placed=1;
+              } }
         }
     }
 
@@ -1364,6 +1592,20 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           g_pwr_led[0]=lcx-lr; g_pwr_led[1]=lcy-lr;
           g_pwr_led[2]=lr*2.0f; g_pwr_led[3]=lr*2.0f;
           g_pwr_shelf=cap_lo; }
+
+        /* the knobs' fallback: on the band beside the power cap, for a
+         * screen whose pods have no room under them */
+        if(!knobs_placed){ float kr=3.9f*mm;
+          float kx=px0+pw+inset*0.85f+kr;
+          float ky=mid;
+          knob_icons(c,kx,ky+kr+3.0f*mm,kx+kr*3.0f,ky+kr+3.0f*mm,1.4f*mm);
+          /* only their places for now: the knobs themselves go on LAST,
+           * after the wear and the yellowing, so the plastic saved under
+           * each one is the plastic around it - otherwise a turned knob
+           * came back on a square of cleaner case */
+          g_knob[0][0]=kx;        g_knob[0][1]=ky; g_knob[0][2]=kr;
+          g_knob[1][0]=kx+kr*3.0f; g_knob[1][1]=ky; g_knob[1][2]=kr;
+          knobs_placed=1; }
 
         /* The engraved mark, on the centre line of the base.  It is level
          * with the badge rather than lower down, which keeps it clear of
@@ -1573,7 +1815,11 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
             p[3]=(uint8_t)(f*255.0f);
         }
     }
+    /* the knobs, over the finished case */
+    for(int k=0;k<2;k++)
+        knob_place(&C,k,g_knob[k][0],g_knob[k][1],g_knob[k][2],0.5f);
     for(int k=0;k<4;k++){ L->fdd_led[k]=g_fdd_led[k]; L->pwr_led[k]=g_pwr_led[k]; }
     L->pwr_shelf=g_pwr_shelf;
+    for(int k=0;k<2;k++) for(int m=0;m<3;m++) L->knob[k][m]=g_knob[k][m];
     return C.px;
 }

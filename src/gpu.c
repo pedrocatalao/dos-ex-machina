@@ -551,6 +551,23 @@ void gpu_set_chassis(gpu *g,const uint8_t *rgba,int w,int h){
     glPixelStorei(GL_UNPACK_ALIGNMENT,1);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
 }
+void gpu_patch_chassis(gpu *g,int x,int y,int w,int h,const uint8_t *rgba){
+    if(!rgba||w<=0||h<=0) return;
+    /* clip to the texture - a knob near an edge on a tiny window - while
+     * keeping the patch's own row stride */
+    int stride=w, sx=0, sy=0;
+    if(x<0){ sx=-x; w+=x; x=0; }
+    if(y<0){ sy=-y; h+=y; y=0; }
+    if(x+w>g->chassis_w) w=g->chassis_w-x;
+    if(y+h>g->chassis_h) h=g->chassis_h-y;
+    if(w<=0||h<=0) return;
+    glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH,stride);
+    glTexSubImage2D(GL_TEXTURE_2D,0,x,y,w,h,GL_RGBA,GL_UNSIGNED_BYTE,
+                    rgba+((size_t)sy*(size_t)stride+(size_t)sx)*4);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH,0);
+}
 void gpu_set_tube(gpu *g,const uint8_t *rgb,int w,int h){
     g->tube_w=w; g->tube_h=h;
     glBindTexture(GL_TEXTURE_2D,g->tex_tube);

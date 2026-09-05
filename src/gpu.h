@@ -13,6 +13,8 @@ void gpu_resize(gpu *g, int out_w, int out_h);
 
 /* upload the machine's static chassis (RGBA8, drawn on CPU once) */
 void gpu_set_chassis(gpu *g, const uint8_t *rgba, int w, int h);
+/* replace one rectangle of it - a knob that has been turned */
+void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba);
 
 /* upload this frame's tube content (RGB8, already palette-resolved) */
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h);

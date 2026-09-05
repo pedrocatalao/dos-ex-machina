@@ -109,6 +109,30 @@ static int SDLCALL chassis_worker(void *ud){
     return 0;
 }
 
+/* Which knob, if any, is under a point in drawable pixels; -1 for none.
+ * The hit circle is a little larger than the knob, since a finger is. */
+static int knob_at(const dxm_layout *L,float x,float y){
+    for(int i=0;i<2;i++){
+        float dx=x-L->knob[i][0], dy=y-L->knob[i][1], r=L->knob[i][2]*1.35f;
+        if(dx*dx+dy*dy<=r*r) return i;
+    }
+    return -1;
+}
+/* The mouse belongs either to the game - confined to the glass, unseen -
+ * or to the machine, where it turns knobs.  Ctrl+F10 switches, as it does
+ * in DOSBox, and a game starting or ending switches for you. */
+static void set_capture(SDL_Window *win,const dxm_layout *L,int W,int H,
+                        float win_wf,float win_hf,int on){
+    bool ok;
+    if(on){
+        SDL_Rect r={ (int)(L->tube_x*win_wf/W), (int)(L->tube_y*win_hf/H),
+                     (int)(L->tube_w*win_wf/W), (int)(L->tube_h*win_hf/H) };
+        ok=SDL_SetWindowMouseRect(win,&r);
+    } else ok=SDL_SetWindowMouseRect(win,NULL);
+    dxm_log("mouse %s%s%s",on?"captured (confined to the glass)":"released to the machine",
+            ok?"":" - but SDL could not confine it: ",ok?"":SDL_GetError());
+}
+
 int main(int argc,char **argv){
     int windowed=0, shot_frames=0, selftest=0, quit_early=0; const char *shot=NULL; const char *autocmd=NULL;
     float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
@@ -321,17 +345,39 @@ int main(int argc,char **argv){
 
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=quit_early;
+    /* the knobs and the mouse */
+    int captured=0, knob_drag=-1;
+    float knob_y0=0.0f, knob_v0=0.0f;
+    float last_b=-1.0f, last_c=-1.0f;     /* what the knobs currently show */
+    double mouse_moved=-10.0;             /* when the mouse last moved */
     while(!quit){
         SDL_Event e;
         while(SDL_PollEvent(&e)){
             if(e.type==SDL_EVENT_QUIT) quit=1;
-            else if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN)
-                ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),1,0);
-            else if(e.type==SDL_EVENT_MOUSE_BUTTON_UP)
-                ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),0,0);
-            else if(e.type==SDL_EVENT_MOUSE_MOTION)
-                ui_mouse((int)(e.motion.x*W/win_wf),(int)(e.motion.y*H/win_hf),
-                         (e.motion.state&SDL_BUTTON_LMASK)?1:0,1);
+            else if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN){
+                float mx=e.button.x*W/win_wf, my=e.button.y*H/win_hf;
+                int kn=(!captured && !ui_visible())?knob_at(&L,mx,my):-1;
+                if(kn>=0 && e.button.button==SDL_BUTTON_LEFT){
+                    /* grab: remember where the hand and the knob started */
+                    knob_drag=kn; knob_y0=my;
+                    knob_v0=(kn==0)?k.brightness:(k.contrast-0.4f)/1.4f;
+                } else ui_mouse((int)mx,(int)my,1,0);
+            }
+            else if(e.type==SDL_EVENT_MOUSE_BUTTON_UP){
+                if(knob_drag>=0) knob_drag=-1;
+                else ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),0,0);
+            }
+            else if(e.type==SDL_EVENT_MOUSE_MOTION){
+                float mx=e.motion.x*W/win_wf, my=e.motion.y*H/win_hf;
+                mouse_moved=(SDL_GetTicksNS()-t_start)/1e9;
+                if(knob_drag>=0){
+                    /* up is more: a third of the screen's height is the
+                     * knob's whole travel, so a turn is a wrist, not an arm */
+                    float v=knob_v0+(knob_y0-my)/(H*0.30f);
+                    if(v<0.0f) v=0.0f; if(v>1.0f) v=1.0f;
+                    if(knob_drag==0) k.brightness=v; else k.contrast=0.4f+1.4f*v;
+                } else ui_mouse((int)mx,(int)my,(e.motion.state&SDL_BUTTON_LMASK)?1:0,1);
+            }
             else if(e.type==SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
                     e.type==SDL_EVENT_WINDOW_DISPLAY_CHANGED){
                 int nw,nh; SDL_GetWindowSizeInPixels(win,&nw,&nh);
@@ -343,12 +389,30 @@ int main(int argc,char **argv){
                     L=chassis_layout(W,H);
                     free(chas); chas=chassis_render(&L,W,H);
                     gpu_set_chassis(g,chas,W,H);
+                    last_b=last_c=-1.0f;
+                    if(captured) set_capture(win,&L,W,H,win_wf,win_hf,1);
                 }
             }
             else if(e.type==SDL_EVENT_KEY_DOWN||e.type==SDL_EVENT_KEY_UP){
                 int down=(e.type==SDL_EVENT_KEY_DOWN);
                 int sc=sc_from_sdl(e.key.scancode);
-                if(corehost_running()){
+                /* Ctrl+F10 everywhere, as DOSBox.  On a Mac the F10 key is
+                 * Mute unless Fn is held, so a tap of Command alone - a key
+                 * no DOS game could have bound - does the same there. */
+                int toggle = down && e.key.key==SDLK_F10 && (e.key.mod&SDL_KMOD_CTRL);
+#ifdef __APPLE__
+                { static int gui_alone=0;
+                  if(e.key.key==SDLK_LGUI || e.key.key==SDLK_RGUI){
+                      if(down) gui_alone=1;
+                      else if(gui_alone){ gui_alone=0; toggle=1; }
+                  } else if(down) gui_alone=0; }
+#endif
+                if(toggle){
+                    captured=!captured;
+                    set_capture(win,&L,W,H,win_wf,win_hf,captured);
+                    knob_drag=-1;
+                }
+                else if(corehost_running()){
                     int ch=0;
                     if(sc==DXM_SC_ESC) ch=27; else if(sc==DXM_SC_ENTER) ch=13;
                     else if(sc==DXM_SC_SPACE) ch=' ';
@@ -429,6 +493,7 @@ int main(int argc,char **argv){
         if(core_started && !corehost_running()){
             core_started=0;
             dos_core_exited();
+            captured=0; set_capture(win,&L,W,H,win_wf,win_hf,0);
         }
         const char *req=dos_launch_request();
         if(req){
@@ -443,6 +508,7 @@ int main(int argc,char **argv){
                 if(corehost_start(m->info, dd?dd:g->data)==0){
                     core_started=1;
                     lib_touch_played(g);
+                    captured=1; set_capture(win,&L,W,H,win_wf,win_hf,1);
                 }
             }
             if(!core_started) dos_core_failed();
@@ -513,6 +579,18 @@ int main(int argc,char **argv){
                       L.pwr_led[2]/W, L.pwr_led[3]/H,
                       pwr, 0.20f,1.0f,0.26f, 1,
                       1.0f-L.pwr_shelf/H); }
+        /* The knobs show the live values - turned by hand, by the F1 panel,
+         * or loaded from the file - and only a knob that moved is redrawn. */
+        if(k.brightness!=last_b){
+            int px,py,pw,ph; const uint8_t *p=chassis_knob_set(0,k.brightness,&px,&py,&pw,&ph);
+            if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
+            last_b=k.brightness;
+        }
+        if(k.contrast!=last_c){
+            int px,py,pw,ph; const uint8_t *p=chassis_knob_set(1,(k.contrast-0.4f)/1.4f,&px,&py,&pw,&ph);
+            if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
+            last_c=k.contrast;
+        }
         k.aperture_r = L.aperture_r;      /* match the chassis hole */
         gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
                     L.tube_w/W, L.tube_h/H, &k, t);
@@ -533,7 +611,15 @@ int main(int argc,char **argv){
                       gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
         }
 
-          if(ui_visible()) SDL_ShowCursor(); else SDL_HideCursor(); }
+          /* The arrow is shown while the mouse belongs to the machine and
+           * is being moved - you have to be able to see where it is to
+           * reach a knob - and goes away after a couple of seconds still,
+           * so the case is not wearing a pointer.  Never while the game
+           * has it.  The panel and a grabbed knob keep it up regardless. */
+          int moving = (t-mouse_moved) < 2.0;
+          if(ui_visible() || knob_drag>=0 || (!captured && moving))
+              SDL_ShowCursor();
+          else SDL_HideCursor(); }
         SDL_GL_SwapWindow(win);
         frame++;
         if(frame==1) dxm_log("first machine frame on screen");
