@@ -1167,23 +1167,35 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
     float ry=r*SQ;                                 /* face half-height */
     float hs=r*0.20f;                              /* visible side, foreshortened */
     float off=r*0.10f;                             /* face centre sits a touch low */
-    float sw=r*0.70f;                              /* shadow reach below */
     int saved=g_grain; g_grain=0;
+    float sw=r*0.70f;                              /* shadow reach below */
     int lim=(int)(r+hs+sw+3.0f);
-    /* The opening the shaft comes through: a thin dark cut in the case
-     * around the knob's BASE, which from this angle is the ellipse the
-     * side band ends on, above the face.  Drawn first so the knob covers
-     * whatever of it lies behind the body; what shows is the arc above
-     * and down the sides, the way the eject button's recess shows. */
-    { float gap=fmaxf(1.8f,r*0.11f), bcy=cy+off-hs;
-      for(int j2=(int)cy-lim;j2<=(int)cy+lim;j2++)
-        for(int i2=(int)cx-lim;i2<=(int)cx+lim;i2++){
+    /* The knob sits in a WELL, built exactly the way the power LED's is,
+     * since that is what reads as recessed: a dark ring hugging the base,
+     * a soft shadow on the plastic above the hole where the lip throws it,
+     * and a lit chamfer lip on the plastic below, all of it reaching well
+     * out into the case.  Drawn first; the knob body covers the middle. */
+    { float bcy=cy+off-hs;                      /* the base, seen from above */
+      float reach=r*1.45f;
+      for(int j2=(int)(bcy-reach)-1;j2<=(int)(bcy+reach)+1;j2++)
+        for(int i2=(int)(cx-reach)-1;i2<=(int)(cx+reach)+1;i2++){
           float dx=(float)i2+0.5f-cx, dy=(float)j2+0.5f-bcy;
-          float rho=sqrtf((dx/r)*(dx/r)+(dy/ry)*(dy/ry));
-          float sd=(rho-1.0f)*r;                 /* px outside the base */
-          if(sd<-0.5f || sd>gap+1.0f) continue;
-          float a=fminf(1.0f,sd+0.5f)*fminf(1.0f,gap+1.0f-sd);
-          px_shade(c,i2,j2,1.0f-0.50f*a,0.0f);
+          float d=sqrtf((dx/r)*(dx/r)+(dy/ry)*(dy/ry));   /* 1 at the base */
+          if(d<=0.94f || d>1.42f) continue;
+          float up=-dy/fmaxf(d*ry,1e-3f);       /* +1 straight above */
+          if(d<=1.14f){                         /* the ring itself */
+              float a=1.0f-fmaxf(0.0f,(d-1.05f)/0.09f);
+              a*=fminf(1.0f,(d-0.92f)/0.06f);
+              float top=(dy<0.0f)?1.0f:0.66f;
+              px_blend(c,i2,j2,26,22,14,a*0.85f*top);
+          } else {
+              float t=(d-1.14f)/0.28f;          /* 0 at ring, 1 outside */
+              if(up>0.15f)                      /* shadow above the hole */
+                  px_shade(c,i2,j2,1.0f-0.20f*(1.0f-t)*up,0.0f);
+              else if(up<-0.15f)                /* lit lip below it */
+                  px_shade(c,i2,j2,1.0f+0.24f*(1.0f-t)*(-up),
+                           (1.0f-t)*(-up)*0.07f);
+          }
         } }
     for(int j2=(int)cy-lim;j2<=(int)cy+lim;j2++)
       for(int i2=(int)cx-lim;i2<=(int)cx+lim;i2++){
@@ -1194,10 +1206,11 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
         int R,G,B; float spec=0.0f, base, cov, tone;
 
         if(rho>1.0f && dy>0.0f){
-            /* below the face: the contact shadow, and nothing else */
+            /* below the face: the shadow the knob throws down onto the lip
+             * and the case - a smooth bell, no edge at the knob and none
+             * where it fades out */
             float sd=(rho-1.0f)*ry;
             if(sd<sw){
-                /* a smooth bell: no edge at the knob, none at the far end */
                 float t=sd/sw, f=(1.0f-t)*(1.0f-t)*(1.0f-t)*(1.0f+3.0f*t);
                 px_shade(c,i2,j2,1.0f-0.22f*f,0.0f); }
             continue;
@@ -1313,7 +1326,7 @@ static void knob_icons(canvas *c,float bx,float by,float cx2,float cy2,float s){
 static void knob_place(canvas *c,int which,float cx,float cy,float r,float pos){
     /* the square must hold everything rotary() draws - side band above,
      * shadow ring below - or a redraw clips them with straight edges */
-    int bs=(int)(2.0f*(r+r*0.20f+r*0.70f+3.0f))+2, bx=(int)(cx-bs*0.5f), by=(int)(cy-bs*0.5f);
+    int bs=(int)(2.0f*(r*1.70f+r*0.20f+4.0f))+2, bx=(int)(cx-bs*0.5f), by=(int)(cy-bs*0.5f);
     free(g_knob_bg[which]);
     g_knob_bg[which]=malloc((size_t)bs*bs*4);
     g_knob_bx[which]=bx; g_knob_by[which]=by; g_knob_bs[which]=bs;
