@@ -1497,12 +1497,13 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
       /* the wall runs down to the parting's floor, where the base's own
        * corner seam takes over - the two meet on the same row */
       { float yfloor=gap_lo+gap_d*0.5f;
+        float cr=10.0f*(float)H/268.0f;          /* the face's top corner radius */
         seam(c,edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
         seam(c,(float)W-edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
         float ww=fmaxf(1.5f,W*0.0011f);
         for(int side=0;side<2;side++){
           float xw = side ? (float)W-edge : edge;
-          for(int j2=0;j2<(int)yfloor;j2++)
+          for(int j2=(int)ceilf(cr);j2<(int)yfloor;j2++)   /* the arc owns the row above */
             for(int i2=(int)(xw-ww-1);i2<=(int)(xw+ww+1);i2++){
                 float d=fabsf((float)i2+0.5f-xw)/ww;
                 if(d>1.0f) continue;
@@ -1650,20 +1651,68 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
        * where it stops dead: the groove is the step's own edge */
       float y1=gap_lo+gap_d*0.5f;      /* down to the parting's floor */
       float occ=4.0f*mmr;
+      float cr=10.0f*mmr;                  /* the face's top corner radius */
       for(int side=0;side<2;side++){
         float x0 = side ? (float)W-edge : 0.0f;
+        float ccx = side ? (float)W-edge-cr : edge+cr;
         for(int i2=0;i2<(int)edge;i2++){
-            /* distance from the step wall, in px */
-            float dw = side ? (float)i2 : edge-1.0f-(float)i2;
-            float t = dw/occ; if(t>1.0f) t=1.0f;
-            float m = 0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
             int x=(int)x0+i2;
             for(int j2=0;j2<(int)y1;j2++){
+                /* distance from the step wall: the straight wall below the
+                 * corner's start, the arc above it - so the crease beside
+                 * the wall bends away with the wall instead of running on
+                 * up to the top edge */
+                float dw;
+                if((float)j2<cr){
+                    float dx=(float)x+0.5f-ccx, dy=(float)j2+0.5f-cr;
+                    dw=sqrtf(dx*dx+dy*dy)-cr;
+                } else dw = side ? (float)i2 : edge-1.0f-(float)i2;
+                if(dw<0.0f) dw=0.0f;
+                float t = dw/occ; if(t>1.0f) t=1.0f;
+                float m = 0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
                 uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
                 for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v>255?255:v); }
             }
         }
       }
+      /* The front face's top corners are rounded off, and where the face
+       * curves away the set-back side shows through: the same floor and
+       * the same wall, now following the arc.  Without the side strips
+       * these would be the corners of the machine. */
+      { float ww=fmaxf(1.5f,W*0.0011f);
+        for(int side=0;side<2;side++){
+          float ccx = side ? (float)W-edge-cr : edge+cr, ccy=cr;
+          for(int j2=0;j2<(int)cr+2;j2++)
+            for(int k2=-(int)ww-1;k2<(int)cr+2;k2++){
+                int x = side ? (int)((float)W-edge)-1-k2 : (int)edge+k2;
+                float dx=(float)x+0.5f-ccx, dy=(float)j2+0.5f-ccy;
+                if((side?-dx:dx)>0.0f || dy>0.0f) continue;   /* the quadrant */
+                float d=sqrtf(dx*dx+dy*dy)-cr;      /* >0: past the face */
+                if(d<=-ww-1.0f) continue;
+                uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
+                /* the floor only inside the face's column - the strip
+                 * beside it was shaded by the recess pass already; the
+                 * wall's line, though, needs its full width either side */
+                if(d>0.0f && k2>=0){
+                    /* the recess floor, shaded by its distance from the wall */
+                    float t=d/occ; if(t>1.0f) t=1.0f;
+                    float m=0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
+                    float cov=fminf(1.0f,d);
+                    m=1.0f+(m-1.0f)*cov;
+                    for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v>255?255:v); }
+                }
+                /* the wall, along the arc: edge-on and dark where it is
+                 * still vertical, turning to face the light - a highlight
+                 * - as it comes round to horizontal along the top */
+                float a=fabsf(d)/ww;
+                if(a<1.0f){
+                    float up=-dy/cr; if(up<0.0f)up=0.0f; if(up>1.0f)up=1.0f;
+                    float f=(1.0f-a*a);
+                    px_shade(c,x,j2,1.0f-0.42f*f*(1.0f-up)+0.16f*f*up,0.05f*f*up);
+                }
+            }
+        } }
+
       /* The ledge between them.  Where the flush base meets the set-back
        * monitor side there is a horizontal surface - the top of the base's
        * wall - and from a little above it shows as a thin lit shelf along
