@@ -118,9 +118,10 @@ static int knob_at(const dxm_layout *L,float x,float y){
     }
     return -1;
 }
-/* The mouse belongs either to the game - confined to the glass, unseen -
- * or to the machine, where it turns knobs.  Ctrl+F10 switches, as it does
- * in DOSBox, and a game starting or ending switches for you. */
+/* The mouse belongs either to the machine - confined to the glass, unseen,
+ * which is how it starts and how a game has it - or to the operating
+ * system, where the arrow shows and turns the knobs.  Ctrl+F10 switches,
+ * as it does in DOSBox. */
 static void set_capture(SDL_Window *win,const dxm_layout *L,int W,int H,
                         float win_wf,float win_hf,int on){
     bool ok;
@@ -190,8 +191,6 @@ int main(int argc,char **argv){
         return 1;
     }
     SDL_GL_SetSwapInterval(1);
-    /* the pointer stays the operating system's until something captures
-     * it: a game, or Ctrl+F10 */
     /* Typed characters come from SDL's text input, not from key-down: the
      * keycode of Shift+2 is still '2', and only the text event knows what
      * the keyboard layout made of it.  Control keys stay on key-down. */
@@ -350,8 +349,11 @@ int main(int argc,char **argv){
 
     Uint64 t_start=SDL_GetTicksNS();
     int frame=0, quit=quit_early;
-    /* the knobs and the mouse */
-    int captured=0, knob_drag=-1;
+    /* the knobs and the mouse.  The machine holds the mouse from the
+     * start - hidden, fenced to the glass - and Ctrl+F10 gives it to the
+     * operating system when the knobs are wanted. */
+    int captured=1, knob_drag=-1;
+    set_capture(win,&L,W,H,win_wf,win_hf,1);
     float knob_y0=0.0f, knob_v0=0.0f;
     float last_b=-1.0f, last_c=-1.0f;     /* what the knobs currently show */
     while(!quit){
@@ -503,7 +505,6 @@ int main(int argc,char **argv){
         if(core_started && !corehost_running()){
             core_started=0;
             dos_core_exited();
-            captured=0; set_capture(win,&L,W,H,win_wf,win_hf,0);
         }
         const char *req=dos_launch_request();
         if(req){
@@ -621,9 +622,8 @@ int main(int argc,char **argv){
                       gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
         }
 
-          /* The mouse belongs to the operating system unless it has been
-           * captured: the arrow is simply there, as on any window, and
-           * goes only when a game or Ctrl+F10 takes the mouse. */
+          /* the arrow shows only while the mouse has been given to the
+           * operating system, or over the panel */
           if(captured && !ui_visible()) SDL_HideCursor();
           else SDL_ShowCursor(); }
         SDL_GL_SwapWindow(win);

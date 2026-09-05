@@ -140,8 +140,9 @@ with the rest of the CRT — bloom, burn-in, static, jitter, glow line, ambient
 light, flicker, h-sync, RGB shift, chassis glow, persistence, scanlines, pixel
 grid, curvature. Everything saves to `crt.cfg` in the preferences directory.
 
-**Ctrl+F10** hands the mouse to the game, or takes it back; a game starting
-takes it, a game ending returns it. Esc out of a game returns to wherever it
+The machine holds the mouse: no pointer, nothing to chase. **Ctrl+F10**
+gives it to your operating system when you want the knobs, and takes it back.
+Esc out of a game returns to wherever it
 was started from; the machine survives it and the game can be relaunched.
 `EXIT` powers down properly: the raster collapses, the fans spin down, and the
 room goes dark.

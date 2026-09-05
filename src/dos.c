@@ -850,9 +850,7 @@ static void cmd_help(void){
     oline("DIR        List the files on this machine.");
     oline("CLS        Clear the screen.");
     oline("VER        Show the DOS version.");
-    oline("TYPE file  Display a text file, a screen at a time if it is");
-    oline("           long. Try TYPE README.1ST.");
-    oline("MORE       Page any command's output: HELP | MORE.");
+    oline("TYPE file  Display a text file");
     oline("CD dir     Change directory. The games are in C:\\GAMES.");
     oline("NC         Browse the games in a dual-pane navigator.");
     oline("EXIT       Switch the machine off.");
