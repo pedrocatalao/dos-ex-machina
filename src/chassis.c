@@ -5,6 +5,7 @@
 #include "font.h"
 #include "dxm_road.h"
 #include "corner_sticker.h"
+#include "dxm_mark.h"
 #include "sb_logo.h"
 #include <stdlib.h>
 #include <string.h>
@@ -425,6 +426,37 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
           if(a>0.004f) px_blend(c,i2,j2,255,255,255,a);
       }
     g_grain=1;
+}
+
+/* The maker's mark, printed on the case: the DXM wordmark with its striped
+ * X, box-filtered down to the size it lands at and laid on with its own
+ * alpha.  A print, so no laminate and no edge of its own; dulled a touch,
+ * like the sticker, so it has been on the case as long as everything else. */
+static void maker_mark(canvas *c,float cx,float cy,float w){
+    float h=w*(float)DXM_MARK_HT/(float)DXM_MARK_W;
+    float x=cx-w*0.5f, y=cy-h*0.5f;
+    float sx=(float)DXM_MARK_W/w, sy=(float)DXM_MARK_HT/h;
+    int saved=g_grain; g_grain=0;
+    for(int j2=0;j2<(int)ceilf(h);j2++)
+      for(int i2=0;i2<(int)ceilf(w);i2++){
+        int u0=(int)(i2*sx), u1=(int)((i2+1)*sx); if(u1<=u0) u1=u0+1;
+        int v0=(int)(j2*sy), v1=(int)((j2+1)*sy); if(v1<=v0) v1=v0+1;
+        if(u1>DXM_MARK_W) u1=DXM_MARK_W; if(v1>DXM_MARK_HT) v1=DXM_MARK_HT;
+        if(u0>=DXM_MARK_W||v0>=DXM_MARK_HT) continue;
+        long r=0,g=0,b=0,a=0; int n=0;
+        for(int v=v0;v<v1;v++)
+          for(int u=u0;u<u1;u++){
+            const uint8_t *sp=dxm_mark+((size_t)v*DXM_MARK_W+u)*4;
+            r+=sp[0]*sp[3]; g+=sp[1]*sp[3]; b+=sp[2]*sp[3]; a+=sp[3]; n++;
+          }
+        if(!a) continue;
+        float R=(float)r/a, G=(float)g/a, B=(float)b/a, al=(float)a/(255.0f*n);
+        float lum=0.299f*R+0.587f*G+0.114f*B;
+        const float DULL=0.12f, FADE=0.92f;
+        R=(R+(lum-R)*DULL)*FADE; G=(G+(lum-G)*DULL)*FADE; B=(B+(lum-B)*DULL)*FADE;
+        px_blend(c,(int)x+i2,(int)y+j2,(int)R,(int)G,(int)B,al);
+      }
+    g_grain=saved;
 }
 
 /* The mark on the speaker pod, cut INTO the plastic rather than stuck on
@@ -1610,18 +1642,15 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                   g_knob[1][0]=kx1; g_knob[1][1]=ky; g_knob[1][2]=kr;
                   knobs_placed=1;
               } }
-            /* The maker's mark: DXM, silk-screened above the LEFT pod and
-             * centred on it.  Printed, not moulded - the
-             * same grey and the same lettering as the POWER label, only
-             * larger - and centred in the flat between the top parting
-             * and the pod.  A strip too short for it goes without. */
-            { float ls=fmaxf(1.0f,g_lbl*1.15f);
+            /* The maker's mark: the DXM wordmark, printed above the LEFT
+             * pod and centred on it, in the flat between the top parting
+             * and the pod.  A fixed physical size; a strip too short or a
+             * pod too narrow for it goes without. */
+            { float mw=16.0f*mm, mh=mw*(float)DXM_MARK_HT/(float)DXM_MARK_W;
               float top2=gap_hi+gap_d+1.5f*mm, bot2=py-1.0f*mm;
-              if(bot2-top2>=8.0f*ls+1.0f*mm){
-                  float tw2=3.0f*8.0f*ls;
-                  text_smooth(c,pxs[0]+(pw-tw2)*0.5f,(top2+bot2)*0.5f-4.0f*ls-1.2f*mm,
-                              "DXM",ls,146,141,128);
-              } }
+              if(bot2-top2>=mh+1.0f*mm && pw>=mw*1.1f)
+                  maker_mark(c,pxs[0]+pw*0.5f,(top2+bot2)*0.5f-1.2f*mm,mw);
+            }
         }
     }
 
