@@ -32,8 +32,12 @@ static const char CONFIGSYS[] =
     "STACKS=9,256\r\n"
     "SHELL=C:\\COMMAND.COM C:\\ /P\r\n";
 static const char README1ST[] =
-    "                    DOS EX MACHINA\r\n"
-    "                    READ ME FIRST\r\n"
+    "\r\n"
+    " _|_|_|    _|      _|  _|      _|\r\n"
+    " _|    _|    _|  _|    _|_|  _|_|      DOS EX MACHINA\r\n"
+    " _|    _|      _|      _|  _|  _|      READ ME FIRST\r\n"
+    " _|    _|    _|  _|    _|      _|\r\n"
+    " _|_|_|    _|      _|  _|      _|\r\n"
     "\r\n"
     "You remember this machine.  Maybe not this one exactly, but\r\n"
     "one like it: beige, warm, a little too loud, in a room that\r\n"
