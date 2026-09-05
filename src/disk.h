@@ -1,33 +1,27 @@
-/* disk.h — C:\ as real files.
+/* disk.h — C:\ as the machine sees it.
  *
- * The root of the machine's disk is a directory in the preferences folder,
- * seeded on first start with the files a 1993 boot disk had, so that DIR
- * lists what is really there and TYPE shows what is really in it - and so
- * a user can open AUTOEXEC.BAT in an editor and watch the machine change.
- * C:\GAMES is the games directory the library already keeps; it appears
- * here as a directory and lives where it always did.
- *
- * The shell only READS.  There is no COPY, DEL or EDIT: the disk is a place
- * to look, not a file manager. */
+ * A small virtual disk: the files a 1993 boot disk had, compiled into the
+ * program, so that DIR has something honest to list and TYPE something to
+ * show.  Nothing is written anywhere and nothing can be changed - the
+ * disk is part of the machine, not a folder on the host.  C:\GAMES is the
+ * games directory the library keeps, and appears here as a directory. */
 #ifndef DXM_DISK_H
 #define DXM_DISK_H
 #include <stdint.h>
 #include <stddef.h>
 
 typedef struct {
-    char    name[13];        /* DOS 8.3, upper case */
-    int     is_dir;
-    long    size;
-    int64_t mtime_ns;        /* 0 if unknown */
+    const char *name;        /* DOS 8.3, upper case */
+    int         is_dir;
+    long        size;
+    const char *date, *time; /* as DIR prints them */
 } disk_entry;
 
-/* create C:\ if missing and put back any seed file that is gone */
-void disk_init(void);
-/* the root's entries, seeds first in their classic order, then the rest;
- * GAMES last.  Returns the count. */
+/* the root's entries, in their classic order; GAMES last.  Returns the
+ * count.  Entries point at static storage. */
 int  disk_list(disk_entry *out, int max);
-/* read a root file by its DOS name (case-insensitive) into buf as text.
- * 0 = ok, -1 = not found, 1 = binary (buf untouched). */
+/* read a root file by its DOS name (case-insensitive) as text.
+ * 0 = ok, -1 = not found, 1 = a program (buf untouched). */
 int  disk_read(const char *dosname, char *buf, size_t n);
 /* the ECHO lines of AUTOEXEC.BAT, in order, for the boot to print */
 int  disk_autoexec_echo(char (*lines)[80], int max);

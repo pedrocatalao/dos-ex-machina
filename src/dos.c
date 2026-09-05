@@ -125,16 +125,12 @@ void dos_init(void){
     cur_att=0x07;
     cur_r=cur_c=0; line_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
     beep_pending=0; mem_counting=0; mem_shown=0;
-    disk_init();
     ax_n=disk_autoexec_echo(ax_lines,8); ax_i=0;
 }
 void dos_core_failed(void){
     put('\n');
     sayln("Cannot run that program.");
     prompt(); st=DOS_PROMPT; line_n=0;
-}
-void dos_core_exited(void){
-    put('\n'); prompt(); st=DOS_PROMPT; line_n=0;
 }
 /* The game does not appear the instant you type its name: the drive spins
  * up and reads first, exactly as it would have.  dos_update() releases the
@@ -260,6 +256,8 @@ static void nc_rows_build(void){
 }
 
 static int nc_open, nc_sel;
+static int nc_from_games;     /* the directory the prompt was in when NC opened */
+static int nc_launched;       /* a game was started from NC: come back to it */
 static int nc_focus;       /* 0 = the list, 1 = the description  */
 static int nc_dtop;        /* first description line on screen   */
 /* A dialog over the panels.  The navigator's keys go to it while it is up,
@@ -743,7 +741,7 @@ static void nc_key(int ch,int sc){
     /* F10 and Esc both leave the panel, back to the prompt */
     if(sc==DXM_SC_F10) nc_flash_key(10);
     if(sc==DXM_SC_ESC || ch==27 || sc==DXM_SC_F10){
-        nc_open=0;
+        nc_open=0; in_games=nc_from_games;      /* back where it was opened */
         memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
         cur_att=0x07; cur_r=cur_c=0; prompt();
         return;
@@ -773,9 +771,16 @@ static void nc_key(int ch,int sc){
             return;
         }
         if(e->installed){
-            nc_open=0;
+            /* the same launch the prompt gives: the panel goes, the
+             * command appears as if typed, and the drive reads while the
+             * screen waits - and the machine remembers to come back */
+            nc_open=0; nc_launched=1;
             memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
             cur_att=0x07; cur_r=cur_c=0;
+            prompt();
+            { char up[16]; int k=0;
+              for(;e->cmd[k] && k<15;k++) up[k]=(char)toupper((unsigned char)e->cmd[k]);
+              up[k]=0; sayln(up); }
             snprintf(launch,sizeof launch,"%s",e->cmd);
             floppy_req=2.6;
             launch_at=-1.0;
@@ -807,12 +812,7 @@ static void cmd_dir(void){
                 int rl=(int)strlen(raw), o=0;
                 for(int k=0;k<rl;k++){ if(k && (rl-k)%3==0) sz[o++]=','; sz[o++]=raw[k]; }
                 sz[o]=0; files++; total+=e->size; }
-            { SDL_DateTime d;
-              if(e->mtime_ns>0 && SDL_TimeToDateTime(e->mtime_ns,&d,true)){
-                  snprintf(dt,sizeof dt,"%02d-%02d-%02d",d.month,d.day,d.year%100);
-                  int h=d.hour%12; if(!h) h=12;
-                  snprintf(tm,sizeof tm,"%2d:%02d%c",h,d.minute,d.hour<12?'a':'p');
-              } else { snprintf(dt,sizeof dt,"05-31-94"); snprintf(tm,sizeof tm," 6:22a"); } }
+            snprintf(dt,sizeof dt,"%s",e->date); snprintf(tm,sizeof tm,"%s",e->time);
             if(e->is_dir) snprintf(ln,sizeof ln,"%s     <DIR>        %s  %s",nm,dt,tm);
             else          snprintf(ln,sizeof ln,"%s %s %11s  %s  %s",nm,ex,sz,dt,tm);
             sayln(ln);
@@ -834,7 +834,7 @@ static void cmd_dir(void){
             for(;g->id[k] && k<8;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
             while(k<8) nm[k++]=' ';
             nm[8]=0;
-            snprintf(ln,sizeof ln,"%s EXE       114,688  03-15-93   1:93a",nm);
+            snprintf(ln,sizeof ln,"%s EXE        114,688  03-15-93   1:43a",nm);
             sayln(ln);
         }
         put('\n');
@@ -892,8 +892,7 @@ static void run(char *s){
         if(!arg||!*arg) sayln("Required parameter missing");
         else {
             /* a path prefix is tolerated; only the root has files to show */
-            const char *nm=arg; if(!strncmp(nm,"C:\\",3)) nm+=3; if(*nm=='\\') nm++;
-            int r=in_games?-1:disk_read(nm,buf,sizeof buf);
+            int r=in_games?-1:disk_read(arg,buf,sizeof buf);
             if(r<0){ say("File not found - "); sayln(arg); }
             else if(r>0) sayln("This file cannot be displayed.");
             else {
@@ -907,7 +906,8 @@ static void run(char *s){
         }
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
-    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build(); in_games=1;
+    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build();
+                              nc_from_games=in_games; in_games=1;
                               nc_open=1; nc_sel=0; nc_focus=0; nc_dtop=0;
                               nc_draw(); return; }
     else if(!strcmp(s,"CD")||!strcmp(s,"CHDIR")){
@@ -940,6 +940,20 @@ static void run(char *s){
                launch_at=-1.0;              /* armed; set on the next tick */
                st=DOS_RUNNING; return; }
     }
+}
+
+void dos_core_exited(void){
+    st=DOS_PROMPT; line_n=0;
+    if(nc_launched){
+        /* started from the navigator: back to the navigator, on the same
+         * entry, with whatever the game left on disk reflected */
+        nc_launched=0;
+        lib_scan(); nc_rows_build();
+        if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0;
+        nc_open=1; nc_draw();
+        return;
+    }
+    put('\n'); prompt();
 }
 
 void dos_key(int ch,int sc){

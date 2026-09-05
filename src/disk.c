@@ -1,19 +1,13 @@
 /* disk.c — see disk.h. */
 #include "disk.h"
-#include "library.h"
-#include "coreload.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <ctype.h>
 
-static char root[LIB_PATH];      /* <pref>c<sep> */
-
-/* The seed disk.  Text as it would have been typed; the two programs are
- * stubs - a few recognisable bytes and filler - there to be listed and to
- * refuse TYPE, the way a real one would have filled the screen with
- * garbage. */
+/* The disk.  Text as it would have been typed; the two programs have a
+ * size and a date and refuse TYPE, and that is all a program needs to be
+ * here for. */
 static const char AUTOEXEC[] =
     "@ECHO OFF\r\n"
     "PROMPT $P$G\r\n"
@@ -70,127 +64,48 @@ static const char README1ST[] =
 /* `ours`: rewritten at every start, because it is DXM's text and should
  * say what the current build says.  The others are the user's once they
  * exist, and are only put back if they go missing. */
-typedef struct { const char *name; const char *text; int stub_size; int ours; } seed;
-static const seed SEEDS[] = {
-    { "COMMAND.COM",  NULL,      54645, 0 },
-    { "AUTOEXEC.BAT", AUTOEXEC,  0,     0 },
-    { "CONFIG.SYS",   CONFIGSYS, 0,     0 },
-    { "README.1ST",   README1ST, 0,     1 },
-    { "NC.EXE",       NULL,      41272, 0 },
+typedef struct { const char *name; const char *text; long size; const char *date, *time; } file;
+static const file FILES[] = {
+    { "COMMAND.COM",  NULL,      54645, "05-31-94", " 6:22a" },
+    { "AUTOEXEC.BAT", AUTOEXEC,  0,     "05-31-94", " 6:22a" },
+    { "CONFIG.SYS",   CONFIGSYS, 0,     "05-31-94", " 6:22a" },
+    { "README.1ST",   README1ST, 0,     "09-02-26", "11:04a" },
+    { "NC.EXE",       NULL,      41272, "06-08-93", "10:14a" },
 };
-#define NSEEDS ((int)(sizeof SEEDS/sizeof SEEDS[0]))
+#define NFILES ((int)(sizeof FILES/sizeof FILES[0]))
 
-static int exists(const char *p){ SDL_PathInfo st; return SDL_GetPathInfo(p,&st); }
-
-static void write_seed(const seed *s){
-    char path[LIB_PATH];
-    snprintf(path,sizeof path,"%s%s",root,s->name);
-    FILE *f=fopen(path,"wb"); if(!f) return;
-    if(s->text) fputs(s->text,f);
-    else {
-        /* a stub program: a header line, then filler that is plainly not
-         * text, so TYPE knows what it is looking at */
-        char hdr[80]; snprintf(hdr,sizeof hdr,"DXM-DOS %s  (C) 2026 DOS ex Machina\r\n\x1a",s->name);
-        fputs(hdr,f);
-        for(int i=(int)strlen(hdr);i<s->stub_size;i++) fputc((i*37+11)&0xFF,f);
-    }
-    fclose(f);
-}
-
-void disk_init(void){
-    snprintf(root,sizeof root,"%sc%c",lib_root(),DXM_SEP);
-    { char d[LIB_PATH]; snprintf(d,sizeof d,"%sc",lib_root());
-      if(!exists(d)) SDL_CreateDirectory(d); }
-    for(int i=0;i<NSEEDS;i++){
-        char path[LIB_PATH];
-        snprintf(path,sizeof path,"%s%s",root,SEEDS[i].name);
-        if(SEEDS[i].ours || !exists(path)) write_seed(&SEEDS[i]);
-    }
-}
-
-/* a host file name as DOS would show it: upper case, 8.3, truncated */
-static void dos_name(const char *in,char *out){
-    const char *dot=strrchr(in,'.');
-    int n=0;
-    for(const char *p=in;*p && p!=dot && n<8;p++) if(*p!=' ') out[n++]=(char)toupper((unsigned char)*p);
-    if(dot && dot[1]){ out[n++]='.'; int e=0;
-        for(const char *p=dot+1;*p && e<3;p++) out[n++]=(char)toupper((unsigned char)*p), e++; }
-    out[n]=0;
-}
-
-typedef struct { disk_entry *out; int n, max; } lister;
-static SDL_EnumerationResult SDLCALL on_entry(void *ud,const char *dirname,const char *fname){
-    lister *l=(lister *)ud;
-    if(l->n>=l->max) return SDL_ENUM_SUCCESS;
-    char full[LIB_PATH]; snprintf(full,sizeof full,"%s%c%s",dirname,DXM_SEP,fname);
-    SDL_PathInfo st; if(!SDL_GetPathInfo(full,&st)) return SDL_ENUM_CONTINUE;
-    if(fname[0]=='.') return SDL_ENUM_CONTINUE;         /* dotfiles are not DOS */
-    disk_entry *e=&l->out[l->n++];
-    dos_name(fname,e->name);
-    e->is_dir=(st.type==SDL_PATHTYPE_DIRECTORY);
-    e->size=(long)st.size; e->mtime_ns=st.modify_time;
-    return SDL_ENUM_CONTINUE;
-}
-static int rank(const disk_entry *e){
-    for(int i=0;i<NSEEDS;i++) if(!strcmp(e->name,SEEDS[i].name)) return i;
-    return NSEEDS;
-}
-static int cmp(const void *a,const void *b){
-    const disk_entry *x=a,*y=b;
-    int rx=rank(x), ry=rank(y);
-    if(rx!=ry) return rx-ry;
-    return strcmp(x->name,y->name);
-}
 int disk_list(disk_entry *out,int max){
-    lister l={out,0,max};
-    char d[LIB_PATH]; snprintf(d,sizeof d,"%sc",lib_root());
-    SDL_EnumerateDirectory(d,on_entry,&l);
-    qsort(out,(size_t)l.n,sizeof *out,cmp);
-    /* GAMES: the library's directory, shown here as the disk's */
-    if(l.n<max){
-        char g[LIB_PATH]; snprintf(g,sizeof g,"%sgames",lib_root());
-        SDL_PathInfo st;
-        disk_entry *e=&out[l.n++];
-        snprintf(e->name,sizeof e->name,"GAMES"); e->is_dir=1; e->size=0;
-        e->mtime_ns=SDL_GetPathInfo(g,&st)?st.modify_time:0;
+    int n=0;
+    for(int i=0;i<NFILES && n<max;i++){
+        const file *f=&FILES[i];
+        out[n].name=f->name; out[n].is_dir=0;
+        out[n].size=f->text?(long)strlen(f->text):f->size;
+        out[n].date=f->date; out[n].time=f->time; n++;
     }
-    return l.n;
+    if(n<max){ out[n].name="GAMES"; out[n].is_dir=1; out[n].size=0;
+               out[n].date="09-02-26"; out[n].time=" 1:27p"; n++; }
+    return n;
 }
 
-/* find the host file whose DOS name matches */
-typedef struct { const char *want; char found[LIB_PATH]; } finder;
-static SDL_EnumerationResult SDLCALL on_find(void *ud,const char *dirname,const char *fname){
-    finder *f=(finder *)ud; char dn[13]; dos_name(fname,dn);
-    if(!strcmp(dn,f->want)){ snprintf(f->found,sizeof f->found,"%s%c%s",dirname,DXM_SEP,fname); return SDL_ENUM_SUCCESS; }
-    return SDL_ENUM_CONTINUE;
-}
-static int find_file(const char *dosname,char *out,size_t n){
-    char want[13]; dos_name(dosname,want);
-    finder f={want,{0}};
-    char d[LIB_PATH]; snprintf(d,sizeof d,"%sc",lib_root());
-    SDL_EnumerateDirectory(d,on_find,&f);
-    if(!f.found[0]) return -1;
-    snprintf(out,n,"%s",f.found); return 0;
+static const file *find(const char *dosname){
+    /* a leading C:\ or \ is tolerated */
+    if(!SDL_strncasecmp(dosname,"C:\\",3)) dosname+=3;
+    if(*dosname=='\\') dosname++;
+    for(int i=0;i<NFILES;i++)
+        if(!SDL_strcasecmp(dosname,FILES[i].name)) return &FILES[i];
+    return NULL;
 }
 
 int disk_read(const char *dosname,char *buf,size_t n){
-    char path[LIB_PATH];
-    if(find_file(dosname,path,sizeof path)!=0) return -1;
-    FILE *f=fopen(path,"rb"); if(!f) return -1;
-    size_t got=fread(buf,1,n-1,f); fclose(f);
-    /* text is what a 1993 disk called text: printable, tabs and line ends,
-     * and a Ctrl-Z end marker.  Anything else is a program. */
-    for(size_t i=0;i<got;i++){
-        unsigned char ch=(unsigned char)buf[i];
-        if(ch==0x1A){ got=i; break; }
-        if(ch<32 && ch!='\t' && ch!='\r' && ch!='\n') return 1;
-    }
-    buf[got]=0;
+    const file *f=find(dosname);
+    if(!f) return -1;
+    if(!f->text) return 1;
+    snprintf(buf,n,"%s",f->text);
     return 0;
 }
 
 int disk_autoexec_echo(char (*lines)[80],int max){
-    static char buf[4096];
+    char buf[4096];
     if(disk_read("AUTOEXEC.BAT",buf,sizeof buf)!=0) return 0;
     int n=0;
     for(char *p=buf; *p && n<max; ){
@@ -200,15 +115,17 @@ int disk_autoexec_echo(char (*lines)[80],int max){
         char *q=line; while(*q==' '||*q=='@') q++;
         if(!SDL_strncasecmp(q,"ECHO",4) && (q[4]==' '||q[4]=='.'||q[4]==0)){
             const char *txt=q+4;
+            int skip=0;
             if(*txt=='.') txt++;                       /* ECHO. is a blank line */
             else { while(*txt==' ') txt++;
-                   if(!SDL_strcasecmp(txt,"OFF")||!SDL_strcasecmp(txt,"ON")){ goto next; } }
-            /* the batch escape: ECHO ^| prints a bare | */
-            { char *o=lines[n]; int k=0;
-              for(const char *q2=txt; *q2 && k<79; q2++){ if(*q2=='^' && q2[1]){ q2++; } o[k++]=*q2; }
-              o[k]=0; n++; }
+                   if(!SDL_strcasecmp(txt,"OFF")||!SDL_strcasecmp(txt,"ON")) skip=1; }
+            if(!skip){
+                /* the batch escape: ECHO ^| prints a bare | */
+                char *o=lines[n]; int k=0;
+                for(const char *q2=txt; *q2 && k<79; q2++){ if(*q2=='^' && q2[1]) q2++; o[k++]=*q2; }
+                o[k]=0; n++;
+            }
         }
-        next:
         p=e?e+1:p+len; if(e && *e=='\r' && *p=='\n') p++;
     }
     return n;
