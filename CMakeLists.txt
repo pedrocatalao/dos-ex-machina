@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dos_ex_machina VERSION 0.3.1 LANGUAGES C)
+project(dos_ex_machina VERSION 0.4.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter -O2")
 

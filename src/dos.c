@@ -850,7 +850,9 @@ static void cmd_help(void){
     oline("DIR        List the files on this machine.");
     oline("CLS        Clear the screen.");
     oline("VER        Show the DOS version.");
-    oline("TYPE file  Display a text file. Try TYPE README.1ST | MORE.");
+    oline("TYPE file  Display a text file, a screen at a time if it is");
+    oline("           long. Try TYPE README.1ST.");
+    oline("MORE       Page any command's output: HELP | MORE.");
     oline("CD dir     Change directory. The games are in C:\\GAMES.");
     oline("NC         Browse the games in a dual-pane navigator.");
     oline("EXIT       Switch the machine off.");
@@ -871,11 +873,15 @@ static void run(char *s){
       if(bar){ char *m=bar+1; while(*m==' ') m++;
                if(!strncmp(m,"MORE",4)) page_want=1;
                *bar=0; while(bar>s && bar[-1]==' ') *--bar=0; } }
-    /* MORE file, and MORE < file, are TYPE file | MORE */
+    /* MORE file, and MORE < file, are TYPE file */
     if(!strncmp(s,"MORE",4) && (s[4]==' '||s[4]==0)){
-        memmove(s,"TYPE",4); page_want=1;
+        memmove(s,"TYPE",4);
         char *lt=strchr(s,'<'); if(lt) *lt=' ';
     }
+    /* TYPE pages by itself when a file is longer than the screen: the
+     * pager only stops if there is more to show, so a short file simply
+     * prints */
+    if(!strncmp(s,"TYPE",4) && (s[4]==' '||s[4]==0)) page_want=1;
     char *sp=strchr(s,' '); char *arg=NULL;
     if(sp){ *sp=0; arg=sp+1; while(*arg==' ') arg++; }
     size_t n=strlen(s);
