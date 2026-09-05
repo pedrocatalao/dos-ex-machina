@@ -1,6 +1,7 @@
 /* dos.c — boot theater, the prompt, and the command set (SPEC §7).
  * The prompt is the UI: there is no other way to reach anything. */
 #include "dos.h"
+#include "disk.h"
 #include <SDL3/SDL.h>      /* SDL_TimeToDateTime, for the table's dates */
 #include "font.h"
 #include "library.h"
@@ -25,6 +26,7 @@ static char  line[128]; static int line_n;
 static dos_state st;
 static double t0, next_boot;
 static int    boot_step;
+static char   ax_lines[8][80]; static int ax_n, ax_i;   /* AUTOEXEC's ECHOes */
 static uint8_t fb[DOS_W*DOS_H*3];
 static void nc_art(void);
 static char   launch[32];
@@ -85,6 +87,8 @@ void dos_init(void){
     cur_att=0x07;
     cur_r=cur_c=0; line_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
     beep_pending=0; mem_counting=0; mem_shown=0;
+    disk_init();
+    ax_n=disk_autoexec_echo(ax_lines,8); ax_i=0;
 }
 void dos_core_failed(void){
     put('\n');
@@ -745,15 +749,39 @@ static void cmd_dir(void){
     sayln(in_games ? " Directory of C:\\GAMES" : " Directory of C:\\");
     put('\n');
     if(!in_games){
-        sayln("COMMAND  COM        54,645  05-31-94   6:22a");
-        sayln("AUTOEXEC BAT           435  05-31-94   6:22a");
-        sayln("CONFIG   SYS           246  05-31-94   6:22a");
-        sayln("README   TXT         1,204  08-30-26  11:04a");
-        sayln("NC       EXE        41,272  06-08-93  10:14a");
-        sayln("GAMES        <DIR>           08-30-26  11:04a");
+        disk_entry ent[64]; int n=disk_list(ent,64);
+        int files=0, dirs=0; long total=0;
+        for(int i=0;i<n;i++){
+            const disk_entry *e=&ent[i];
+            char nm[9]="        ", ex[4]="   ", sz[16], dt[10], tm[8], ln[80];
+            const char *dot=strchr(e->name,'.');
+            int nl=dot?(int)(dot-e->name):(int)strlen(e->name);
+            memcpy(nm,e->name,(size_t)(nl>8?8:nl));
+            if(dot) memcpy(ex,dot+1,strlen(dot+1)>3?3:strlen(dot+1));
+            if(e->is_dir){ sz[0]=0; dirs++; }
+            else { /* thousands separated, DOS style */
+                char raw[16]; snprintf(raw,sizeof raw,"%ld",e->size);
+                int rl=(int)strlen(raw), o=0;
+                for(int k=0;k<rl;k++){ if(k && (rl-k)%3==0) sz[o++]=','; sz[o++]=raw[k]; }
+                sz[o]=0; files++; total+=e->size; }
+            { SDL_DateTime d;
+              if(e->mtime_ns>0 && SDL_TimeToDateTime(e->mtime_ns,&d,true)){
+                  snprintf(dt,sizeof dt,"%02d-%02d-%02d",d.month,d.day,d.year%100);
+                  int h=d.hour%12; if(!h) h=12;
+                  snprintf(tm,sizeof tm,"%2d:%02d%c",h,d.minute,d.hour<12?'a':'p');
+              } else { snprintf(dt,sizeof dt,"05-31-94"); snprintf(tm,sizeof tm," 6:22a"); } }
+            if(e->is_dir) snprintf(ln,sizeof ln,"%s     <DIR>        %s  %s",nm,dt,tm);
+            else          snprintf(ln,sizeof ln,"%s %s %11s  %s  %s",nm,ex,sz,dt,tm);
+            sayln(ln);
+        }
         put('\n');
-        sayln("        5 file(s)          97,802 bytes");
-        sayln("        1 dir(s)");
+        { char ln[80];
+          char raw[16]; snprintf(raw,sizeof raw,"%ld",total);
+          char tot[24]; int rl=(int)strlen(raw), o=0;
+          for(int k=0;k<rl;k++){ if(k && (rl-k)%3==0) tot[o++]=','; tot[o++]=raw[k]; }
+          tot[o]=0;
+          snprintf(ln,sizeof ln,"%9d file(s) %14s bytes",files,tot); sayln(ln);
+          snprintf(ln,sizeof ln,"%9d dir(s)",dirs); sayln(ln); }
     } else {
         sayln(".            <DIR>           08-30-26  11:04a");
         sayln("..           <DIR>           08-30-26  11:04a");
@@ -779,18 +807,9 @@ static void cmd_help(void){
     sayln("DIR        List the files on this machine.");
     sayln("CLS        Clear the screen.");
     sayln("VER        Show the DOS version.");
-    sayln("TYPE file  Display a text file.");
+    sayln("TYPE file  Display a text file.  Try TYPE README.1ST.");
     sayln("CD dir     Change directory.  The games are in C:\\GAMES.");
     sayln("NC         Browse the games in a dual-pane navigator.");
-    for(int i=0;i<lib_count();i++){
-        const lib_game *g=lib_at(i);
-        char nm[16], ln[96]; int k=0;
-        for(;g->id[k] && k<10;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
-        while(k<10) nm[k++]=' ';
-        nm[10]=0;
-        snprintf(ln,sizeof ln,"%s Run %s (from C:\\GAMES).",nm,g->title);
-        sayln(ln);
-    }
     sayln("EXIT       Switch the machine off.");
 }
 static void run(char *s){
@@ -815,10 +834,23 @@ static void run(char *s){
     else if(!strcmp(s,"HELP")) cmd_help();
     else if(!strcmp(s,"VER"))  sayln("DXM-DOS Version 1.0  (C) 2026");
     else if(!strcmp(s,"TYPE")){
-        if(arg && !strcmp(arg,"README.TXT")){
-            sayln("DOS ex Machina - a machine that only runs games.");
-            sayln("Type NC to browse the games, or CD GAMES to run one.");
-        } else { say("File not found - "); sayln(arg?arg:""); }
+        static char buf[8192];
+        if(!arg||!*arg) sayln("Required parameter missing");
+        else {
+            /* a path prefix is tolerated; only the root has files to show */
+            const char *nm=arg; if(!strncmp(nm,"C:\\",3)) nm+=3; if(*nm=='\\') nm++;
+            int r=in_games?-1:disk_read(nm,buf,sizeof buf);
+            if(r<0){ say("File not found - "); sayln(arg); }
+            else if(r>0) sayln("This file cannot be displayed.");
+            else {
+                for(char *p=buf;*p;){
+                    char *e=strpbrk(p,"\r\n"); size_t len=e?(size_t)(e-p):strlen(p);
+                    char line[256]; if(len>=sizeof line) len=sizeof line-1;
+                    memcpy(line,p,len); line[len]=0; sayln(line);
+                    p=e?e+1:p+len; if(e && *e=='\r' && *p=='\n') p++;
+                }
+            }
+        }
     }
     else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
     else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build(); in_games=1;
@@ -956,6 +988,7 @@ dos_state dos_update(double t){
             put('\n');
             next_boot=t+0.16;
         }
+        else if(ax_i<ax_n){ sayln(ax_lines[ax_i++]); next_boot=t+0.16; }
         else { st=DOS_PROMPT; prompt(); }
     }
     return st;
