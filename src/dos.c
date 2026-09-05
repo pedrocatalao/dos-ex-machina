@@ -71,7 +71,7 @@ static const char *BOOT[] = {
   "Main Processor  : 80486DX2  66 MHz",
   "Memory Test     : ",          /* counted live, see dos_update */
   "",
-  "Fixed Disk 0    : DXM-VIRTUAL  512 MB",
+  "Fixed Disk 0    : WDC AC2540F  540 MB",
   "Floppy Disk A   : 1.44 MB, 3.5 in.",
   "",
   "Starting DXM-DOS...",
