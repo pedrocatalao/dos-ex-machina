@@ -28,6 +28,8 @@
 #define BEZEL_BAND    0.076f   /* dished part, next to the glass          */
 #define BEZEL_HOUSING 0.095f   /* full surround depth beyond the picture   */
 #define BEZEL_R_MID   0.042f   /* shoulder corner radius                    */
+#define FACE_R_TOP    0.0f    /* mm: the front face's top corners, where it
+                                  curves off into the set-back sides        */
 #define FILLET_START     0.915f /* where the shoulder roll begins,
                                  * as a fraction across the dish  */
 #define BEZEL_R_MID_WARP 0.45f /* the shoulder follows the tube's curvature  */
@@ -1497,7 +1499,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
       /* the wall runs down to the parting's floor, where the base's own
        * corner seam takes over - the two meet on the same row */
       { float yfloor=gap_lo+gap_d*0.5f;
-        float cr=10.0f*(float)H/268.0f;          /* the face's top corner radius */
+        float cr=FACE_R_TOP*(float)H/268.0f;
         seam(c,edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
         seam(c,(float)W-edge,yfloor,(float)H-yfloor,1,fmaxf(1.0f,W*0.0012f));
         float ww=fmaxf(1.5f,W*0.0011f);
@@ -1651,7 +1653,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
        * where it stops dead: the groove is the step's own edge */
       float y1=gap_lo+gap_d*0.5f;      /* down to the parting's floor */
       float occ=4.0f*mmr;
-      float cr=10.0f*mmr;                  /* the face's top corner radius */
+      float cr=FACE_R_TOP*mmr;
       for(int side=0;side<2;side++){
         float x0 = side ? (float)W-edge : 0.0f;
         float ccx = side ? (float)W-edge-cr : edge+cr;
@@ -1669,7 +1671,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                 } else dw = side ? (float)i2 : edge-1.0f-(float)i2;
                 if(dw<0.0f) dw=0.0f;
                 float t = dw/occ; if(t>1.0f) t=1.0f;
-                float m = 0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
+                float m = 0.90f*(1.0f-0.24f*(1.0f-t)*(1.0f-t));
                 uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
                 for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v>255?255:v); }
             }
@@ -1696,7 +1698,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                 if(d>0.0f && k2>=0){
                     /* the recess floor, shaded by its distance from the wall */
                     float t=d/occ; if(t>1.0f) t=1.0f;
-                    float m=0.87f*(1.0f-0.32f*(1.0f-t)*(1.0f-t));
+                    float m=0.90f*(1.0f-0.24f*(1.0f-t)*(1.0f-t));
                     float cov=fminf(1.0f,d);
                     m=1.0f+(m-1.0f)*cov;
                     for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v>255?255:v); }
@@ -1729,14 +1731,14 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                * ledge meet on the same tone instead of stepping */
               float dw = side ? (float)i2 : edge-1.0f-(float)i2;
               float tw = dw/occ; if(tw>1.0f) tw=1.0f;
-              float crease = 0.32f*(1.0f-tw)*(1.0f-tw);
+              float crease = 0.24f*(1.0f-tw)*(1.0f-tw);
               for(int j2=(int)(gap_lo+gap_d*0.5f);j2<(int)(gap_lo+gap_d)+1;j2++){
                   float t=((float)j2+0.5f-gap_lo)/gap_d;  /* 0.5 floor .. 1 lip */
                   if(t>1.0f) break;
                   float prof=0.5f-0.5f*cosf(t*6.28318f);
                   float lam=-sinf(t*6.28318f)*0.91f;      /* rising: lit */
                   float back=1.0f-(t-0.5f)*2.0f;          /* 1 at the floor, 0 at the lip */
-                  float m=(1.0f+lam*0.40f-prof*0.15f)*(1.0f-crease*back)*(0.87f+0.13f*(1.0f-back));
+                  float m=(1.0f+lam*0.40f-prof*0.15f)*(1.0f-crease*back)*(0.90f+0.10f*(1.0f-back));
                   uint8_t *q=c->px+((size_t)j2*c->w+x)*4;
                   for(int k=0;k<3;k++){ float v=q[k]*m; q[k]=(uint8_t)(v<0?0:v>255?255:v); }
               }
