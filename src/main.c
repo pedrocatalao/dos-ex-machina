@@ -191,6 +191,10 @@ int main(int argc,char **argv){
     }
     SDL_GL_SetSwapInterval(1);
     SDL_HideCursor();                       /* no OS chrome, ever (SPEC §2.1) */
+    /* Typed characters come from SDL's text input, not from key-down: the
+     * keycode of Shift+2 is still '2', and only the text event knows what
+     * the keyboard layout made of it.  Control keys stay on key-down. */
+    SDL_StartTextInput(win);
 
     if(!windowed){
         SDL_SetWindowFullscreenMode(win,NULL);   /* NULL = desktop mode */
@@ -393,6 +397,14 @@ int main(int argc,char **argv){
                     if(captured) set_capture(win,&L,W,H,win_wf,win_hf,1);
                 }
             }
+            else if(e.type==SDL_EVENT_TEXT_INPUT){
+                /* what the layout produced: ASCII for now, one char at a
+                 * time; the prompt has no use for anything the font's
+                 * lower half cannot show */
+                if(!corehost_running())
+                    for(const char *p=e.text.text;*p;p++)
+                        if((unsigned char)*p>=32 && (unsigned char)*p<127) dos_key(*p,0);
+            }
             else if(e.type==SDL_EVENT_KEY_DOWN||e.type==SDL_EVENT_KEY_UP){
                 int down=(e.type==SDL_EVENT_KEY_DOWN);
                 int sc=sc_from_sdl(e.key.scancode);
@@ -431,7 +443,6 @@ int main(int argc,char **argv){
                     }
                     else if(e.key.key=='\r') dos_key('\r',sc);
                     else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);
-                    else if(e.key.key>=32&&e.key.key<127) dos_key((int)e.key.key,sc);
                     /* the navigator is driven by keys that carry no
                      * character at all - without this the prompt never
                      * hears an arrow or an Esc */
