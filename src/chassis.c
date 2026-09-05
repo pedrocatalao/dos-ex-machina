@@ -1222,8 +1222,7 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
     float hs=r*0.20f;                              /* visible side, foreshortened */
     float off=r*0.10f;                             /* face centre sits a touch low */
     int saved=g_grain; g_grain=0;
-    float sw=r*0.70f;                              /* shadow reach below */
-    int lim=(int)(r+hs+sw+3.0f);
+    int lim=(int)(r*2.3f+3.0f);
     /* The knob sits in a WELL, built exactly the way the power LED's is,
      * since that is what reads as recessed: a dark ring hugging the base,
      * a soft shadow on the plastic above the hole where the lip throws it,
@@ -1246,28 +1245,32 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
               float t=(d-1.14f)/0.28f;          /* 0 at ring, 1 outside */
               if(up>0.15f)                      /* shadow above the hole */
                   px_shade(c,i2,j2,1.0f-0.20f*(1.0f-t)*up,0.0f);
-              else if(up<-0.15f)                /* lit lip below it */
-                  px_shade(c,i2,j2,1.0f+0.24f*(1.0f-t)*(-up),
-                           (1.0f-t)*(-up)*0.07f);
+              /* no lit lip below: the knob's own shadow falls there, and
+               * a highlight under a shadow reads as two light sources */
           }
         } }
     for(int j2=(int)cy-lim;j2<=(int)cy+lim;j2++)
       for(int i2=(int)cx-lim;i2<=(int)cx+lim;i2++){
         float dx=(float)i2+0.5f-cx, dy=(float)j2+0.5f-(cy+off);
-        float ux=dx/r; if(fabsf(ux)>1.0f+2.0f/r) continue;
+        float ux=dx/r; if(fabsf(ux)>2.4f) continue;      /* the shadow reaches this far */
         float yr=(fabsf(ux)<1.0f)?ry*sqrtf(1.0f-ux*ux):0.0f;   /* rim height here */
         float rho=sqrtf(ux*ux+(dy/ry)*(dy/ry));                  /* 1 on the face rim */
         int R,G,B; float spec=0.0f, base, cov, tone;
 
-        if(rho>1.0f && dy>0.0f){
-            /* below the face: the shadow the knob throws down onto the lip
-             * and the case - a smooth bell, no edge at the knob and none
-             * where it fades out */
-            float sd=(rho-1.0f)*ry;
-            if(sd<sw){
-                float t=sd/sw, f=(1.0f-t)*(1.0f-t)*(1.0f-t)*(1.0f+3.0f*t);
-                px_shade(c,i2,j2,1.0f-0.22f*f,0.0f); }
-            continue;
+        if(rho>1.0f){
+            /* The shadow the knob throws: a blurred copy of itself, dropped
+             * a third of a radius, with a gaussian skirt - so it has no
+             * outline of its own anywhere, and it fades in across the
+             * knob's equator rather than starting there. */
+            float sx=ux*1.25f, sy=(dy-r*0.35f)/ry;       /* narrower than tall */
+            float d2=sqrtf(sx*sx+sy*sy)-1.0f;          /* radii outside it */
+            if(d2<1.3f){
+                float f=(d2<=0.0f)?1.0f:expf(-d2*d2*4.0f);
+                float v=(dy/r+0.25f)/0.75f; if(v<0.0f)v=0.0f; if(v>1.0f)v=1.0f;
+                f*=v*v*(3.0f-2.0f*v);                 /* eases in over the sides */
+                if(f>0.003f) px_shade(c,i2,j2,1.0f-0.12f*f,0.0f);
+            }
+            if(dy>0.0f) continue;                      /* below: only the shadow */
         }
         if(rho>1.0f){
             /* above the face: the cylinder's side, if this pixel is within
@@ -1380,7 +1383,7 @@ static void knob_icons(canvas *c,float bx,float by,float cx2,float cy2,float s){
 static void knob_place(canvas *c,int which,float cx,float cy,float r,float pos){
     /* the square must hold everything rotary() draws - side band above,
      * shadow ring below - or a redraw clips them with straight edges */
-    int bs=(int)(2.0f*(r*1.70f+r*0.20f+4.0f))+2, bx=(int)(cx-bs*0.5f), by=(int)(cy-bs*0.5f);
+    int bs=(int)(2.0f*(r*2.35f+4.0f))+2, bx=(int)(cx-bs*0.5f), by=(int)(cy-bs*0.5f);
     free(g_knob_bg[which]);
     g_knob_bg[which]=malloc((size_t)bs*bs*4);
     g_knob_bx[which]=bx; g_knob_by[which]=by; g_knob_bs[which]=bs;
