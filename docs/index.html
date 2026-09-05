@@ -3,16 +3,71 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DOS ex Machina — a 1993 PC on your screen</title>
-<meta name="description" content="A procedurally-drawn 1993 beige-box PC with a simulated CRT that boots a DOS prompt and runs natively-ported DOS games. No emulation, no raster art.">
-<meta property="og:title" content="DOS ex Machina">
-<meta property="og:description" content="A 1993 PC on your screen — case, CRT and all — booting a DOS prompt and running native ports of DOS games behind the glass.">
-<meta property="og:image" content="https://pedrocatalao.github.io/dos-ex-machina/logo-page.png">
+<title>DOS ex Machina — a 1993 PC on your screen, running native DOS game ports in a simulated CRT</title>
+<meta name="description" content="DOS ex Machina draws a 1993 beige-box PC procedurally — case, CRT and all — boots a DOS prompt, and runs natively ported DOS games behind the glass. No emulation. Free, open source, for macOS, Windows and Linux.">
+<link rel="canonical" href="https://dosexmachina.com/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#05070d">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DOS ex Machina">
+<meta property="og:title" content="DOS ex Machina — a 1993 PC on your screen">
+<meta property="og:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation. macOS, Windows, Linux.">
+<meta property="og:url" content="https://dosexmachina.com/">
+<meta property="og:image" content="https://dosexmachina.com/screenshot-game.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="675">
+<meta property="og:image:alt" content="SkyRoads running inside the simulated CRT of DOS ex Machina">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="logo-page.png">
+<meta name="twitter:title" content="DOS ex Machina — a 1993 PC on your screen">
+<meta name="twitter:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation.">
+<meta name="twitter:image" content="https://dosexmachina.com/screenshot-game.jpg">
+<link rel="icon" href="https://dosexmachina.com/logo-page.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "DOS ex Machina",
+  "alternateName": "DXM",
+  "url": "https://dosexmachina.com/",
+  "description": "A procedurally-drawn 1993 beige-box PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. The games are native C ports, not emulated.",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "macOS 11+, Windows 10+, Linux (glibc 2.35+)",
+  "softwareVersion": "0.4 Beta",
+  "softwareRequirements": "OpenGL 3.3 core",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "downloadUrl": "https://github.com/pedrocatalao/dos-ex-machina/releases/tag/v0.4-beta",
+  "codeRepository": "https://github.com/pedrocatalao/dos-ex-machina",
+  "screenshot": [
+    "https://dosexmachina.com/screenshot-prompt.jpg",
+    "https://dosexmachina.com/screenshot-game.jpg",
+    "https://dosexmachina.com/screenshot-nc.jpg"
+  ],
+  "author": { "@type": "Person", "name": "Pedro Catalão", "url": "https://github.com/pedrocatalao" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What is DOS ex Machina?",
+      "acceptedAnswer": { "@type": "Answer", "text": "DOS ex Machina is a free, open-source program that draws a 1993 beige-box PC on your screen — the case, a CRT monitor and all — boots a simulated DOS prompt, and runs natively ported DOS games inside the simulated CRT. It runs on macOS, Windows and Linux." } },
+    { "@type": "Question", "name": "Is DOS ex Machina an emulator?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. The games are native C ports of the original programs, compiled for your computer and loaded as modules. Nothing is emulated; the DOS prompt is a fiction and the CRT is a rendering pipeline." } },
+    { "@type": "Question", "name": "Which games can it run?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Games arrive as .dxm modules through a catalogue fetched at run time. As of 0.4 Beta the catalogue holds SkyRoads (BlueMoon Software, 1993). Any DOS game with a native port that follows the porting contract can be added." } },
+    { "@type": "Question", "name": "What does it need to run?",
+      "acceptedAnswer": { "@type": "Answer", "text": "A graphics driver with OpenGL 3.3, which any computer of the last decade has. The downloads are self-contained: unpack and run, nothing to install." } },
+    { "@type": "Question", "name": "Is it free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. DOS ex Machina is MIT licensed and free to download. No game code or game data lives in its repository; each game is a separately licensed port." } }
+  ]
+}
+</script>
 <style>
   :root{
     --bg:#05070d;          /* the black inside the tube            */
@@ -23,9 +78,12 @@
     --text:#c9d4e6;
     --dim:#7c88a0;
     --line:#1a2740;
+    --phosphor:#dce2d8;    /* lit text on the tube                 */
+    --stripe:linear-gradient(90deg,#d13b3b 0 16.6%,#e88a2a 16.6% 33.3%,#e5c435 33.3% 50%,#3ea24f 50% 66.6%,#2f93cc 66.6% 83.3%,#2b4fb5 83.3% 100%);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
+  @media(prefers-reduced-motion:reduce){ html{scroll-behavior:auto} .cursor{animation:none} }
   body{
     background:var(--bg); color:var(--text);
     font-family:'VT323',ui-monospace,monospace; font-size:21px; line-height:1.5;
@@ -39,6 +97,7 @@
   }
   a{color:var(--blue); text-decoration:none}
   a:hover{text-decoration:underline}
+  a:focus-visible{outline:2px solid var(--blue); outline-offset:3px}
   .wrap{max-width:960px; margin:0 auto; padding:0 24px}
 
   header{
@@ -49,7 +108,7 @@
     border-bottom:1px solid var(--line);
   }
   header img{width:min(720px,88vw); height:auto; display:block; margin:0 auto}
-  .tag{margin-top:18px; font-size:26px; color:var(--text)}
+  .tag{margin-top:18px; font-size:26px; font-weight:normal; letter-spacing:0; color:var(--text)}
   .tag b{color:var(--blue); font-weight:normal}
   .early{
     display:inline-block; margin-top:22px; padding:5px 14px;
@@ -71,10 +130,8 @@
     letter-spacing:1px;
   }
   h2::before{content:"▎"; color:var(--blue); margin-right:8px}
+  h3{font-weight:normal}
   .lede{color:var(--dim); margin-bottom:26px; max-width:70ch}
-  /* the measure is scoped to SECTIONS.  As a bare p rule it also applied
-     inside the centred header and footer, where a fixed-width block with no
-     auto margins sits left however the text inside it is aligned. */
   p{margin-bottom:14px}
   section p{max-width:72ch}
   figure{margin:26px 0}
@@ -83,30 +140,89 @@
   .shots{display:grid; grid-template-columns:1fr 1fr; gap:18px}
   @media(max-width:720px){ .shots{grid-template-columns:1fr} }
 
+  /* The machine's own screen: what it prints, as it prints it.  A panel,
+     not a drawn monitor - the page already carries the scanlines. */
+  .screen{
+    background:#04070e; border:1px solid var(--line); padding:22px 26px;
+    color:var(--phosphor); font-size:21px; line-height:1.2; white-space:pre;
+    overflow-x:auto; margin:0; text-shadow:0 0 6px rgba(220,226,216,.28);
+  }
+  .screen .dim{color:var(--dim)}
+  .screen .cmd{color:#fff}
+  .cursor{display:inline-block; width:.6em; height:1em; background:var(--phosphor); vertical-align:-.15em;
+          animation:blink 1.06s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  @media(max-width:600px){ .screen{font-size:16px; padding:16px} }
+
   .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:22px}
   @media(max-width:860px){ .grid{grid-template-columns:1fr} }
   .card{border:1px solid var(--line); background:var(--panel); padding:18px 20px}
-  .card h3{font-size:23px; font-weight:normal; color:var(--blue); margin-bottom:8px}
+  .card h3{font-size:23px; color:var(--blue); margin-bottom:8px}
   .card p{font-size:20px; color:var(--dim); margin:0}
 
-  /* the download cards: a list of links, not prose, so they get their own
-     rules rather than inheriting .card p's dim colour */
-  .card.dl h3{color:#fff}
-  .dl ul{margin:0; list-style:none}
-  .dl li{margin:0 0 5px 0; font-size:20px}
-  .dl .arch{color:var(--dim)}
-  .dl .note{
-    display:block; margin-top:12px; padding-top:10px;
-    border-top:1px solid var(--line); color:var(--dim); font-size:18px;
-  }
+  .keys{display:grid; grid-template-columns:auto 1fr; gap:4px 18px; margin:6px 0 18px; max-width:72ch}
+  .keys b{color:#fff; font-weight:normal; white-space:nowrap}
+  .keys span{color:var(--dim)}
+
+  /* ---- the disks -----------------------------------------------------------
+     A download is a 3.5" diskette, label side up, at its real proportions -
+     90 wide by 94 tall: the metal shutter along the top with its head window
+     right of centre, the moulded arrow at the top-left, the chamfered corner
+     at the top-right, the write-protect hole at the bottom-left, and the
+     label over the lower two thirds with its colour band and ruled lines. */
+  .disks{display:grid; grid-template-columns:repeat(3,1fr); gap:28px; margin-top:22px}
+  @media(max-width:860px){ .disks{grid-template-columns:1fr; max-width:340px} }
+  .disk{aspect-ratio:90/94; position:relative; background:#2a2e38; border-radius:5px;
+        clip-path:polygon(0 0, 95% 0, 100% 5%, 100% 100%, 0 100%);
+        box-shadow:inset 0 1px 0 #454a57, inset 0 0 0 1px #12151c}
+  .disk .arrow{position:absolute; left:6%; top:5%; width:0; height:0;
+        border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:11px solid #454a57}
+  .disk .shutter{position:absolute; left:23%; top:0; width:62%; height:31%;
+        background:linear-gradient(180deg,#c3c6cc,#8f939b); border-radius:0 0 3px 3px;
+        box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
+  .disk .shutter::before{content:""; position:absolute; left:56%; top:14%; width:24%; height:74%;
+        background:#2a2e38; border-radius:2px; box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+  .disk .shutter::after{content:""; position:absolute; left:4%; top:38%; width:40%; height:2px;
+        background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 3px,transparent 3px 6px)}
+  .disk .wp{position:absolute; left:4%; bottom:3.5%; width:5.5%; height:5.5%; background:var(--bg); border-radius:1px;
+        box-shadow:inset 0 0 0 1px #000}
+  /* the label reaches almost to the bottom edge, a hair of shell showing
+     below it, and stays clear of the write-protect hole */
+  .disk .label{position:absolute; left:13%; right:13%; top:40%; bottom:2px; background:#f6f3ea;
+        color:#232220; border-radius:2px; overflow:hidden;
+        background-image:repeating-linear-gradient(180deg,transparent 0 27px,#d9d5c7 27px 28px);
+        background-position:0 34px; box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+  .disk .band{height:9%; background:var(--stripe)}
+  .disk .body{padding:8px 12px 0}
+  .disk .title{font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:#6a675c; line-height:20px}
+  .disk h3{font-size:28px; line-height:28px; margin:0; color:#232220}
+  .disk ul{list-style:none; margin:0}
+  .disk li{font-size:19px; line-height:28px; white-space:nowrap}
+  .disk li a{color:#1f3f9a}
+  .disk li .arch{color:#7a776b; font-size:16px; margin-left:8px}
+  .disk-note{font-size:18px; color:var(--dim); margin-top:12px; line-height:1.4}
+  .disk-note b{color:var(--text); font-weight:normal}
 
   pre{
     background:#04070e; border:1px solid var(--line); padding:16px 18px;
     overflow-x:auto; font-size:19px; color:#9fd4ff; margin:16px 0;
   }
+  code,pre{font-family:inherit}          /* the page's face, not the browser's monospace */
   code{color:#9fd4ff}
   ul{margin:0 0 14px 22px; max-width:72ch}
   li{margin-bottom:6px}
+
+  dl.glance{display:grid; grid-template-columns:max-content 1fr; gap:4px 22px; max-width:72ch}
+  dl.glance dt{color:var(--dim)}
+  dl.glance dd{margin:0}
+  .faq details{border-top:1px solid var(--line); padding:12px 0}
+  .faq details:last-child{border-bottom:1px solid var(--line)}
+  .faq summary{color:#fff; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:16px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+"; color:var(--blue)}
+  .faq details[open] summary::after{content:"-"}
+  .faq details p{margin:8px 0 0; color:var(--dim); max-width:72ch}
+
   footer{padding:40px 0 60px; color:var(--dim); font-size:19px; text-align:center}
   footer a{color:var(--dim)}
 </style>
@@ -115,8 +231,8 @@
 
 <header>
   <div class="wrap">
-    <img src="logo-page.png" alt="DOS ex Machina">
-    <p class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
+    <img src="https://dosexmachina.com/logo-page.png" alt="DOS ex Machina">
+    <h1 class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></h1>
     <div class="early">BETA — macOS, Windows and Linux; one game in the catalogue</div>
     <div class="cta">
       <a class="btn" href="#download">Download 0.4 Beta</a>
@@ -125,6 +241,43 @@
     </div>
   </div>
 </header>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <h2>Read me first</h2>
+    <p class="lede">What the machine says about itself, on its own disk. This is <code>C:\README.1ST</code>, as <code>TYPE</code> prints it.</p>
+<pre class="screen" aria-label="The machine's screen: the BIOS, the prompt, and README.1ST"><span class="dim">DXM BIOS v0.4.0  (C) 2026 DOS ex Machina
+
+Main Processor  : 80486DX2  66 MHz
+Memory Test     : 655360 KB   OK
+
+Fixed Disk 0    : WDC AC2540F  540 MB
+Floppy Disk A   : 1.44 MB, 3.5 in.
+
+Starting DXM-DOS...
+</span>
+<span class="cmd">C:\&gt;TYPE README.1ST</span>
+
+You remember this machine.  Maybe not this one exactly, but
+one like it: beige, warm, a little too loud, in a room that
+was yours or a friend's or a parent's.  You remember the fan
+starting, the drive grinding, the prompt coming up, and the
+moment when a game filled the screen and nothing else in the
+world mattered for an hour.
+
+This is about that.  Not the hardware - the feeling.
+
+So the games here are the real ones, running as they ran,
+behind glass that curves and glows the way it did.  The case
+has its scuffs.  The fan runs.  The drive seeks.
+
+Switch it on.  Stay a while.
+
+<span class="cmd">C:\&gt;</span><span class="cursor" aria-hidden="true"></span></pre>
+  </div>
+</section>
 
 <section>
   <div class="wrap">
@@ -140,8 +293,8 @@
     port of the original, which also ships as a standalone game in its own
     right. DXM is the optional machine you can put it inside.</p>
     <div class="shots">
-      <figure><img src="screenshot-prompt.jpg" alt="The DOS prompt on the simulated CRT"></figure>
-      <figure><img src="screenshot-game.jpg" alt="SkyRoads running in the tube"></figure>
+      <figure><img src="https://dosexmachina.com/screenshot-prompt.jpg" width="1200" height="675" alt="DOS ex Machina after boot: a procedurally drawn beige PC case with a CRT showing the DXM BIOS lines and a C:\ prompt"></figure>
+      <figure><img src="https://dosexmachina.com/screenshot-game.jpg" width="1200" height="675" alt="SkyRoads' title screen running inside the simulated CRT of DOS ex Machina"></figure>
     </div>
   </div>
 </section>
@@ -155,46 +308,51 @@
         <h3>The case</h3>
         <p>Drawn procedurally at your display's resolution from signed-distance
         geometry and a lighting model. Moulding partings, speaker pods, vent
-        cuts, ejector-pin marks, scuffs and yellowing — all computed.</p>
+        cuts, ejector-pin marks, scuffs and yellowing — all computed. A wider
+        screen gets more machine, never black bars.</p>
       </div>
       <div class="card">
         <h3>The tube</h3>
         <p>Phosphor persistence, barrel curvature, footprint-integrated
         scanlines, an aperture-grille mask, bloom, and coloured light spilling
-        from the picture onto the plastic around it.</p>
+        from the picture onto the plastic around it. Two real knobs under the
+        right speaker set brightness and contrast — grab one and turn it.</p>
       </div>
       <div class="card">
         <h3>The sound</h3>
         <p>Fan, hum and drive spindle synthesised at run time from measured
-        spectra. The mains switch, the degauss thump, a PC speaker POST beep.
-        Only the floppy drive sound is sampled.</p>
+        spectra. The mains switch, the degauss thump, the POST beep. Only the
+        floppy drive sound is sampled.</p>
       </div>
     </div>
-    <p style="margin-top:22px">The two knobs under the right speaker are
-    brightness and contrast — grab one with the mouse and turn it. F1 opens
-    the rest of the tube's controls. The machine holds the mouse; Ctrl+F10
-    gives it back to your desktop when you want it.</p>
   </div>
 </section>
 
-<section>
+<section id="games">
   <div class="wrap">
     <h2>Getting a game</h2>
     <p class="lede">Type NC. Press Enter. That is the whole of it.</p>
     <figure>
-      <img src="screenshot-nc.jpg" alt="The navigator listing a game available to download">
-      <figcaption>The navigator — what is installed, what could be, and when you last played it</figcaption>
+      <img src="https://dosexmachina.com/screenshot-nc.jpg" width="1200" height="675" alt="The NC navigator inside the CRT: a table listing SkyRoads with its version and last-played date, and the game's artwork and description in the right pane" loading="lazy">
+      <figcaption>The navigator — what is on the disk, what could be, and when you last played it</figcaption>
     </figure>
+    <div class="keys">
+      <b>ENTER</b><span>play the game, or download it if it isn't on the disk yet</span>
+      <b>F2 · F3 · F4</b><span>delete it, reset it, update it when a newer release is on offer</span>
+      <b>TAB</b><span>move to the description and scroll it</span>
+      <b>Ctrl+F10</b><span>give the mouse to your desktop, or take it back</span>
+    </div>
     <p>DXM ships with no games and links none. The catalogue is fetched at run
     time and cached, so adding a title is an edit to a JSON file rather than a
     new release — and a machine that has been online once keeps working
-    offline afterwards. The navigator's keys are on its bottom row: F2
-    deletes a game, F3 resets it, F4 updates it when a newer release is on
-    offer, F1 explains the rest.</p>
+    offline afterwards.</p>
     <p>An install fetches the game's module and its data, checks both against
-    a SHA-256, and unpacks them into your preferences directory. After that it
+    a SHA-256, and keeps them in your preferences directory. After that it
     runs with no network, forever. Game data is never mirrored: for freeware
-    titles the catalogue points at the publisher's own download.</p>
+    titles the catalogue points at the publisher's own download. Each game
+    also ships as a standalone program in its own right —
+    <a href="https://github.com/pedrocatalao/skyroads-sdl">SkyRoads</a> runs
+    perfectly well on its own.</p>
   </div>
 </section>
 
@@ -202,73 +360,96 @@
   <div class="wrap">
     <h2>Download</h2>
     <p class="lede">0.4 Beta — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
-    <div class="grid">
+    <div class="disks">
 
-      <div class="card dl">
-        <h3>macOS</h3>
-        <ul>
-          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-macos-universal.zip">DOS ex Machina.app</a>
-              <span class="arch">— universal</span></li>
-        </ul>
-        <span class="note">Drag it to Applications. It is signed ad-hoc but
-        not notarised, so the first launch needs <b>right-click &rarr;
-        Open</b>. macOS 11 or newer.</span>
+      <div>
+        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled macOS">
+          <div class="arrow"></div>
+          <div class="shutter"></div>
+          <div class="wp"></div>
+          <div class="label">
+            <div class="band"></div>
+            <div class="body">
+              <div class="title">DOS ex Machina · disk 1</div>
+              <h3>macOS</h3>
+              <ul>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-macos-universal.zip">DOS ex Machina.app</a><span class="arch">universal</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p class="disk-note">Drag it to Applications. Signed ad-hoc, not
+        notarised, so the first launch is <b>right-click → Open</b>. macOS 11
+        or newer.</p>
       </div>
 
-      <div class="card dl">
-        <h3>Linux</h3>
-        <ul>
-          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-linux-x86_64.tar.gz">Tarball</a>
-              <span class="arch">— x86_64</span></li>
-          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-linux-arm64.tar.gz">Tarball</a>
-              <span class="arch">— arm64</span></li>
-        </ul>
-        <span class="note">Unpack and run <code>./dxm</code>. SDL3 travels
+      <div>
+        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled Linux">
+          <div class="arrow"></div>
+          <div class="shutter"></div>
+          <div class="wp"></div>
+          <div class="label">
+            <div class="band"></div>
+            <div class="body">
+              <div class="title">DOS ex Machina · disk 2</div>
+              <h3>Linux</h3>
+              <ul>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-linux-x86_64.tar.gz">Tarball</a><span class="arch">x86_64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-linux-arm64.tar.gz">Tarball</a><span class="arch">arm64</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p class="disk-note">Unpack and run <code>./dxm</code>; SDL3 travels
         with it. <code>./install.sh</code> adds a menu entry under
-        <code>~/.local</code> — no root, and it leaves your PATH alone.
-        glibc 2.35 or newer.</span>
+        <code>~/.local</code> — no root, and it leaves your PATH alone. glibc
+        2.35 or newer.</p>
       </div>
 
-      <div class="card dl">
-        <h3>Windows</h3>
-        <ul>
-          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-windows-x86_64.zip">Zip</a>
-              <span class="arch">— x86_64</span></li>
-          <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-windows-arm64.zip">Zip</a>
-              <span class="arch">— arm64</span></li>
-        </ul>
-        <span class="note">Unpack and run <code>dxm.exe</code>. It is
-        unsigned, so SmartScreen interposes once: <b>More info &rarr; Run
-        anyway</b>.</span>
+      <div>
+        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled Windows">
+          <div class="arrow"></div>
+          <div class="shutter"></div>
+          <div class="wp"></div>
+          <div class="label">
+            <div class="band"></div>
+            <div class="body">
+              <div class="title">DOS ex Machina · disk 3</div>
+              <h3>Windows</h3>
+              <ul>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-windows-x86_64.zip">Zip</a><span class="arch">x86_64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/v0.4-beta/dxm-windows-arm64.zip">Zip</a><span class="arch">arm64</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <p class="disk-note">Unpack and run <code>dxm.exe</code>. Unsigned, so
+        SmartScreen interposes once: <b>More info → Run anyway</b>.</p>
       </div>
 
     </div>
-    <p>Every build needs an <strong>OpenGL 3.3 core</strong> context, which
-    most virtual machines cannot provide. All three platforms are verified on
-    real hardware on x86_64; the arm64 builds compile and package but have not
-    yet been watched drawing a frame. Each run writes a <code>dxm.log</code>
-    in the preferences directory that says how far it got and which GL driver
-    it found. See <a href="https://github.com/pedrocatalao/dos-ex-machina/releases/tag/v0.4-beta">the
-    release notes</a>.</p>
-    <p>Older builds and the full notes are on the
-    <a href="https://github.com/pedrocatalao/dos-ex-machina/releases">releases page</a>.</p>
+    <p style="margin-top:28px">Every build needs a graphics driver with
+    <strong>OpenGL 3.3</strong>, which any computer of the last decade has.
+    All three platforms are verified on real hardware on x86_64; the arm64
+    builds compile and package but have not yet been watched drawing a frame.
+    Every run writes a <code>dxm.log</code> in the preferences directory that
+    says how far it got and which GL driver it found. Release notes and older
+    builds are on
+    <a href="https://github.com/pedrocatalao/dos-ex-machina/releases">the releases page</a>.</p>
   </div>
 </section>
 
 <section id="build">
   <div class="wrap">
     <h2>Build it</h2>
-    <p class="lede">Needs SDL3, libcurl and zlib, and an OpenGL 3.3 core context. No game checkout required.</p>
+    <p class="lede">Needs SDL3, libcurl and zlib. No game checkout required.</p>
 <pre>git clone https://github.com/pedrocatalao/dos-ex-machina
 cd dos-ex-machina
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ./build/dxm</pre>
-    <p>Then <code>NC</code> at the prompt, and Enter on a game.</p>
-    <p><strong>macOS, Linux and Windows</strong>, on x86_64 and arm64, all
-    built by CI, and all three verified end to end on real hardware.</p>
-    <p>That is the one hard requirement: <strong>OpenGL 3.3 core</strong>.
-    Most virtual machines cannot provide it.</p>
+    <p>Then <code>NC</code> at the prompt, and Enter on a game. macOS, Linux
+    and Windows, on x86_64 and arm64, all built by CI.</p>
   </div>
 </section>
 
@@ -293,6 +474,58 @@ cmake --build build -j8
     covers the machine itself.</p>
   </div>
 </section>
+
+<section id="glance">
+  <div class="wrap">
+    <h2>At a glance</h2>
+    <dl class="glance">
+      <dt>Name</dt><dd>DOS ex Machina (DXM)</dd>
+      <dt>What</dt><dd>A procedurally drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games</dd>
+      <dt>Version</dt><dd>0.4 Beta</dd>
+      <dt>Platforms</dt><dd>macOS 11+ (universal), Windows 10+ (x86_64, arm64), Linux with glibc 2.35+ (x86_64, arm64)</dd>
+      <dt>Requires</dt><dd>OpenGL 3.3 core</dd>
+      <dt>Games</dt><dd>SkyRoads (BlueMoon Software, 1993); more through the catalogue</dd>
+      <dt>Emulation</dt><dd>None — native C ports, loaded as modules</dd>
+      <dt>License</dt><dd>MIT; no game code or data in the repository</dd>
+      <dt>Source</dt><dd><a href="https://github.com/pedrocatalao/dos-ex-machina">github.com/pedrocatalao/dos-ex-machina</a></dd>
+    </dl>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <details>
+      <summary>Is DOS ex Machina an emulator?</summary>
+      <p>No. The games are native C ports of the original programs, compiled
+      for your computer and loaded as modules. The DOS prompt is a fiction and
+      the CRT is a rendering pipeline; nothing is emulated.</p>
+    </details>
+    <details>
+      <summary>Which games can it run?</summary>
+      <p>Games arrive as <code>.dxm</code> modules through a catalogue the
+      machine fetches at run time. As of 0.4 Beta the catalogue holds SkyRoads.
+      Any DOS game with a native port that follows PORTING.md can be added by
+      editing the catalogue, without a new release of DXM.</p>
+    </details>
+    <details>
+      <summary>Why does my computer warn me the first time I run it?</summary>
+      <p>The downloads are not code-signed yet: macOS asks for right-click →
+      Open on the first launch, and Windows SmartScreen wants More info → Run
+      anyway. Nothing is installed; unpack the download and run it.</p>
+    </details>
+    <details>
+      <summary>Where do the games and settings live?</summary>
+      <p>In your preferences directory: <code>~/Library/Application Support/DOSexMachina/dxm/</code>
+      on macOS, <code>~/.local/share/DOSexMachina/dxm/</code> on Linux,
+      <code>%APPDATA%\DOSexMachina\dxm\</code> on Windows. Games go under
+      <code>games/</code>, the CRT settings in <code>crt.cfg</code>, and each
+      run's <code>dxm.log</code> beside them.</p>
+    </details>
+  </div>
+</section>
+
+</main>
 
 <footer>
   <div class="wrap">
