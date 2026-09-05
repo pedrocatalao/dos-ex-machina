@@ -2,6 +2,10 @@
  * The prompt is the UI: there is no other way to reach anything. */
 #include "dos.h"
 #include "disk.h"
+/* the DOS is the machine: its version is the release's */
+#ifndef DXM_VERSION
+#  define DXM_VERSION "dev"
+#endif
 #include <SDL3/SDL.h>      /* SDL_TimeToDateTime, for the table's dates */
 #include "font.h"
 #include "library.h"
@@ -106,7 +110,7 @@ static void prompt(void){
 }
 
 static const char *BOOT[] = {
-  "DXM BIOS v1.0  (C) 2026 DOS ex Machina",
+  "DXM BIOS v" DXM_VERSION " (C) 2026 DOS ex Machina",
   "",
   "Main Processor  : 80486DX2  66 MHz",
   "Memory Test     : ",          /* counted live, see dos_update */
@@ -890,7 +894,7 @@ static void run(char *s){
                                memset(att,0x07,sizeof att);
                                cur_att=0x07; cur_r=cur_c=0; return; }
     else if(!strcmp(s,"HELP")) cmd_help();
-    else if(!strcmp(s,"VER"))  sayln("DXM-DOS Version 1.0  (C) 2026");
+    else if(!strcmp(s,"VER"))  sayln("DXM-DOS Version " DXM_VERSION " (C) 2026");
     else if(!strcmp(s,"TYPE")){
         static char buf[8192];
         if(!arg||!*arg) sayln("Required parameter missing");
