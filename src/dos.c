@@ -225,6 +225,17 @@ static int nc_dtop;        /* first description line on screen   */
 enum { DLG_NONE=0, DLG_HELP, DLG_DELETE, DLG_RESET, DLG_UPDATE, DLG_NOTE };
 static int  nc_dlg;
 static char nc_note[2][64];             /* what DLG_NOTE has to say */
+static int    nc_flash;                 /* key-bar slot lit by a press, 1..10 */
+static double nc_flash_until;
+/* the acknowledgement: the slot lights for a moment, and if the key had
+ * nothing to do the panel says why - a press that changes nothing on
+ * screen is a press the user cannot tell from a key that does not work */
+static void nc_flash_key(int slot){ nc_flash=slot; nc_flash_until=now_t+0.18; }
+static void nc_say(const char *l1,const char *l2){
+    snprintf(nc_note[0],sizeof nc_note[0],"%s",l1);
+    snprintf(nc_note[1],sizeof nc_note[1],"%s",l2?l2:"");
+    nc_dlg=DLG_NOTE;
+}
 int dos_nc_open(void){ return nc_open; }
 
 /* panel geometry, in cells */
@@ -490,17 +501,17 @@ static void nc_draw(void){
         "      ","      ","      ","      ","Quit  " };
     for(int k=0;k<10;k++){
         char num[3]; snprintf(num,sizeof num,"%2d",k+1);
-        nputs(24,k*8,num,A_BARN);
-        nputs(24,k*8+2,KEYS[k],A_BAR);
+        int lit=(nc_flash==k+1);
+        nputs(24,k*8,num,lit?A_BAR:A_BARN);
+        nputs(24,k*8+2,KEYS[k],lit?A_NAME:A_BAR);
     }
 
     /* ---- whatever is asking a question sits on top of it all ---- */
     if(nc_dlg==DLG_HELP){
         static const char *const L[]={
             "ENTER      play the game, or download it",
-            "ARROWS     move between games",
-            "TAB        switch panels; arrows then scroll",
-            "           the description",
+            "ARROWS     move/scroll up and down",
+            "TAB        switch panels (left/right)",
             "F2         delete the game from this machine",
             "F3         reset saved games and settings",
             "F4         update it to the release on offer",
@@ -662,24 +673,29 @@ static void nc_key(int ch,int sc){
         nc_draw();
         return;
     }
-    if(sc==SC_F1){ nc_dlg=DLG_HELP; nc_draw(); return; }
+    if(sc==SC_F1){ nc_flash_key(1); nc_dlg=DLG_HELP; nc_draw(); return; }
+    if(sc==SC_F2 || sc==SC_F3 || sc==SC_F4){
+        nc_flash_key(sc==SC_F2?2:sc==SC_F3?3:4);
+        const nc_entry *e=nc_n?&nc_rows[nc_sel]:NULL;
+        inst_status is; install_poll(&is);
+        char l1[64];
+        if(!e)                       nc_say("There is nothing here to act on.",NULL);
+        else if(is.state==INST_RUNNING) nc_say("A download is running.","Wait for it to finish.");
+        else if(!e->installed){
+            snprintf(l1,sizeof l1,"%s is not installed.",e->title);
+            nc_say(l1,"ENTER downloads it.");
+        }
+        else if(sc==SC_F4 && !e->update){
+            snprintf(l1,sizeof l1,"%s is already up to date.",e->title);
+            nc_say(l1,e->version?e->version:NULL);
+        }
+        else nc_dlg=(sc==SC_F2)?DLG_DELETE:(sc==SC_F3)?DLG_RESET:DLG_UPDATE;
+        nc_draw();
+        return;
+    }
     /* F10 and Esc both leave the panel, back to the prompt */
+    if(sc==DXM_SC_F10) nc_flash_key(10);
     if(sc==DXM_SC_ESC || ch==27 || sc==DXM_SC_F10){
-    if(sc==SC_F4){
-        if(nc_n && nc_rows[nc_sel].update){
-            inst_status is; install_poll(&is);
-            if(is.state!=INST_RUNNING){ nc_dlg=DLG_UPDATE; nc_draw(); }
-        }
-        return;
-    }
-    if(sc==SC_F2 || sc==SC_F3){
-        /* only for something that is actually on the machine */
-        if(nc_n && nc_rows[nc_sel].installed){
-            inst_status is; install_poll(&is);
-            if(is.state!=INST_RUNNING){ nc_dlg=(sc==SC_F2)?DLG_DELETE:DLG_RESET; nc_draw(); }
-        }
-        return;
-    }
         nc_open=0;
         memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
         cur_att=0x07; cur_r=cur_c=0; prompt();
@@ -878,6 +894,7 @@ static void mem_draw(long kb){
 dos_state dos_update(double t){
     now_t=t;
     if(nc_open){
+        if(nc_flash && t>=nc_flash_until){ nc_flash=0; nc_draw(); }
         /* A fresh catalogue, or a finished install, changes what the panel
          * should say - and a running one changes it every frame. */
         /* The catalogue is fetched on a thread, so it arrives AFTER the panel
