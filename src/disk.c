@@ -21,8 +21,9 @@ static const char AUTOEXEC[] =
     "SET BLASTER=A220 I5 D1 T4\r\n"
     "SET TEMP=C:\\TEMP\r\n"
     "LH C:\\DOS\\MOUSE.COM\r\n"
-    "ECHO.\r\n"
-    "ECHO Type NC to browse the games, or TYPE README.1ST ^| MORE for help.\r\n";
+    "ECHO TYPE README.1ST ^| MORE for help.\r\n"
+    "ECHO If you know, you know.\r\n"
+    "ECHO.\r\n";
 static const char CONFIGSYS[] =
     "DEVICE=C:\\DOS\\HIMEM.SYS\r\n"
     "DEVICE=C:\\DOS\\EMM386.EXE NOEMS\r\n"

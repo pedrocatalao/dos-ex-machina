@@ -190,7 +190,8 @@ int main(int argc,char **argv){
         return 1;
     }
     SDL_GL_SetSwapInterval(1);
-    SDL_HideCursor();                       /* no OS chrome, ever (SPEC §2.1) */
+    /* the pointer stays the operating system's until something captures
+     * it: a game, or Ctrl+F10 */
     /* Typed characters come from SDL's text input, not from key-down: the
      * keycode of Shift+2 is still '2', and only the text event knows what
      * the keyboard layout made of it.  Control keys stay on key-down. */
@@ -353,7 +354,6 @@ int main(int argc,char **argv){
     int captured=0, knob_drag=-1;
     float knob_y0=0.0f, knob_v0=0.0f;
     float last_b=-1.0f, last_c=-1.0f;     /* what the knobs currently show */
-    double mouse_moved=-10.0;             /* when the mouse last moved */
     while(!quit){
         SDL_Event e;
         while(SDL_PollEvent(&e)){
@@ -373,7 +373,6 @@ int main(int argc,char **argv){
             }
             else if(e.type==SDL_EVENT_MOUSE_MOTION){
                 float mx=e.motion.x*W/win_wf, my=e.motion.y*H/win_hf;
-                mouse_moved=(SDL_GetTicksNS()-t_start)/1e9;
                 if(knob_drag>=0){
                     /* up is more: a third of the screen's height is the
                      * knob's whole travel, so a turn is a wrist, not an arm */
@@ -622,15 +621,11 @@ int main(int argc,char **argv){
                       gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
         }
 
-          /* The arrow is shown while the mouse belongs to the machine and
-           * is being moved - you have to be able to see where it is to
-           * reach a knob - and goes away after a couple of seconds still,
-           * so the case is not wearing a pointer.  Never while the game
-           * has it.  The panel and a grabbed knob keep it up regardless. */
-          int moving = (t-mouse_moved) < 2.0;
-          if(ui_visible() || knob_drag>=0 || (!captured && moving))
-              SDL_ShowCursor();
-          else SDL_HideCursor(); }
+          /* The mouse belongs to the operating system unless it has been
+           * captured: the arrow is simply there, as on any window, and
+           * goes only when a game or Ctrl+F10 takes the mouse. */
+          if(captured && !ui_visible()) SDL_HideCursor();
+          else SDL_ShowCursor(); }
         SDL_GL_SwapWindow(win);
         frame++;
         if(frame==1) dxm_log("first machine frame on screen");
