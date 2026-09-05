@@ -55,6 +55,44 @@ static void put(char ch){
 }
 static void say(const char *s){ while(*s) put(*s++); }
 static void sayln(const char *s){ say(s); put('\n'); }
+
+/* MORE.  A command whose output is piped to it goes into a buffer instead
+ * of the screen, and comes out a screenful at a time: 23 lines, then
+ * "-- More --" and a wait for a key.  Any key continues, Esc or Q stops.
+ * Exactly what DOS did, which is why it is the answer to a file longer
+ * than the screen rather than a scrollback the machine never had. */
+static int  page_want, page_on;
+static char page_buf[16384]; static size_t page_len;
+static const char *page_pos;
+static void oline(const char *s){
+    if(!page_want){ sayln(s); return; }
+    size_t l=strlen(s);
+    if(page_len+l+1>=sizeof page_buf) return;
+    memcpy(page_buf+page_len,s,l); page_len+=l; page_buf[page_len++]='\n';
+    page_buf[page_len]=0;
+}
+static void prompt(void);
+static void page_show(void){
+    int rows=0;
+    while(*page_pos && rows<23){
+        const char *e=strchr(page_pos,'\n');
+        char ln[256]; size_t l=e?(size_t)(e-page_pos):strlen(page_pos);
+        if(l>=sizeof ln) l=sizeof ln-1;
+        memcpy(ln,page_pos,l); ln[l]=0; sayln(ln);
+        page_pos=e?e+1:page_pos+l; rows++;
+    }
+    if(*page_pos) say("-- More --");
+    else { page_on=0; prompt(); }
+}
+static void page_begin(void){
+    page_want=0;
+    if(!page_len){ return; }
+    page_pos=page_buf; page_on=1; page_show();
+}
+static void page_key(int ch){
+    if(ch==27||ch=='q'||ch=='Q'||ch==3){ page_on=0; put('\n'); prompt(); return; }
+    put('\n'); page_show();
+}
 /* The machine has one subdirectory that matters: games install into
  * C:\GAMES, and running one from the prompt means going there first, the
  * way it would have.  NC reaches them wherever you are - it is a program
@@ -362,7 +400,12 @@ static void nc_draw(void){
         /* What is NOT on the disk is marked after its name, where a
          * listing puts a file's attributes; its version is the one on
          * offer, and it has never been played here. */
-        nputs(y,NC_LX+NC_C_NAME+1,e->file,a);
+        /* the name as DIR would show it: upper case, the way the disk
+         * holds it */
+        { char up[16]; int k=0;
+          for(;e->file[k] && k<15;k++) up[k]=(char)toupper((unsigned char)e->file[k]);
+          up[k]=0;
+          nputs(y,NC_LX+NC_C_NAME+1,up,a); }
         if(e->version){
             nputs(y,NC_LX+NC_C_VER,e->version,a);
             /* a newer release on offer: the mark points up, the way the
@@ -802,15 +845,17 @@ static void cmd_dir(void){
     sayln("                      536,870,912 bytes free");
 }
 static void cmd_help(void){
-    sayln("DXM-DOS command reference");
-    put('\n');
-    sayln("DIR        List the files on this machine.");
-    sayln("CLS        Clear the screen.");
-    sayln("VER        Show the DOS version.");
-    sayln("TYPE file  Display a text file.  Try TYPE README.1ST.");
-    sayln("CD dir     Change directory.  The games are in C:\\GAMES.");
-    sayln("NC         Browse the games in a dual-pane navigator.");
-    sayln("EXIT       Switch the machine off.");
+    oline("DXM-DOS command reference");
+    oline("");
+    oline("DIR        List the files on this machine.");
+    oline("CLS        Clear the screen.");
+    oline("VER        Show the DOS version.");
+    oline("TYPE file  Display a text file.  Try TYPE README.1ST | MORE.");
+    oline("MORE file  Display a text file a screen at a time.  Any");
+    oline("           command's output can be piped: TYPE file | MORE.");
+    oline("CD dir     Change directory.  The games are in C:\\GAMES.");
+    oline("NC         Browse the games in a dual-pane navigator.");
+    oline("EXIT       Switch the machine off.");
 }
 static void run(char *s){
     while(*s==' ') s++;
@@ -821,6 +866,17 @@ static void run(char *s){
     if(s[0]=='C'&&s[1]=='D'&&(s[2]=='.'||s[2]=='\\'||s[2]=='/')){
         memmove(s+3,s+2,strlen(s+2)+1);
         s[2]=' ';
+    }
+    /* "| MORE" at the end of anything: the output is paged */
+    page_want=0; page_len=0; page_buf[0]=0;
+    { char *bar=strchr(s,'|');
+      if(bar){ char *m=bar+1; while(*m==' ') m++;
+               if(!strncmp(m,"MORE",4)) page_want=1;
+               *bar=0; while(bar>s && bar[-1]==' ') *--bar=0; } }
+    /* MORE file, and MORE < file, are TYPE file | MORE */
+    if(!strncmp(s,"MORE",4) && (s[4]==' '||s[4]==0)){
+        memmove(s,"TYPE",4); page_want=1;
+        char *lt=strchr(s,'<'); if(lt) *lt=' ';
     }
     char *sp=strchr(s,' '); char *arg=NULL;
     if(sp){ *sp=0; arg=sp+1; while(*arg==' ') arg++; }
@@ -846,7 +902,7 @@ static void run(char *s){
                 for(char *p=buf;*p;){
                     char *e=strpbrk(p,"\r\n"); size_t len=e?(size_t)(e-p):strlen(p);
                     char line[256]; if(len>=sizeof line) len=sizeof line-1;
-                    memcpy(line,p,len); line[len]=0; sayln(line);
+                    memcpy(line,p,len); line[len]=0; oline(line);
                     p=e?e+1:p+len; if(e && *e=='\r' && *p=='\n') p++;
                 }
             }
@@ -891,14 +947,16 @@ static void run(char *s){
 void dos_key(int ch,int sc){
     if(st!=DOS_PROMPT){ if(st==DOS_BOOT) next_boot=0; return; }
     if(nc_open){ nc_key(ch,sc); return; }
+    if(page_on){ if(ch||sc==DXM_SC_ESC) page_key(sc==DXM_SC_ESC?27:ch); return; }
     if(ch=='\r'||ch=='\n'){
         put('\n'); line[line_n]=0;
         char tmp[128]; memcpy(tmp,line,sizeof tmp);
         line_n=0; run(tmp);
+        if(page_want) page_begin();
         /* NC owns the whole screen once it opens, so the prompt must not be
          * printed over it - the cursor is wherever the command line left it,
-         * and nc_draw does not move it. */
-        if(st==DOS_PROMPT && !nc_open) prompt();
+         * and nc_draw does not move it.  Nor while MORE is waiting. */
+        if(st==DOS_PROMPT && !nc_open && !page_on) prompt();
         return;
     }
     if(ch=='\b'){ if(line_n){ line_n--; if(cur_c>prompt_len) cur_c--; scr[cur_r][cur_c]=' '; } return; }

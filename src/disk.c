@@ -22,7 +22,7 @@ static const char AUTOEXEC[] =
     "SET TEMP=C:\\TEMP\r\n"
     "LH C:\\DOS\\MOUSE.COM\r\n"
     "ECHO.\r\n"
-    "ECHO Type NC to browse the games, or TYPE README.1ST for help.\r\n";
+    "ECHO Type NC to browse the games, or TYPE README.1ST ^| MORE for help.\r\n";
 static const char CONFIGSYS[] =
     "DEVICE=C:\\DOS\\HIMEM.SYS\r\n"
     "DEVICE=C:\\DOS\\EMM386.EXE NOEMS\r\n"
@@ -32,28 +32,46 @@ static const char CONFIGSYS[] =
     "STACKS=9,256\r\n"
     "SHELL=C:\\COMMAND.COM C:\\ /P\r\n";
 static const char README1ST[] =
-    "DOS ex Machina - a 1993 PC that only runs games.\r\n"
+    "                    DOS EX MACHINA\r\n"
+    "                    READ ME FIRST\r\n"
     "\r\n"
-    "NC          Browse the games.  ENTER plays one, or downloads it\r\n"
-    "            if it is not here yet.  F1 in NC lists its keys.\r\n"
-    "CD GAMES    The games live in C:\\GAMES; type a game's name to\r\n"
-    "            run it from there.\r\n"
-    "DIR, TYPE   Look around.  This disk is real: you can open its\r\n"
-    "            files in an editor.  A seed file you delete is put\r\n"
-    "            back at the next start.\r\n"
-    "EXIT        Switch the machine off.\r\n"
+    "You remember this machine.  Maybe not this one exactly, but\r\n"
+    "one like it: beige, warm, a little too loud, in a room that\r\n"
+    "was yours or a friend\'s or a parent\'s.  You remember the fan\r\n"
+    "starting, the drive grinding, the prompt coming up, and the\r\n"
+    "moment when a game filled the screen and nothing else in the\r\n"
+    "world mattered for an hour.\r\n"
     "\r\n"
-    "The brightness and contrast knobs are under the right speaker.\r\n"
-    "F1 at the prompt opens the CRT panel.  Ctrl+F10 hands the mouse\r\n"
-    "to the game, or takes it back.\r\n";
+    "This is about that.  Not the hardware. The feeling.\r\n"
+    "\r\n"
+    "So the games here are the real ones, running as they ran,\r\n"
+    "behind glass that curves and glows the way it did.  The case\r\n"
+    "has its scuffs.  The fan runs.  The drive seeks.  It was built\r\n"
+    "by hand, with care, by someone who was there, for anyone who\r\n"
+    "was too, and for anyone who wasn\'t, and wonders how it was.\r\n"
+    "\r\n"
+    "Switch it on.  Stay a while.\r\n"
+    "\r\n"
+    "                      -------------\r\n"
+    "\r\n"
+    "Type NC to see the games.  ENTER plays one, or fetches it if\r\n"
+    "it is not on the disk yet.\r\n"
+    "\r\n"
+    "Type HELP for the command reference.\r\n"
+    "\r\n"
+    "The knobs under the right speaker adjust the picture.  F1 at the\r\n"
+    "prompt opens the rest of the controls.  EXIT switches off.\r\n";
 
-typedef struct { const char *name; const char *text; int stub_size; } seed;
+/* `ours`: rewritten at every start, because it is DXM's text and should
+ * say what the current build says.  The others are the user's once they
+ * exist, and are only put back if they go missing. */
+typedef struct { const char *name; const char *text; int stub_size; int ours; } seed;
 static const seed SEEDS[] = {
-    { "COMMAND.COM",  NULL,      54645 },
-    { "AUTOEXEC.BAT", AUTOEXEC,  0 },
-    { "CONFIG.SYS",   CONFIGSYS, 0 },
-    { "README.1ST",   README1ST, 0 },
-    { "NC.EXE",       NULL,      41272 },
+    { "COMMAND.COM",  NULL,      54645, 0 },
+    { "AUTOEXEC.BAT", AUTOEXEC,  0,     0 },
+    { "CONFIG.SYS",   CONFIGSYS, 0,     0 },
+    { "README.1ST",   README1ST, 0,     1 },
+    { "NC.EXE",       NULL,      41272, 0 },
 };
 #define NSEEDS ((int)(sizeof SEEDS/sizeof SEEDS[0]))
 
@@ -81,7 +99,7 @@ void disk_init(void){
     for(int i=0;i<NSEEDS;i++){
         char path[LIB_PATH];
         snprintf(path,sizeof path,"%s%s",root,SEEDS[i].name);
-        if(!exists(path)) write_seed(&SEEDS[i]);
+        if(SEEDS[i].ours || !exists(path)) write_seed(&SEEDS[i]);
     }
 }
 
@@ -180,7 +198,10 @@ int disk_autoexec_echo(char (*lines)[80],int max){
             if(*txt=='.') txt++;                       /* ECHO. is a blank line */
             else { while(*txt==' ') txt++;
                    if(!SDL_strcasecmp(txt,"OFF")||!SDL_strcasecmp(txt,"ON")){ goto next; } }
-            snprintf(lines[n++],80,"%s",txt);
+            /* the batch escape: ECHO ^| prints a bare | */
+            { char *o=lines[n]; int k=0;
+              for(const char *q2=txt; *q2 && k<79; q2++){ if(*q2=='^' && q2[1]){ q2++; } o[k++]=*q2; }
+              o[k]=0; n++; }
         }
         next:
         p=e?e+1:p+len; if(e && *e=='\r' && *p=='\n') p++;
