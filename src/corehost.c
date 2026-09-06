@@ -167,6 +167,13 @@ void corehost_stop(void) {
     core.running = 0;
     core.front = -1;
     core.quit_req = 0;
+    /* An audio callback that entered f_audio before running dropped is
+     * still inside the module; take the mutex it holds so the caller can
+     * unload the module knowing nothing is executing in it. */
+    if (core.mu) {
+        SDL_LockMutex(core.mu);
+        SDL_UnlockMutex(core.mu);
+    }
 }
 int corehost_running(void) {
     return core.running;

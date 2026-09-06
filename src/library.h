@@ -41,9 +41,11 @@ int lib_count(void);
 const lib_game *lib_at(int i);
 const lib_game *lib_find(const char *id); /* case-insensitive */
 
-/* The module for a game, opened on first use and kept open afterwards.
- * Reopening between runs would mean relying on dlclose actually unloading,
- * which is not something the platforms agree on. */
+/* The module for a game, opened on first use and kept open until
+ * lib_unload().  The main loop unloads after every run so a game starts
+ * from fresh globals (PORTING.md 3.2); where dlclose does not actually
+ * unload, the reopen hands back the same image and the game merely keeps
+ * the state its last run left - no worse than not reopening at all. */
 const dxm_module *lib_module(const lib_game *g);
 
 /* <pref>games/<id>, created if missing - where an install writes. */

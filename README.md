@@ -172,7 +172,8 @@ it relaunches. Windows and Linux are verified on x86_64; the arm64 builds
 compile and package on CI but have not yet been watched drawing a frame, and
 neither has the Intel half of the macOS universal binary. `--selftest` runs
 the launch/unwind/relaunch sequence twice, and is what proves PORTING §3.1
-and §3.2 hold.
+and §3.2 hold: the core unwinds on request, and the machine reloads it and
+runs it again.
 
 Every run writes `dxm.log` to the preferences directory — Windows
 `%APPDATA%\DOSexMachina\dxm\`, Linux `~/.local/share/DOSexMachina/dxm/`,
