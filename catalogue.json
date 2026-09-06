@@ -1,6 +1,6 @@
 {
   "catalogue": 1,
-  "updated": "2026-09-02",
+  "updated": "2026-09-06",
 
   "_comment": [
     "The list of games DOS ex Machina can install. Fetched at run time, so",
@@ -87,6 +87,56 @@
         "format": "zip",
         "probe": "roads.lzs",
         "note": "Bluemoon's own freeware release. Downloaded from them, never mirrored here."
+      }
+    },
+    {
+      "id": "tyrian",
+      "title": "Tyrian",
+      "by": "Eclipse Productions / Epic MegaGames",
+      "year": 1995,
+      "version": "1.0",
+      "abi": 2,
+      "desc": [
+        "Fly Trent Hawkins against MicroSol across four episodes.",
+        "Buy the ship, bolt on the guns, keep the sidekicks alive.",
+        "The screen fills up faster than you can."
+      ],
+      "source": "https://github.com/pedrocatalao/tyrian-sdl",
+      "module": {
+        "macos-universal": {
+          "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-macos-universal.dxm",
+          "sha256": "21adfd2f8d66526f193b70f1e9c62444b215c2603bebe00361bafb73e6f0279d",
+          "size": 840144
+        },
+        "linux-x86_64": {
+          "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-linux-x86_64.dxm",
+          "sha256": "97005dd2bc5ad3aea052dda1aae6f73b03b5ec5c2c543eedc913c2a15094f402",
+          "size": 440912
+        },
+        "linux-arm64": {
+          "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-linux-arm64.dxm",
+          "sha256": "9a1a21e1d69cb1d39dfc9f6ca6c1118efddd35a56e6443e5d5e5f2be3628be06",
+          "size": 447248
+        },
+        "windows-x86_64": {
+          "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-windows-x86_64.dxm",
+          "sha256": "6d750763a392abffc0300bd4916562e5ef5ffba61b127a07e144247584371609",
+          "size": 595869
+        },
+        "windows-arm64": {
+          "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-windows-arm64.dxm",
+          "sha256": "b3ded20108ed9e635a38210dfc3e38ac08c293da41ffe07c5ad80600c8da2300",
+          "size": 466944
+        }
+      },
+      "data": {
+        "kind": "freeware",
+        "url": "https://camanis.net/tyrian/tyrian21.zip",
+        "sha256": "7790d09a2a3addcd33c66ef063d5900eb81cc9c342f4807eb8356364dd1d9277",
+        "size": 4754048,
+        "format": "zip",
+        "probe": "tyrian1.lvl",
+        "note": "Tyrian 2.1, released as freeware. Downloaded from camanis.net, never mirrored here."
       }
     }
   ]
