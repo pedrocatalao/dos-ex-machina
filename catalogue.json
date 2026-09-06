@@ -47,9 +47,9 @@
       ],
       "source": "https://github.com/pedrocatalao/skyroads-sdl",
       "art": {
-        "url": "https://raw.githubusercontent.com/pedrocatalao/skyroads-sdl/main/docs/title-crt.png",
-        "sha256": "31c6fd548e89bf1bb6c5ef8950063fed0e900ce054357097bd15134392262df9",
-        "size": 141734,
+        "url": "https://raw.githubusercontent.com/pedrocatalao/skyroads-sdl/main/docs/gameplay-small.png",
+        "sha256": "023a062af970d808c9d612685acc7aeda81a00cca3af3db13e76fba8711d2565",
+        "size": 814851,
         "format": "png"
       },
       "module": {
@@ -103,9 +103,9 @@
       ],
       "source": "https://github.com/pedrocatalao/tyrian-sdl",
       "art": {
-        "url": "https://raw.githubusercontent.com/pedrocatalao/tyrian-sdl/main/docs/screenshots/gameplay.png",
-        "sha256": "03ad39c427842aad7c9ee209c3ba4eb977c65bc30879f5fe060bc18f986df66c",
-        "size": 943493,
+        "url": "https://raw.githubusercontent.com/pedrocatalao/tyrian-sdl/main/docs/screenshots/gameplay-small.png",
+        "sha256": "c0dfd432749f014af66061044d637cc8b68e776c7f3c41ba895540c1c85f70a7",
+        "size": 922844,
         "format": "png"
       },
       "module": {
