@@ -64,3 +64,12 @@ else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(dxm PRIVATE OpenGL::GL)
 endif()
+
+# Tests are on by default and cost nothing to configure; a packaging build
+# that wants none passes -DDXM_TESTS=OFF.
+option(DXM_TESTS "Register the test suite with CTest" ON)
+if(DXM_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+

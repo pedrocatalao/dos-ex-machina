@@ -109,6 +109,11 @@ cmake --build build -j8
 
 No game checkout is needed — DXM builds and ships on its own.
 
+`ctest --test-dir build` runs the tests. The golden-frame test draws the
+machine under `--deterministic` and compares it pixel for pixel with the
+reference frames in `tests/golden/references/`; see the README there for
+when and how those change.
+
 ## Using it
 
 Fullscreen is real fullscreen: the case fills the display edge to edge with no
@@ -148,7 +153,9 @@ was started from; the machine survives it and the game can be relaunched.
 room goes dark.
 
 Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"`,
-`--shot out.bmp --frames N`, `--selftest`, `--ambient N`, `--dump-audio FILE`.
+`--shot out.bmp --frames N`, `--deterministic` (a fixed 60 Hz clock and the
+shipped CRT defaults, so a given frame is the same picture on every run),
+`--selftest`, `--ambient N`, `--dump-audio FILE`.
 
 ## Status
 

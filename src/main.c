@@ -27,6 +27,13 @@
  * to read, and the report that comes back is "it hangs".  The file says how
  * far it got and how long each step took, from either thread. */
 static FILE *g_log;
+/* The machine's clock.  Normally the wall clock; under --deterministic a
+ * counter that advances exactly one sixtieth of a second per frame, so a
+ * given frame number is the same picture on every run - which is what the
+ * golden-frame test compares against. */
+static int    g_fixed_step;
+static Uint64 g_vclock;
+static Uint64 clock_ns(void){ return g_fixed_step ? g_vclock : SDL_GetTicksNS(); }
 static void dxm_log(const char *fmt,...){
     char line[1024]; va_list ap; va_start(ap,fmt);
     vsnprintf(line,sizeof line,fmt,ap); va_end(ap);
@@ -135,7 +142,8 @@ static void set_capture(SDL_Window *win,const dxm_layout *L,int W,int H,
 }
 
 int main(int argc,char **argv){
-    int windowed=0, shot_frames=0, selftest=0, quit_early=0; const char *shot=NULL; const char *autocmd=NULL;
+    int windowed=0, shot_frames=0, selftest=0, quit_early=0, deterministic=0;
+    const char *shot=NULL; const char *autocmd=NULL;
     float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
     int win_w=1600, win_h=900;
     for(int i=1;i<argc;i++){
@@ -146,6 +154,10 @@ int main(int argc,char **argv){
         else if(!strcmp(argv[i],"--shot")&&i+1<argc) shot=argv[++i];   /* honours fullscreen */
         else if(!strcmp(argv[i],"--frames")&&i+1<argc) shot_frames=atoi(argv[++i]);
         else if(!strcmp(argv[i],"--type")&&i+1<argc) autocmd=argv[++i];
+        /* --deterministic: the same frame every run.  A fixed-step clock, no
+         * HiDPI scaling (the drawable is exactly --size), the shipped CRT
+         * defaults rather than the user's crt.cfg, no vsync wait. */
+        else if(!strcmp(argv[i],"--deterministic")) deterministic=1;
         else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&win_w,&win_h);
         else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ ambient=(float)atof(argv[++i]);
             if(ambient<0)ambient=0; if(ambient>1)ambient=1; }
@@ -162,7 +174,8 @@ int main(int argc,char **argv){
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
-    SDL_WindowFlags fl=SDL_WINDOW_OPENGL|SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    SDL_WindowFlags fl=SDL_WINDOW_OPENGL;
+    if(!deterministic) fl|=SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if(!windowed) fl|=SDL_WINDOW_FULLSCREEN;
     SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,fl);
     if(!win){
@@ -190,7 +203,7 @@ int main(int argc,char **argv){
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
         return 1;
     }
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(deterministic?0:1);
     /* Typed characters come from SDL's text input, not from key-down: the
      * keycode of Shift+2 is still '2', and only the text event knows what
      * the keyboard layout made of it.  Control keys stay on key-down. */
@@ -287,7 +300,8 @@ int main(int argc,char **argv){
     }
     /* The machine comes up out of the same black the splash left behind,
      * so the two reads as one continuous power-on rather than a cut. */
-    Uint64 mach_fade0=SDL_GetTicksNS();
+    if(deterministic){ g_vclock=SDL_GetTicksNS(); g_fixed_step=1; }
+    Uint64 mach_fade0=clock_ns();
     const double MACH_FADE=0.70;
     /* Power on: the mains switch, and the monitor's degauss thump as its
      * coil kicks in.  The picture then WARMS UP over the next second or so
@@ -326,7 +340,7 @@ int main(int argc,char **argv){
     ui_init(&k);
     static char cfgpath[1024];
     snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
-    ui_load(cfgpath);
+    if(!deterministic) ui_load(cfgpath);
     /* What DXM can run is whatever is installed, not what it was built
      * with.  Scanning here means the prompt and the navigator agree about
      * the machine's contents from the first frame. */
@@ -347,7 +361,7 @@ int main(int argc,char **argv){
     dos_init();
     dxm_log("dos ready, entering the frame loop");
 
-    Uint64 t_start=SDL_GetTicksNS();
+    Uint64 t_start=clock_ns();
     int frame=0, quit=quit_early;
     /* the knobs and the mouse.  The machine holds the mouse from the
      * start - hidden, fenced to the glass - and Ctrl+F10 gives it to the
@@ -451,7 +465,7 @@ int main(int argc,char **argv){
                 }
             }
         }
-        double t=(SDL_GetTicksNS()-t_start)/1e9;
+        double t=(clock_ns()-t_start)/1e9;
         if(selftest){
             /* Timed in SECONDS, not frames.  Everything this waits on is
              * wall-clock - the launch holds 2.3s while the drive reads, the
@@ -541,7 +555,7 @@ int main(int argc,char **argv){
         }
         /* the tube's state this frame: warming up, steady, or dying */
         { float rh=1.0f, rv=1.0f, gain=1.0f;
-          double fe=(SDL_GetTicksNS()-mach_fade0)/1e9;
+          double fe=(clock_ns()-mach_fade0)/1e9;
           if(off_t0>=0.0){
               double o=t-off_t0;
               if(o<0.10){                       /* vertical collapse */
@@ -609,7 +623,7 @@ int main(int argc,char **argv){
           const uint8_t *ov=ui_render(W,H,&ow,&oh);
           if(ov){ gpu_set_overlay(g,ov,ow,oh); gpu_draw_overlay(g); }
         if(!selftest){
-            double fe=(SDL_GetTicksNS()-mach_fade0)/1e9;
+            double fe=(clock_ns()-mach_fade0)/1e9;
             if(fe<MACH_FADE){
                 float a=(float)(1.0-fe/MACH_FADE);
                 gpu_draw_fade(g,a*a*(3.0f-2.0f*a));
@@ -628,6 +642,7 @@ int main(int argc,char **argv){
           else SDL_ShowCursor(); }
         SDL_GL_SwapWindow(win);
         frame++;
+        if(g_fixed_step) g_vclock+=1000000000ull/60;
         if(frame==1) dxm_log("first machine frame on screen");
         if(shot && frame>=(shot_frames?shot_frames:60)){
             int rw,rh; uint8_t *px=gpu_readback(g,&rw,&rh);
@@ -636,7 +651,7 @@ int main(int argc,char **argv){
             quit=1;
         }
     }
-    ui_save(cfgpath);
+    if(!deterministic) ui_save(cfgpath);
     corehost_stop();
     SDL_Quit();
     return 0;
