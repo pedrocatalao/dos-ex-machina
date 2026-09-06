@@ -337,12 +337,12 @@ void badge(canvas *c, float pbx, float pby, float pbw, float pbh) {
                     float ax = fminf(1.0f, x1 - cx + 0.5f);
                     if (ax <= 0.0f)
                         continue;
-                    /* fades rightward into the white of the road's nearest stripe */
+                    /* the ink runs out rightward: the colour is constant and
+                     * the coverage falls to nothing, so the line dissolves
+                     * into the label rather than turning white */
                     float m = fminf(1.0f, fmaxf(0.0f, ((cx - x0) / (x1 - x0) - 0.40f) / 0.60f));
                     m = m * m * (3.0f - 2.0f * m);
-                    px_blend(c, xx, yy, (int)(cols[k][0] + (0xF2 - cols[k][0]) * m),
-                             (int)(cols[k][1] + (0xF1 - cols[k][1]) * m),
-                             (int)(cols[k][2] + (0xEF - cols[k][2]) * m), ay * ax);
+                    px_blend(c, xx, yy, cols[k][0], cols[k][1], cols[k][2], ay * ax * (1.0f - m));
                 }
             }
         }
