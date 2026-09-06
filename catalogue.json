@@ -102,6 +102,12 @@
         "The screen fills up faster than you can."
       ],
       "source": "https://github.com/pedrocatalao/tyrian-sdl",
+      "art": {
+        "url": "https://raw.githubusercontent.com/pedrocatalao/tyrian-sdl/main/docs/screenshots/gameplay.png",
+        "sha256": "03ad39c427842aad7c9ee209c3ba4eb977c65bc30879f5fe060bc18f986df66c",
+        "size": 943493,
+        "format": "png"
+      },
       "module": {
         "macos-universal": {
           "url": "https://github.com/pedrocatalao/tyrian-sdl/releases/download/1.0/opentyrian-macos-universal.dxm",
