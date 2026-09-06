@@ -16,6 +16,7 @@
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
+#include "version.h"
 #include "dxm_splash.h"
 #include "dxm_icon.h"
 #include <math.h>
@@ -34,6 +35,7 @@ static FILE *g_log;
 static int    g_fixed_step;
 static Uint64 g_vclock;
 static Uint64 clock_ns(void){ return g_fixed_step ? g_vclock : SDL_GetTicksNS(); }
+static void dxm_log(const char *fmt,...) __attribute__((format(printf,1,2)));
 static void dxm_log(const char *fmt,...){
     char line[1024]; va_list ap; va_start(ap,fmt);
     vsnprintf(line,sizeof line,fmt,ap); va_end(ap);
@@ -42,9 +44,6 @@ static void dxm_log(const char *fmt,...){
     if(g_log){ fprintf(g_log,"%6llu ms  %s\n",ms,line); fflush(g_log); }
 }
 static void gpu_log_cb(const char *m){ dxm_log("%s",m); }
-#ifndef DXM_VERSION
-#  define DXM_VERSION "dev"
-#endif
 
 static int sc_from_sdl(SDL_Scancode s){
     switch(s){
@@ -160,7 +159,8 @@ int main(int argc,char **argv){
         else if(!strcmp(argv[i],"--deterministic")) deterministic=1;
         else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&win_w,&win_h);
         else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ ambient=(float)atof(argv[++i]);
-            if(ambient<0)ambient=0; if(ambient>1)ambient=1; }
+            if(ambient<0)ambient=0;
+            if(ambient>1)ambient=1; }
     }
     if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)){
         fprintf(stderr,"SDL_Init: %s\n",SDL_GetError()); return 1; }
@@ -174,10 +174,10 @@ int main(int argc,char **argv){
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
-    SDL_WindowFlags fl=SDL_WINDOW_OPENGL;
-    if(!deterministic) fl|=SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if(!windowed) fl|=SDL_WINDOW_FULLSCREEN;
-    SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,fl);
+    SDL_WindowFlags wflags=SDL_WINDOW_OPENGL;
+    if(!deterministic) wflags|=SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    if(!windowed) wflags|=SDL_WINDOW_FULLSCREEN;
+    SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,wflags);
     if(!win){
         dxm_log("window: %s",SDL_GetError());
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",
@@ -187,10 +187,17 @@ int main(int argc,char **argv){
     /* The window/taskbar icon.  Windows also carries one as a resource for
      * Explorer to show on the .exe, and macOS gets it from the bundle - this
      * is what Linux has, and it costs nothing on the others. */
-    { SDL_Surface *ic=SDL_CreateSurfaceFrom(DXM_ICON_W,DXM_ICON_HT,
-                                            SDL_PIXELFORMAT_RGBA32,
-                                            (void *)dxm_icon,DXM_ICON_W*4);
-      if(ic){ SDL_SetWindowIcon(win,ic); SDL_DestroySurface(ic); } }
+    { /* SDL_CreateSurfaceFrom wants writable pixels and the icon is
+       * const data, so it gets a copy for the moment SetWindowIcon needs */
+      size_t icn=(size_t)DXM_ICON_W*DXM_ICON_HT*4;
+      void *icpx=malloc(icn);
+      if(icpx){
+          memcpy(icpx,dxm_icon,icn);
+          SDL_Surface *ic=SDL_CreateSurfaceFrom(DXM_ICON_W,DXM_ICON_HT,
+                                                SDL_PIXELFORMAT_RGBA32,icpx,DXM_ICON_W*4);
+          if(ic){ SDL_SetWindowIcon(win,ic); SDL_DestroySurface(ic); }
+          free(icpx);
+      } }
 
     SDL_GLContext ctx=SDL_GL_CreateContext(win);
     if(!ctx){
@@ -319,6 +326,15 @@ int main(int argc,char **argv){
             W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
     dxm_layout L=job.L;
     uint8_t *chas=job.px;
+    if(!chas){
+        /* Out of memory for the case itself - W*H*4 bytes.  Nothing sensible
+         * can be drawn without it. */
+        char msg[200];
+        snprintf(msg,sizeof msg,"Could not allocate the %dx%d chassis image.",W,H);
+        dxm_log("%s",msg);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
+        return 1;
+    }
     gpu_set_chassis(g,chas,W,H);
     dxm_log("chassis uploaded");
 
@@ -352,9 +368,9 @@ int main(int argc,char **argv){
     cat_refresh_begin();
     dxm_log("catalogue: cache read, refresh started");
     for(int i=0;i<lib_count();i++){
-        const lib_game *g=lib_at(i);
-        dxm_log("game %-12s %s",g->id,
-                g->ready?"ready":(g->note[0]?g->note:"not ready"));
+        const lib_game *lg=lib_at(i);
+        dxm_log("game %-12s %s",lg->id,
+                lg->ready?"ready":(lg->note[0]?lg->note:"not ready"));
     }
     if(lib_count()==0)
         dxm_log("no games installed - %sgames",lib_root());
@@ -393,7 +409,8 @@ int main(int argc,char **argv){
                     /* up is more: a third of the screen's height is the
                      * knob's whole travel, so a turn is a wrist, not an arm */
                     float v=knob_v0+(knob_y0-my)/(H*0.30f);
-                    if(v<0.0f) v=0.0f; if(v>1.0f) v=1.0f;
+                    if(v<0.0f) v=0.0f;
+                    if(v>1.0f) v=1.0f;
                     if(knob_drag==0) k.brightness=v; else k.contrast=0.4f+1.4f*v;
                 } else ui_mouse((int)mx,(int)my,(e.motion.state&SDL_BUTTON_LMASK)?1:0,1);
             }
@@ -454,7 +471,7 @@ int main(int argc,char **argv){
                         k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
                         if(k.ambient<0)k.ambient=0;
                         if(k.ambient>1)k.ambient=1;
-                        dxm_log("ambient = %.2f",k.ambient);
+                        dxm_log("ambient = %.2f",(double)k.ambient);
                     }
                     else if(e.key.key=='\r') dos_key('\r',sc);
                     else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);
@@ -522,17 +539,17 @@ int main(int argc,char **argv){
         }
         const char *req=dos_launch_request();
         if(req){
-            const lib_game   *g=lib_find(req);
-            const dxm_module *m=g?lib_module(g):NULL;
+            const lib_game   *lg=lib_find(req);
+            const dxm_module *m=lg?lib_module(lg):NULL;
             if(m){
                 snd_floppy(2.2);      /* the drive works while it loads */
                 corehost_use_module(m);
                 /* DXM_DATA still overrides, for working on a port without
                  * installing it first. */
                 const char *dd=getenv("DXM_DATA");
-                if(corehost_start(m->info, dd?dd:g->data)==0){
+                if(corehost_start(m->info, dd?dd:lg->data)==0){
                     core_started=1;
-                    lib_touch_played(g);
+                    lib_touch_played(lg);
                     captured=1; set_capture(win,&L,W,H,win_wf,win_hf,1);
                 }
             }
@@ -543,11 +560,11 @@ int main(int argc,char **argv){
         /* --type takes a ';'-separated list, typed one per return to the
          * prompt - so a sequence like "CD GAMES;DIR" can be driven. */
         if(autocmd && *autocmd && dos_update(t)==DOS_PROMPT){
-            const char *e=strchr(autocmd,';');
-            const char *end=e?e:autocmd+strlen(autocmd);
+            const char *semi=strchr(autocmd,';');
+            const char *end=semi?semi:autocmd+strlen(autocmd);
             for(const char *q=autocmd;q<end;q++) dos_key(*q,0);
             dos_key('\r',0);
-            autocmd = e ? e+1 : NULL;
+            autocmd = semi ? semi+1 : NULL;
         }
         if(dos_update(t)==DOS_OFF && off_t0<0.0){
             off_t0=t; snd_power(0); snd_relay();
@@ -646,8 +663,10 @@ int main(int argc,char **argv){
         if(frame==1) dxm_log("first machine frame on screen");
         if(shot && frame>=(shot_frames?shot_frames:60)){
             int rw,rh; uint8_t *px=gpu_readback(g,&rw,&rh);
-            write_bmp(shot,px,rw,rh); free(px);
-            fprintf(stderr,"wrote %s (%dx%d)\n",shot,rw,rh);
+            if(px){
+                write_bmp(shot,px,rw,rh); free(px);
+                fprintf(stderr,"wrote %s (%dx%d)\n",shot,rw,rh);
+            } else fprintf(stderr,"readback failed\n");
             quit=1;
         }
     }

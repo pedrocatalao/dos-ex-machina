@@ -14,6 +14,7 @@
 
 static void (*g_logfn)(const char *);
 void gpu_set_log(void (*fn)(const char *)){ g_logfn=fn; }
+static void gpu_logf(const char *fmt,...) __attribute__((format(printf,1,2)));
 static void gpu_logf(const char *fmt,...){
     char buf[4600]; va_list ap; va_start(ap,fmt);
     vsnprintf(buf,sizeof buf,fmt,ap); va_end(ap);
@@ -484,7 +485,9 @@ gpu *gpu_create(int w,int h){
         gpu_logf("this GL context is missing functions DXM needs");
         return NULL;
     }
-    gpu *g=calloc(1,sizeof *g); g->out_w=w; g->out_h=h;
+    gpu *g=calloc(1,sizeof *g);
+    if(!g){ gpu_logf("out of memory for the GPU state"); return NULL; }
+    g->out_w=w; g->out_h=h;
     g->raster_h=g->raster_v=g->tube_gain=1.0f;
     static const float quad[]={-1,-1, 3,-1, -1,3};
     glGenVertexArrays(1,&g->vao); glBindVertexArray(g->vao);
@@ -692,6 +695,7 @@ void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,doub
 uint8_t *gpu_readback(gpu *g,int *w,int *h){
     *w=g->out_w; *h=g->out_h;
     uint8_t *px=malloc((size_t)g->out_w*g->out_h*3);
+    if(!px) return NULL;
     glPixelStorei(GL_PACK_ALIGNMENT,1);
     glReadPixels(0,0,g->out_w,g->out_h,GL_RGB,GL_UNSIGNED_BYTE,px);
     return px;

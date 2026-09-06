@@ -105,7 +105,8 @@ int corehost_start(const dxm_core_info *info,const char *data_dir){
         snprintf(cur_pref,sizeof cur_pref,"%s/",cur_data);
     else snprintf(cur_pref,sizeof cur_pref,"%s",cur_data);
     HOST.data_dir=cur_data; HOST.pref_dir=cur_pref;
-    memset((void*)keys,0,sizeof keys); chq_r=chq_w=0;
+    for(size_t i=0;i<sizeof keys/sizeof keys[0];i++) keys[i]=0;
+    chq_r=chq_w=0;
     front=-1; back=0; quit_req=0; running=1;
     if(!mu)      mu      = SDL_CreateMutex();
     if(!game_mu) game_mu = SDL_CreateMutex();

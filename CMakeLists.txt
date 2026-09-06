@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(dos_ex_machina VERSION 0.4.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter -O2")
+# Optimisation belongs to the build type, and a plain `cmake -S . -B build`
+# should not hand out an unoptimised chassis render by accident.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+option(DXM_WERROR "Treat compiler warnings as errors (CI turns this on)" OFF)
 
 find_package(SDL3 REQUIRED CONFIG)
 # libcurl for downloads (TLS, and GitHub's release URLs redirect), and zlib
@@ -31,6 +36,18 @@ add_executable(dxm
 # plat_* symbols it needs.  The copy in src/ is the authoritative one that
 # ports vendor from, exactly like src/dxm_core.h.
 target_include_directories(dxm PRIVATE src)
+# The warning set the code is kept clean under, on both compilers it ships
+# with.  -Wswitch-enum is deliberately absent: a switch over SDL's scancodes
+# with a default is the right shape, and that flag objects to it.
+target_compile_options(dxm PRIVATE
+    -Wall -Wextra -Wno-unused-parameter
+    -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wvla
+    -Wdouble-promotion -Wcast-qual -Wimplicit-fallthrough -Wundef -Wformat=2
+    # GCC's truncation analysis fires on every bounded path build
+    # ("%sgames" into a 1024-byte buffer might not fit); the bound is the
+    # point of snprintf, so that one is off.  The rest of -Wall stays.
+    $<$<C_COMPILER_ID:GNU>:-Wno-format-truncation>
+    $<$<BOOL:${DXM_WERROR}>:-Werror>)
 # The version lives in project() above and nowhere else: the binary's log
 # banner takes it from here, and so does the macOS bundle - Info.plist is
 # generated from the .in template into the build tree, where the packaging

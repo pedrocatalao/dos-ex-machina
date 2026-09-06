@@ -4,6 +4,7 @@
  * calls on POSIX, two on Windows, and one place that knows the difference. */
 #include "coreload.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -22,8 +23,13 @@
 #  define MOD_CLOSE(h)    dlclose(h)
 #endif
 
-static void oops(char *err, size_t n, const char *fmt, const char *a) {
-    if (err && n) snprintf(err, n, fmt, a ? a : "");
+static void oops(char *err, size_t n, const char *fmt, ...)
+    __attribute__((format(printf,3,4)));
+static void oops(char *err, size_t n, const char *fmt, ...) {
+    if (!err || !n) return;
+    va_list ap; va_start(ap, fmt);
+    vsnprintf(err, n, fmt, ap);
+    va_end(ap);
 }
 
 int coreload_open(dxm_module *m, const char *path, char *err, size_t errsz) {

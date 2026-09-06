@@ -66,9 +66,12 @@ static void px_blend(canvas *c,int x,int y,int r,int g,int b,float a){
      * pushed channels past 255, and the unclamped cast WRAPPED them - red
      * wrapped first (the plastic's largest channel), leaving teal/blue
      * speckles across the brightest parts of the bezel. */
-    if(r>255)r=255; if(r<0)r=0;
-    if(g>255)g=255; if(g<0)g=0;
-    if(b>255)b=255; if(b<0)b=0;
+    if(r>255)r=255;
+    if(r<0)r=0;
+    if(g>255)g=255;
+    if(g<0)g=0;
+    if(b>255)b=255;
+    if(b<0)b=0;
     uint8_t *p=c->px+((size_t)y*c->w+x)*4;
     p[0]=(uint8_t)(p[0]*(1-a)+r*a); p[1]=(uint8_t)(p[1]*(1-a)+g*a);
     p[2]=(uint8_t)(p[2]*(1-a)+b*a); p[3]=255;
@@ -376,9 +379,12 @@ static void sb_sticker(canvas *c,float cx,float cy,float w){
           float uc=(lx+hw)*sx, vc=(ly+hh)*sy;   /* source texel footprint */
           int u0=(int)floorf(uc-sx*0.5f), u1=(int)ceilf(uc+sx*0.5f);
           int v0=(int)floorf(vc-sy*0.5f), v1=(int)ceilf(vc+sy*0.5f);
-          if(u0<0) u0=0; if(v0<0) v0=0;
-          if(u1>SB_LOGO_W) u1=SB_LOGO_W; if(v1>SB_LOGO_HT) v1=SB_LOGO_HT;
-          if(u1<=u0) u1=u0+1; if(v1<=v0) v1=v0+1;
+          if(u0<0) u0=0;
+          if(v0<0) v0=0;
+          if(u1>SB_LOGO_W) u1=SB_LOGO_W;
+          if(v1>SB_LOGO_HT) v1=SB_LOGO_HT;
+          if(u1<=u0) u1=u0+1;
+          if(v1<=v0) v1=v0+1;
           if(u0>=SB_LOGO_W||v0>=SB_LOGO_HT) continue;
           int r=0,g=0,b=0,n=0;
           for(int v=v0;v<v1;v++)
@@ -445,7 +451,8 @@ static void engrave_mark(canvas *c,float cx,float cy,float w,float fill){
       for(int i=0;i<dw;i++){
         int u0=(int)(i*sx), u1=(int)((i+1)*sx); if(u1<=u0) u1=u0+1;
         int v0=(int)(j*sy), v1=(int)((j+1)*sy); if(v1<=v0) v1=v0+1;
-        if(u1>DXM_MARK_W) u1=DXM_MARK_W; if(v1>DXM_MARK_HT) v1=DXM_MARK_HT;
+        if(u1>DXM_MARK_W) u1=DXM_MARK_W;
+        if(v1>DXM_MARK_HT) v1=DXM_MARK_HT;
         if(u0>=DXM_MARK_W||v0>=DXM_MARK_HT) continue;
         long r=0,g=0,b=0,a=0; int n=0;
         for(int v=v0;v<v1;v++)
@@ -463,8 +470,12 @@ static void engrave_mark(canvas *c,float cx,float cy,float w,float fill){
              * same paint on the surface */
             float lum=0.299f*R+0.587f*G+0.114f*B;
             R=(R+(R-lum)*0.35f)*0.82f; G=(G+(G-lum)*0.35f)*0.82f; B=(B+(B-lum)*0.35f)*0.82f;
-            if(R<0)R=0; if(G<0)G=0; if(B<0)B=0;
-            if(R>255)R=255; if(G>255)G=255; if(B>255)B=255;
+            if(R<0)R=0;
+            if(G<0)G=0;
+            if(B<0)B=0;
+            if(R>255)R=255;
+            if(G>255)G=255;
+            if(B>255)B=255;
             px_blend(c,(int)x+i,(int)y+j,(int)R,(int)G,(int)B,al*fill);
         }
       }
@@ -1142,7 +1153,8 @@ static void bezel(canvas *c,const dxm_layout *L,float bz,float rin,float rmid){
              * dish keeps its depth - fading this across the whole wall (an
              * earlier attempt) just flattened the recess. */
             float fu=(t-FILLET_START)/(1.0f-FILLET_START);
-            if(fu<0.0f) fu=0.0f; if(fu>1.0f) fu=1.0f;
+            if(fu<0.0f) fu=0.0f;
+            if(fu>1.0f) fu=1.0f;
             float roll=1.0f-fu*fu*(3.0f-2.0f*fu);
             sh = 1.00f + dev*roll;
             /* contact shadow at the glass: narrow on the bottom (the ref
@@ -1338,7 +1350,9 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
             base*=1.0f-0.28f*fmaxf(0.0f,(above-hs*0.55f)/(hs*0.45f));
             R=(int)(PLASTIC_R*TONE_GRIP*base); G=(int)(PLASTIC_G*(TONE_GRIP-0.06f)*base);
             B=(int)(PLASTIC_B*(TONE_GRIP+0.04f)*base);
-            if(R>255)R=255; if(G>255)G=255; if(B>255)B=255;
+            if(R>255)R=255;
+            if(G>255)G=255;
+            if(B>255)B=255;
             px_blend(c,i2,j2,R,G,B,cov);
             continue;
         }
@@ -1369,7 +1383,9 @@ static void rotary(canvas *c,float cx,float cy,float r,float pos){
         }
         R=(int)(PLASTIC_R*tone*base); G=(int)(PLASTIC_G*(tone-0.06f)*base);
         B=(int)(PLASTIC_B*(tone+0.02f)*base);
-        if(R>255)R=255; if(G>255)G=255; if(B>255)B=255;
+        if(R>255)R=255;
+        if(G>255)G=255;
+        if(B>255)B=255;
         px_blend(c,i2,j2,R,G,B,cov);
         if(spec>0.0f) px_shade(c,i2,j2,1.0f,spec);
         /* the index: a painted mark across the dome, an off-white that
@@ -1456,7 +1472,8 @@ const uint8_t *chassis_knob_set(int which,float pos,int *x,int *y,int *w,int *h)
     if(!g_knob_patch) return NULL;
     memcpy(g_knob_patch,g_knob_bg[which],(size_t)bs*bs*4);
     canvas P; P.w=bs; P.h=bs; P.px=g_knob_patch;
-    if(pos<0.0f) pos=0.0f; if(pos>1.0f) pos=1.0f;
+    if(pos<0.0f) pos=0.0f;
+    if(pos>1.0f) pos=1.0f;
     rotary(&P,g_knob[which][0]-g_knob_bx[which],g_knob[which][1]-g_knob_by[which],
            g_knob[which][2],pos);
     for(size_t k=0;k<(size_t)bs*bs;k++) g_knob_patch[k*4+3]=g_knob_bg[which][k*4+3];
@@ -1466,6 +1483,7 @@ const uint8_t *chassis_knob_set(int which,float pos,int *x,int *y,int *w,int *h)
 
 uint8_t *chassis_render(dxm_layout *L,int W,int H){
     canvas C; C.w=W; C.h=H; C.px=calloc((size_t)W*H,4);
+    if(!C.px) return NULL;
     canvas *c=&C;
     g_lbl=fmaxf(1.0f,(float)H/760.0f);
     float inset=H*0.052f, edge=W*0.024f;

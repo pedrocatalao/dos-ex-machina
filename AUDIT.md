@@ -145,11 +145,11 @@ statement: `dos.c` 104, `chassis.c` 83, `gpu.c` 61, `main.c` 51,
 the tell of code written in sessions rather than designed. One
 `.clang-format`, applied once in a single commit, ends it.
 
-**F10. Five unchecked allocations.** `chassis.c:1436` (knob background),
-`chassis.c:1468` (the whole chassis canvas, W×H×4: 30 MB at 4K),
-`gpu.c:487` (the GPU object), `gpu.c:694` (readback), `ui.c:105`. The
-canvas one deserves the same message-box exit the GL failure gets; the
-rest are one-line checks.
+**F10. Four unchecked allocations.** `chassis.c:1468` (the whole chassis
+canvas, W×H×4: 30 MB at 4K), `gpu.c:487` (the GPU object), `gpu.c:694`
+(readback), `ui.c:105`. The canvas one deserves the same message-box exit
+the GL failure gets; the rest are one-line checks. (The knob background at
+`chassis.c:1436`, first counted here, is checked two lines later.)
 
 **F11. Twenty findings under stricter warnings.** Seven `-Wshadow`
 (inner variables reusing outer names), four `-Wdouble-promotion` (float
@@ -174,6 +174,15 @@ to find again. SPEC promised `chassis_params.h` for exactly this.
 
 **F14. `DXM_VERSION` fallback is duplicated** in `main.c` and `dos.c`.
 One `version.h`.
+
+**F15a. Paths are built by bounded `snprintf` and truncation is silent.**
+`library.c` joins the preferences directory, `games`, the id and a file
+name into 1024-byte buffers a dozen times. `snprintf` bounds the write,
+but a path that did not fit is a wrong path, not an error. GCC's
+truncation warning fires on every one of these, and is switched off
+rather than fixed, because the fix is a join helper that fails loudly and
+callers that handle the failure. That belongs with step 7, when module
+state is restructured, and step 9 can test it.
 
 **F15. `catalog` vs `catalogue`.** The code says `catalog.c`, `cat_*`; the
 file, the docs and the UI say `catalogue`. Pick one; the docs are British
@@ -280,7 +289,7 @@ ordered so that the safety net exists before anything is moved.
 | # | Step | Size | Verifies with |
 |---|---|---|---|
 | 0 | **Done.** `--deterministic` mode (fixed 60 Hz clock, no HiDPI, shipped CRT defaults, no vsync); `tests/golden/run.py` with three cases (prompt and README pager at 1280×800, prompt at 1720×720); references under `tests/golden/references/macos/`; `ctest` runs it in 9 s | S | itself |
-| 1 | Fix the 20 warnings, the 5 allocations, `version.h`; move flags to `target_compile_options`; `-Werror` in CI | S | build + golden |
+| 1 | **Done.** Strict warning set in `target_compile_options` (clang and GCC 15 clean); `DXM_WERROR` option, on in all three CI jobs; format attributes on the log and message helpers, which became variadic; const-correct icon upload and zlib input; explicit float→double casts; one `if` per line where GCC saw misleading indentation; allocation checks with a message box for the chassis canvas; `version.h`; build type defaults to Release | S | build + golden + `--selftest` |
 | 2 | `src/gen/` and `contract/`; `tools/regen.sh`; CI step that regenerates and fails on diff; rename `dmx-badge.png`; delete `screenshots/` | S | build + golden |
 | 3 | Shaders to `shaders/*.glsl`, baked to `gen/shaders.h` by CMake | M | golden |
 | 4 | Split `chassis.c` into `chassis/` per §4; extract `chassis_render` sections into named functions; `params.h` | L | golden, pixel-exact |

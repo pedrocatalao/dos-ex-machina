@@ -43,7 +43,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDXM_WERROR=ON \
                 -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
                 -DCMAKE_PREFIX_PATH="$HOME/sdl3-install"
           cmake --build build -j3

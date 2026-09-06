@@ -3,9 +3,7 @@
 #include "dos.h"
 #include "disk.h"
 /* the DOS is the machine: its version is the release's */
-#ifndef DXM_VERSION
-#  define DXM_VERSION "dev"
-#endif
+#include "version.h"
 #include <SDL3/SDL.h>      /* SDL_TimeToDateTime, for the table's dates */
 #include "font.h"
 #include "library.h"
@@ -26,7 +24,7 @@ static char    scr[DOS_ROWS][DOS_COLS];
 static uint8_t att[DOS_ROWS][DOS_COLS];
 static uint8_t cur_att = 0x07;
 static int   cur_r, cur_c;
-static char  line[128]; static int line_n;
+static char  cmd[128]; static int cmd_n;    /* the command being typed */
 static dos_state st;
 static double t0, next_boot;
 static int    boot_step;
@@ -127,14 +125,14 @@ void dos_init(void){
     memset(scr,' ',sizeof scr);
     memset(att,0x07,sizeof att);
     cur_att=0x07;
-    cur_r=cur_c=0; line_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
+    cur_r=cur_c=0; cmd_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
     beep_pending=0; mem_counting=0; mem_shown=0;
     ax_n=disk_autoexec_echo(ax_lines,8); ax_i=0;
 }
 void dos_core_failed(void){
     put('\n');
     sayln("Cannot run that program.");
-    prompt(); st=DOS_PROMPT; line_n=0;
+    prompt(); st=DOS_PROMPT; cmd_n=0;
 }
 /* The game does not appear the instant you type its name: the drive spins
  * up and reads first, exactly as it would have.  dos_update() releases the
@@ -404,9 +402,9 @@ static void nc_draw(void){
          * offer, and it has never been played here. */
         /* the name as DIR would show it: upper case, the way the disk
          * holds it */
-        { char up[16]; int k=0;
-          for(;e->file[k] && k<15;k++) up[k]=(char)toupper((unsigned char)e->file[k]);
-          up[k]=0;
+        { char up[16]; int u=0;
+          for(;e->file[u] && u<15;u++) up[u]=(char)toupper((unsigned char)e->file[u]);
+          up[u]=0;
           nputs(y,NC_LX+NC_C_NAME+1,up,a); }
         if(e->version){
             nputs(y,NC_LX+NC_C_VER,e->version,a);
@@ -713,7 +711,9 @@ static void nc_key(int ch,int sc){
                 install_start_data(e->cat);
             } else {
                 snprintf(nc_note[0],sizeof nc_note[0],"Could not reset %s:",e->title);
-                snprintf(nc_note[1],sizeof nc_note[1],"%s",r>0?"no archive, and nothing to fetch":err);
+                /* the note holds 63 characters; a longer error is cut, not
+                 * wrapped, and %.63s says so where GCC can see it */
+                snprintf(nc_note[1],sizeof nc_note[1],"%.63s",r>0?"no archive, and nothing to fetch":err);
                 nc_dlg=DLG_NOTE;
             }
             lib_scan(); nc_rows_build();
@@ -951,7 +951,7 @@ static void run(char *s){
 }
 
 void dos_core_exited(void){
-    st=DOS_PROMPT; line_n=0;
+    st=DOS_PROMPT; cmd_n=0;
     if(nc_launched){
         /* started from the navigator: back to the navigator, on the same
          * entry, with whatever the game left on disk reflected */
@@ -969,9 +969,9 @@ void dos_key(int ch,int sc){
     if(nc_open){ nc_key(ch,sc); return; }
     if(page_on){ if(ch||sc==DXM_SC_ESC) page_key(sc==DXM_SC_ESC?27:ch); return; }
     if(ch=='\r'||ch=='\n'){
-        put('\n'); line[line_n]=0;
-        char tmp[128]; memcpy(tmp,line,sizeof tmp);
-        line_n=0; run(tmp);
+        put('\n'); cmd[cmd_n]=0;
+        char tmp[128]; memcpy(tmp,cmd,sizeof tmp);
+        cmd_n=0; run(tmp);
         if(page_want) page_begin();
         /* NC owns the whole screen once it opens, so the prompt must not be
          * printed over it - the cursor is wherever the command line left it,
@@ -979,8 +979,8 @@ void dos_key(int ch,int sc){
         if(st==DOS_PROMPT && !nc_open && !page_on) prompt();
         return;
     }
-    if(ch=='\b'){ if(line_n){ line_n--; if(cur_c>prompt_len) cur_c--; scr[cur_r][cur_c]=' '; } return; }
-    if(ch>=32 && ch<127 && line_n<(int)sizeof line-1){ line[line_n++]=(char)ch; put((char)ch); }
+    if(ch=='\b'){ if(cmd_n){ cmd_n--; if(cur_c>prompt_len) cur_c--; scr[cur_r][cur_c]=' '; } return; }
+    if(ch>=32 && ch<127 && cmd_n<(int)sizeof cmd-1){ cmd[cmd_n++]=(char)ch; put((char)ch); }
     (void)sc;
 }
 

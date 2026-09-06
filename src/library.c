@@ -80,8 +80,10 @@ static void add_game(const char *id) {
     snprintf(g->id, sizeof g->id, "%s", id);
     snprintf(g->dir, sizeof g->dir, "%sgames%c%s%c",
              lib_root(), DXM_SEP, id, DXM_SEP);
-    snprintf(g->module, sizeof g->module, "%sgame.dxm", g->dir);
-    snprintf(g->data,   sizeof g->data,   "%sdata%c",   g->dir, DXM_SEP);
+    snprintf(g->module, sizeof g->module, "%sgames%c%s%cgame.dxm",
+             lib_root(), DXM_SEP, id, DXM_SEP);
+    snprintf(g->data,   sizeof g->data,   "%sgames%c%s%cdata%c",
+             lib_root(), DXM_SEP, id, DXM_SEP, DXM_SEP);
 
     /* A directory with no module in it is not a game - most likely a
      * download that was interrupted.  Say so rather than hiding it. */

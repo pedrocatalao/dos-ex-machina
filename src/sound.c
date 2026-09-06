@@ -128,8 +128,8 @@ void snd_mix(int16_t *out,int nframes){
             float body = 0.0f;
             for(int k=0;k<NHUM;k++){
                 hum_drift[k] += (0.09 + 0.031*k)/sr;
-                float det = 1.0f + 0.0018f*(float)sin(hum_drift[k]*6.28318530718);
-                hum_ph[k] += (hum_hz[k]*det*spin)/sr;
+                float det = 1.0f + 0.0018f*(float)sin((double)hum_drift[k]*6.28318530718);
+                hum_ph[k] += (double)(hum_hz[k]*det*spin)/sr;
                 body += hum_amp[k]*(float)sin(hum_ph[k]*6.28318530718);
             }
             s += body * 0.012f * spin;
@@ -138,9 +138,9 @@ void snd_mix(int16_t *out,int nframes){
             float wh = 0.0f;
             for(int k=0;k<NWHINE;k++){
                 wh_drift[k] += (0.23 + 0.07*k)/sr;
-                float det = 1.0f + 0.0022f*(float)sin(wh_drift[k]*6.28318530718);
+                float det = 1.0f + 0.0022f*(float)sin((double)wh_drift[k]*6.28318530718);
                 /* pitch rises with the platter, so spin-up sweeps upward */
-                wh_ph[k] += (whine_hz[k]*det*(0.55f+0.45f*spin))/sr;
+                wh_ph[k] += (double)(whine_hz[k]*det*(0.55f+0.45f*spin))/sr;
                 wh += whine_amp[k]*(float)sin(wh_ph[k]*6.28318530718);
             }
             s += wh * 0.0042f * spin*spin;

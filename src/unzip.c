@@ -9,6 +9,7 @@
  * outright rather than sanitised - a name with ".." in it is not a mistake
  * to be corrected, it is an archive we should not be extracting. */
 #include "unzip.h"
+#define ZLIB_CONST          /* next_in is const, as our input is */
 #include <zlib.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,7 +62,7 @@ static int inflate_raw(const uint8_t *in, size_t inn, uint8_t *out, size_t outn,
         snprintf(err, errsz, "inflate init failed");
         return -1;
     }
-    zs.next_in  = (Bytef *)in;  zs.avail_in  = (uInt)inn;
+    zs.next_in  = in;           zs.avail_in  = (uInt)inn;
     zs.next_out = out;          zs.avail_out = (uInt)outn;
     int r = inflate(&zs, Z_FINISH);
     inflateEnd(&zs);

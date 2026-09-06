@@ -17,6 +17,7 @@
 #include "unzip.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 static inst_status  st;
@@ -39,9 +40,12 @@ static void on_progress(void *ud, double got, double total) {
     st.frac = total > 0 ? got / total : 0.0;
     SDL_UnlockMutex(mu);
 }
-static void fail(const char *fmt, const char *a) {
+static void fail(const char *fmt, ...) __attribute__((format(printf,1,2)));
+static void fail(const char *fmt, ...) {
     SDL_LockMutex(mu);
-    snprintf(st.err, sizeof st.err, fmt, a ? a : "");
+    va_list ap; va_start(ap, fmt);
+    vsnprintf(st.err, sizeof st.err, fmt, ap);
+    va_end(ap);
     st.state = INST_FAILED;
     SDL_UnlockMutex(mu);
 }
@@ -54,7 +58,7 @@ static int SDLCALL worker(void *ud) {
     const int STEPS = 3;
 
     if (lib_make_dir(job.id, dir, sizeof dir) != 0) {
-        fail("cannot create the game directory%s", NULL);
+        fail("cannot create the game directory");
         return 0;
     }
 
@@ -70,7 +74,7 @@ static int SDLCALL worker(void *ud) {
         set_stage("Verifying", 1, STEPS);
         if (!sha256_matches(path, job.module.sha256)) {
             remove(path);
-            fail("the download does not match its checksum%s", NULL);
+            fail("the download does not match its checksum");
             return 0;
         }
     }
@@ -89,7 +93,7 @@ static int SDLCALL worker(void *ud) {
         set_stage("Verifying", 2, STEPS);
         if (!sha256_matches(zip, job.data.sha256)) {
             remove(zip);
-            fail("the game data does not match its checksum%s", NULL);
+            fail("the game data does not match its checksum");
             return 0;
         }
         /* ---- 3. unpack ---- */

@@ -70,7 +70,8 @@ int ui_mouse(int x,int y,int down,int moving){
     if(drag>=0){
         int sx = PX+PAD+LABW;
         float f = (float)(x-sx)/(float)SLW;
-        if(f<0) f=0; if(f>1) f=1;
+        if(f<0) f=0;
+        if(f>1) f=1;
         *P[drag].val = P[drag].lo + f*(P[drag].hi-P[drag].lo);
         return 1;
     }
@@ -103,6 +104,7 @@ const uint8_t *ui_render(int out_w,int out_h,int *w,int *h){
     if(!buf || bw!=out_w || bh!=out_h){
         free(buf); bw=out_w; bh=out_h;
         buf=malloc((size_t)bw*bh*4);
+        if(!buf){ bw=bh=0; return NULL; }
     }
     memset(buf,0,(size_t)bw*bh*4);
     float s = out_h/1080.0f; if(s<0.75f) s=0.75f;
@@ -119,14 +121,15 @@ const uint8_t *ui_render(int out_w,int out_h,int *w,int *h){
         int ry=y0+i*ROWH;
         int sx=PX+PAD+LABW, sy=ry+ROWH/2-(int)(3*s);
         float f=(*P[i].val - P[i].lo)/(P[i].hi-P[i].lo);
-        if(f<0)f=0; if(f>1)f=1;
+        if(f<0)f=0;
+        if(f>1)f=1;
         label(PX+PAD, ry+ROWH/2-(int)(4*tsc), P[i].name, tsc, 176,190,180,255);
         box(sx, sy, SLW, (int)(4*s), 42,50,46, 235);          /* track  */
         box(sx, sy, (int)(SLW*f), (int)(4*s), 70,190,95, 245);/* filled */
         int kx=sx+(int)(SLW*f);
         box(kx-(int)(3*s), ry+ROWH/2-(int)(9*s), (int)(6*s), (int)(18*s),
             (drag==i)?230:170, 245, (drag==i)?190:180, 255);  /* handle */
-        char v[16]; snprintf(v,sizeof v,"%.2f",*P[i].val);
+        char v[16]; snprintf(v,sizeof v,"%.2f",(double)*P[i].val);
         label(sx+SLW+(int)(12*s), ry+ROWH/2-(int)(4*tsc), v, tsc, 140,160,150,255);
     }
     *w=bw; *h=bh;
@@ -135,7 +138,7 @@ const uint8_t *ui_render(int out_w,int out_h,int *w,int *h){
 
 void ui_save(const char *path){
     FILE *f=fopen(path,"w"); if(!f) return;
-    for(int i=0;i<NP;i++) fprintf(f,"%s=%.4f\n",P[i].name,*P[i].val);
+    for(int i=0;i<NP;i++) fprintf(f,"%s=%.4f\n",P[i].name,(double)*P[i].val);
     fclose(f);
 }
 void ui_load(const char *path){
