@@ -161,9 +161,6 @@ static float warped_rr_sd(const dxm_layout *L,float px,float py,
     return fmaxf(ax-hw, ay-hh);
 }
 
-static void rect(canvas *c,float x,float y,float w,float h,int r,int g,int b){
-    for(int j=(int)y;j<(int)(y+h);j++) for(int i=(int)x;i<(int)(x+w);i++) px_set(c,i,j,r,g,b);
-}
 static void rrect(canvas *c,float x,float y,float w,float h,float rad,
                   int r,int g,int b,float shade_top,float shade_bot){
     for(int j=(int)y;j<(int)(y+h);j++){
@@ -1807,10 +1804,35 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
           int cols[4][3]={{0x2E,0x4C,0xA8},{0x2E,0x8C,0x50},{0xC8,0x9A,0x28},{0xB8,0x3C,0x34}};
           /* the road mark fills the empty right-hand end of the label,
            * scaled to the badge and vertically centred in it */
-          { float availw=pbw*0.34f, availh=pbh*0.80f;
-            float sc2=fminf(availw/(float)DXM_ROAD_W, availh/(float)DXM_ROAD_HT);
-            int rw=(int)(DXM_ROAD_W*sc2), rh=(int)(DXM_ROAD_HT*sc2);
-            int rx=(int)(pbx+pbw-pbw*0.07f-rw), ry=(int)(pby+(pbh-rh)*0.5f);
+          float availw=pbw*0.34f, availh=pbh*0.80f;
+          float sc2=fminf(availw/(float)DXM_ROAD_W, availh/(float)DXM_ROAD_HT);
+          int rw=(int)(DXM_ROAD_W*sc2), rh=(int)(DXM_ROAD_HT*sc2);
+          int rx=(int)(pbx+pbw-pbw*0.07f-rw), ry=(int)(pby+(pbh-rh)*0.5f);
+          /* the colour lines end on the road's slanted right edge,
+           * carried on down below the picture */
+          for(int k=0;k<4;k++){
+            float ly0=pby+pbh*(0.78f+k*0.048f), lh=fmaxf(1.0f,pbh*0.030f);
+            float x0=pbx+pbw*0.10f;
+            for(int yy=(int)floorf(ly0);yy<=(int)ceilf(ly0+lh);yy++){
+                float cy=(float)yy+0.5f;
+                float ay=fminf(1.0f,fminf(cy-ly0+0.5f,ly0+lh-cy+0.5f));
+                if(ay<=0.0f) continue;
+                float sy=(cy-ry)/sc2;                        /* row in the artwork's frame */
+                float x1=rx+(118.0f-(sy-2.0f)*0.549f)*sc2;   /* its right edge, extended */
+                for(int xx=(int)x0;xx<=(int)ceilf(x1);xx++){
+                    float cx=(float)xx+0.5f;
+                    float ax=fminf(1.0f,x1-cx+0.5f);
+                    if(ax<=0.0f) continue;
+                    /* fades rightward into the white of the road's nearest stripe */
+                    float m=fminf(1.0f,fmaxf(0.0f,((cx-x0)/(x1-x0)-0.40f)/0.60f));
+                    m=m*m*(3.0f-2.0f*m);
+                    px_blend(c,xx,yy,(int)(cols[k][0]+(0xF2-cols[k][0])*m),
+                                     (int)(cols[k][1]+(0xF1-cols[k][1])*m),
+                                     (int)(cols[k][2]+(0xEF-cols[k][2])*m),ay*ax);
+                }
+            }
+          }
+          {
             for(int y2=0;y2<rh;y2++)
               for(int x2=0;x2<rw;x2++){
                 int sxp=(int)(x2/sc2), syp=(int)(y2/sc2);
@@ -1820,10 +1842,7 @@ uint8_t *chassis_render(dxm_layout *L,int W,int H){
                 if(al<=0.01f) continue;
                 px_blend(c,rx+x2,ry+y2,sp[0],sp[1],sp[2],al);
               }
-          }
-          for(int k=0;k<4;k++)
-            rect(c,pbx+pbw*0.10f,pby+pbh*(0.78f+k*0.048f),pbw*0.52f,
-                 fmaxf(1.0f,pbh*0.030f),cols[k][0],cols[k][1],cols[k][2]); }
+          } }
         g_grain=1;
 
         /* power button + status LEDs */
