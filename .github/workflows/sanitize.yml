@@ -1,0 +1,129 @@
+# Not a build: a test run.  The three platform workflows produce the
+# release binaries and never execute them.  This one builds the machine
+# with AddressSanitizer and UndefinedBehaviorSanitizer and actually RUNS
+# it - the unit tests, the launch/unwind/relaunch self-test against a real
+# game, and the golden frames - headless, under Xvfb with Mesa's llvmpipe.
+#
+# It exists because of the signed overflow that hung Linux and Windows on
+# the splash for a week while every CI job was green: they had compiled
+# it, nobody had run it.  UBSan aborts on that overflow at the line.
+name: Sanitizers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sanitize:
+    name: Linux (sanitizers, llvmpipe)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build git \
+            libcurl4-openssl-dev zlib1g-dev libgl1-mesa-dev libgl1-mesa-dri \
+            libx11-dev libxext-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libxfixes-dev libwayland-dev libxkbcommon-dev libasound2-dev \
+            libpulse-dev xvfb unzip
+
+      - name: Cache SDL3
+        id: sdl3-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/sdl3-install
+          key: sdl3-3.2.4-ubuntu22.04-x86_64-v1
+
+      - name: Build SDL3
+        if: steps.sdl3-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch release-3.2.4 https://github.com/libsdl-org/SDL sdl3-src
+          cmake -S sdl3-src -B sdl3-build -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$HOME/sdl3-install" \
+                -DSDL_STATIC=OFF
+          cmake --build sdl3-build
+          cmake --install sdl3-build
+
+      - name: Build (Debug, ASan + UBSan)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DDXM_SANITIZE=ON -DDXM_WERROR=ON \
+                -DCMAKE_PREFIX_PATH="$HOME/sdl3-install"
+          cmake --build build -j$(nproc)
+
+      - name: Unit tests
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --test-dir build -L unit --output-on-failure
+
+      # The self-test needs a game on the machine.  It is put there the way
+      # the installer would put it - the module and the data from the URLs
+      # the catalogue names, both checked against their hashes - so the test
+      # exercises the real launch path.  The data comes from the publisher's
+      # own site; if that is down the self-test is skipped, not failed.
+      - name: Seed the library with SkyRoads
+        id: seed
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json, hashlib, os, subprocess, sys, zipfile, urllib.request
+          cat = json.load(open('catalogue.json'))
+          g = next(x for x in cat['games'] if x['id'] == 'skyroads')
+          root = os.path.expanduser('~/.local/share/DOSexMachina/dxm/games/skyroads')
+          os.makedirs(root + '/data', exist_ok=True)
+          def fetch(url, sha, path):
+              data = urllib.request.urlopen(url, timeout=60).read()
+              assert hashlib.sha256(data).hexdigest() == sha, url
+              open(path, 'wb').write(data)
+          fetch(g['module']['linux-x86_64']['url'], g['module']['linux-x86_64']['sha256'], root + '/game.dxm')
+          fetch(g['data']['url'], g['data']['sha256'], root + '/data.zip')
+          with zipfile.ZipFile(root + '/data.zip') as z:
+              for m in z.infolist():
+                  if m.is_dir(): continue
+                  open(root + '/data/' + os.path.basename(m.filename), 'wb').write(z.read(m))
+          open(root + '/version', 'w').write(g['version'] + '\n')
+          print('seeded', root)
+          PY
+
+      - name: Self-test (launch, unwind, relaunch)
+        if: steps.seed.outcome == 'success'
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          LIBGL_ALWAYS_SOFTWARE: 1
+          SDL_VIDEODRIVER: x11
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" build/dxm --selftest 2>&1 | tee selftest.log
+          grep -q "SELFTEST PASS" selftest.log
+
+      # Golden frames.  References are per renderer, and llvmpipe is not the
+      # Apple GPU the macOS set was drawn on, so this job compares against
+      # tests/golden/references/linux/ when that exists, and otherwise
+      # captures the frames and uploads them for someone to look at and
+      # commit as the Linux references.
+      - name: Golden frames
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          LIBGL_ALWAYS_SOFTWARE: 1
+          SDL_VIDEODRIVER: x11
+        run: |
+          if ls tests/golden/references/linux/*.png >/dev/null 2>&1; then
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              python3 tests/golden/run.py build/dxm --out build/golden
+          else
+            echo "no Linux references yet: capturing them for review"
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              python3 tests/golden/run.py build/dxm --update --out build/golden
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-linux-llvmpipe
+          path: |
+            tests/golden/references/linux/
+            build/golden/
+          if-no-files-found: ignore

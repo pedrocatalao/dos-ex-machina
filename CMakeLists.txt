@@ -7,6 +7,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 option(DXM_WERROR "Treat compiler warnings as errors (CI turns this on)" OFF)
+# AddressSanitizer and UndefinedBehaviorSanitizer, for a Debug build that
+# runs the tests: undefined behaviour aborts instead of being recovered
+# from, which is what makes a signed overflow a failure rather than a
+# silently wrong loop bound.
+option(DXM_SANITIZE "Build with ASan and UBSan" OFF)
+if(DXM_SANITIZE)
+    set(DXM_SANITIZE_FLAGS -fsanitize=address,undefined -fno-sanitize-recover=undefined
+                           -fno-omit-frame-pointer)
+endif()
 
 find_package(SDL3 REQUIRED CONFIG)
 # libcurl for downloads (TLS, and GitHub's release URLs redirect), and zlib
@@ -70,7 +79,8 @@ set(DXM_WARNINGS
     # point of snprintf, so that one is off.  The rest of -Wall stays.
     $<$<C_COMPILER_ID:GNU>:-Wno-format-truncation>
     $<$<BOOL:${DXM_WERROR}>:-Werror>)
-target_compile_options(dxm PRIVATE ${DXM_WARNINGS})
+target_compile_options(dxm PRIVATE ${DXM_WARNINGS} ${DXM_SANITIZE_FLAGS})
+target_link_options(dxm PRIVATE ${DXM_SANITIZE_FLAGS})
 # The version lives in project() above and nowhere else: the binary's log
 # banner takes it from here, and so does the macOS bundle - Info.plist is
 # generated from the .in template into the build tree, where the packaging

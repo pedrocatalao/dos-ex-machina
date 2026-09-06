@@ -5,12 +5,11 @@ the frames `run.py` captured there. A frame is only comparable with a frame
 from the same GPU and driver: the tube pipeline is float maths on whatever
 hardware is present, and two drivers do not round alike.
 
-The macOS references are from the development machine (Apple GPU). A CI
-runner for another platform blesses its own set with
-
-    python3 tests/golden/run.py build/dxm --update
-
-after someone has looked at the frames it produced.
+The macOS references are from the development machine (Apple GPU). The
+Linux sanitizer job draws with Mesa's llvmpipe under Xvfb: while
+`linux/` is empty it captures the frames and uploads them as the
+`golden-linux-llvmpipe` artifact; once someone has looked at them and
+committed them here, the job compares against them.
 
 ## When references change
 

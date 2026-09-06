@@ -16,7 +16,8 @@ function(unit_test name)
     add_executable(test_${name} unit/test_${name}.c ${T_SOURCES})
     target_include_directories(test_${name} PRIVATE ${CMAKE_SOURCE_DIR}/src
                                ${CMAKE_SOURCE_DIR}/contract ${CMAKE_CURRENT_SOURCE_DIR}/unit)
-    target_compile_options(test_${name} PRIVATE ${DXM_WARNINGS})
+    target_compile_options(test_${name} PRIVATE ${DXM_WARNINGS} ${DXM_SANITIZE_FLAGS})
+    target_link_options(test_${name} PRIVATE ${DXM_SANITIZE_FLAGS})
     target_compile_definitions(test_${name} PRIVATE
         TEST_TMP="${UNIT_TMP}"
         TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/unit/fixtures"
