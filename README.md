@@ -107,7 +107,9 @@ cmake --build build -j8
 ./build/dxm
 ```
 
-No game checkout is needed — DXM builds and ships on its own.
+No game checkout is needed — DXM builds and ships on its own. The tube's
+shaders are the GLSL files under `shaders/`, baked into the binary at build
+time; nothing is read from disk at run time.
 
 `ctest --test-dir build` runs the tests. The golden-frame test draws the
 machine under `--deterministic` and compares it pixel for pixel with the

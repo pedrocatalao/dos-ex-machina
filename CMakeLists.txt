@@ -35,7 +35,25 @@ add_executable(dxm
 # deliberately NOT built here - it is compiled INTO each core, because a
 # module cannot reach back into this executable for the plat_* symbols it
 # needs.  The host only includes the header.
-target_include_directories(dxm PRIVATE src contract)
+target_include_directories(dxm PRIVATE src contract ${CMAKE_BINARY_DIR}/generated)
+# The shaders are GLSL files under shaders/, baked into one header at build
+# time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.
+set(DXM_SHADERS
+    shaders/quad.vert shaders/persist.frag shaders/blur.frag shaders/composite.frag
+    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag)
+list(TRANSFORM DXM_SHADERS PREPEND ${CMAKE_SOURCE_DIR}/)
+# The list crosses a command line, where ';' would split it into separate
+# arguments; it travels comma-joined and the script splits it again.
+string(REPLACE ";" "," DXM_SHADERS_ARG "${DXM_SHADERS}")
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/generated/shaders.h
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/generated
+    COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_BINARY_DIR}/generated/shaders.h
+            -DFILES=${DXM_SHADERS_ARG} -P ${CMAKE_SOURCE_DIR}/tools/embed.cmake
+    DEPENDS ${DXM_SHADERS} ${CMAKE_SOURCE_DIR}/tools/embed.cmake
+    COMMENT "Baking shaders/ into shaders.h"
+    VERBATIM)
+target_sources(dxm PRIVATE ${CMAKE_BINARY_DIR}/generated/shaders.h)
 # The warning set the code is kept clean under, on both compilers it ships
 # with.  -Wswitch-enum is deliberately absent: a switch over SDL's scancodes
 # with a default is the right shape, and that flag objects to it.

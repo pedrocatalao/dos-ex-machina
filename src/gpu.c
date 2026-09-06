@@ -6,6 +6,10 @@
  * Passes 2..7 are fused into one output-resolution shader; persistence and
  * bloom are separate because they need their own targets. */
 #include "gpu.h"
+/* The GLSL lives in the shaders directory, one file per pass; the build
+ * bakes each into a string in this header (tools/embed.cmake).  Nothing is
+ * loaded from disk at run time, so a release is still one binary. */
+#include "shaders.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -125,320 +129,7 @@ struct gpu {
     float raster_h, raster_v, tube_gain;
 };
 
-static const char *VS =
-"#version 330 core\n"
-"layout(location=0) in vec2 p;\n"
-"out vec2 uv;\n"
-"void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0,1); }\n";
-
-/* ---- pass 1: phosphor persistence + burn-in, time-based decay (SPEC §6.7) */
-static const char *FS_PERSIST =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D src, prev;\n"
-"uniform float dt, persist;\n"
-"void main(){\n"
-"  vec3 cur = texture(src, uv).rgb;\n"
-"  vec3 old = texture(prev, uv).rgb;\n"
-"  cur = pow(cur, vec3(2.2));\n"            /* to linear */
-"  float hl = mix(0.010, 0.075, persist);\n" /* half-life in SECONDS, not frames */
-"  vec3 k = vec3(pow(0.5, dt/hl), pow(0.5, dt/(hl*1.25)), pow(0.5, dt/(hl*0.8)));\n"
-"  o = vec4(max(cur, old*k), 1.0);\n"        /* green persists longest (P22) */
-"}\n";
-
-static const char *FS_BLUR =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D src; uniform vec2 dir;\n"
-"void main(){\n"
-"  vec3 s = texture(src,uv).rgb*0.227;\n"
-"  s += (texture(src,uv+dir*1.38).rgb + texture(src,uv-dir*1.38).rgb)*0.316;\n"
-"  s += (texture(src,uv+dir*3.23).rgb + texture(src,uv-dir*3.23).rgb)*0.070;\n"
-"  o = vec4(s,1.0);\n"
-"}\n";
-
-/* ---- passes 2..7 fused: curvature, beam/mask, bloom add, glass, spill ---- */
-static const char *FS_COMPOSITE =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D tube, bloom, chassis, spillsrc, roomsrc, burnsrc;\n"
-"uniform vec4  rect;        // tube x,y,w,h in 0..1 output space\n"
-"uniform vec2  outsize;\n"
-"uniform float warp, bright, contrast, ambient, scan, margin;\n"
-"uniform float u_bloom, u_burn, u_noise, u_jitter, u_glowline;\n"
-"uniform float u_flicker, u_hsync, u_rgb, u_chassis;\n"
-"uniform float aper_r, time;\n"
-"uniform vec4  led[2];\n"
-"uniform vec3  ledcol[2];\n"
-"uniform float ledon[2];\n"
-"uniform float ledround[2];\n"
-"uniform float ledclip[2];\n"
-"uniform vec2  u_raster;         // deflection: fraction of the raster drawn\n"
-"uniform float u_gain;           // beam drive\n"
-"uniform float crt_lines, crt_cols, vgrid;\n"
-"uniform vec2  texsize, texelpx;   // tube texture, and one output pixel\n"
-"uniform float u_sharp;            // 1 on the DOS screen, 0 in a game\n"
-"uniform float u_overscan;         // picture overflow, in OUTPUT pixels\n"
-"\n"
-"// A sin() hash breaks down once its argument gets large: the range\n"
-"// reduction inside sin() loses precision, and what comes out is not\n"
-"// noise but coherent bands running along dot(p,k)=const - a sharp\n"
-"// diagonal sweeping the tube as the time offset grows.  At full-screen\n"
-"// pixel coordinates the argument is already in the millions.  This is\n"
-"// the integer-style hash instead: no trig, no magnitude sensitivity.\n"
-"float hash(vec2 p){\n"
-"  vec3 q = fract(vec3(p.xyx) * 0.1031);\n"
-"  q += dot(q, q.yzx + 33.33);\n"
-"  return fract((q.x + q.y) * q.z);\n"
-"}\n"
-"\n"
-"// Two sampling regimes, because the two sources want opposite things.\n"
-"// TEXT (8x16 glyphs at ~3x) needs each source pixel to have an edge\n"
-"// exactly one OUTPUT pixel wide, or nearest-neighbour rounds strokes to\n"
-"// whole pixels unevenly and the same glyph gets a fat left edge here\n"
-"// and a fat right edge there.  GAME ART (320x200 at ~6x) wants honest\n"
-"// hard pixels - any smoothing there just reads as lost resolution.\n"
-"// The edge width is passed in rather than taken from fwidth(), which is\n"
-"// undefined inside the non-uniform control flow this runs in.\n"
-"vec2 tap(vec2 c){\n"
-"  vec2 p = c*texsize;\n"
-"  vec2 i = floor(p) + 0.5;\n"
-"  if (u_sharp < 0.5) return i/texsize;      // exactly nearest\n"
-"  vec2 d = p - i;\n"
-"  vec2 w = max(texelpx*0.5, vec2(1e-5));\n"
-"  return (i + clamp(d/w, -1.0, 1.0)*0.5) / texsize;\n"
-"}\n"
-"\n"
-"vec2 barrel(vec2 p){\n"
-"  vec2 c = p*2.0-1.0;\n"
-"  float r2 = dot(c,c);\n"
-"  c *= 1.0 + warp*0.30*r2;      // DXM_WARP_K  (crt.h)\n"
-"  c /= 1.0 + warp*0.32;         // DXM_WARP_NORM (crt.h) - keep in sync\n"
-"  return c*0.5+0.5;\n"
-"}\n"
-"// beam profile INTEGRATED over the pixel footprint, so scanlines do not\n"
-"// alias when tube height is not a multiple of crt_lines (SPEC 6.4).\n"
-"float beam(float y, float px){\n"
-"  float l = y*crt_lines;\n"
-"  float d = abs(fract(l)-0.5)*2.0;\n"
-"  float w = clamp(px*crt_lines, 0.6, 4.0);\n"
-"  float g = exp(-d*d*3.0/ (w*0.55));\n"
-"  return mix(1.0, g, scan);\n"
-"}\n"
-"float column(float x, float px){\n"
-"  float c = x*crt_cols;\n"
-"  float d = abs(fract(c)-0.5)*2.0;\n"
-"  float w = clamp(px*crt_cols, 0.6, 4.0);\n"
-"  float g = exp(-d*d*3.0/ (w*0.62));\n"
-"  return mix(1.0, g, vgrid);\n"
-"}\n"
-"void main(){\n"
-"  vec4 chas = texture(chassis, vec2(uv.x, 1.0-uv.y));\n"
-"  vec3 plastic = chas.rgb;\n"
-"  // alpha carries how much this surface faces the tube: the reveal dish\n"
-"  // is angled at the glass and catches far more light than the flat case\n"
-"  float facing = 0.22 + 1.55*chas.a;\n"
-"  plastic = pow(plastic, vec3(2.2));\n"
-"  vec2 t = (uv - rect.xy) / rect.zw;\n"
-"  vec3 col = vec3(0.0);\n"
-"  float inside = 0.0;\n"
-"  if (t.x>-0.15 && t.x<1.15 && t.y>-0.15 && t.y<1.15) {\n"
-"    // ---- deflection errors, applied BEFORE the barrel so they behave\n"
-"    // like real deflection rather than like a moving texture ----\n"
-"    // JITTER: the whole raster twitching frame to frame\n"
-"    vec2 jit = vec2(hash(vec2(floor(time*60.0),1.0))-0.5,\n"
-"                    hash(vec2(floor(time*60.0),7.0))-0.5);\n"
-"    t += jit * u_jitter * 0.010;\n"
-"    // HSYNC: each LINE starts at slightly the wrong place, drifting\n"
-"    float lineno = floor(t.y*crt_lines);\n"
-"    float hs = (hash(vec2(lineno, floor(time*24.0)))-0.5)\n"
-"             + 0.6*sin(t.y*38.0 + time*5.0);\n"
-"    t.x += hs * u_hsync * 0.012;\n"
-"\n"
-"    vec2 b = barrel(t);\n"
-"    // The glass must be cut to the SAME rounded box the chassis carved,\n"
-"    // evaluated in the same warped space.\n"
-"    vec2 halfpx = rect.zw*outsize*0.5;\n"
-"    vec2 apx    = abs(b*2.0-1.0)*halfpx;\n"
-"    vec2 qq     = apx - (halfpx - aper_r);\n"
-"    float asd   = (qq.x>0.0 && qq.y>0.0) ? length(qq)-aper_r\n"
-"                                         : max(apx.x-halfpx.x, apx.y-halfpx.y);\n"
-"    // The GLASS REGION opens outward by the overscan, so lit content\n"
-"    // actually reaches under the moulding.  Scaling the sample alone did\n"
-"    // nothing visible: the boundary stayed exactly where it was.\n"
-"    if (asd <= u_overscan) {\n"
-"      inside = 1.0;\n"
-"      // Overscan: push the picture a little PAST the aperture so its\n"
-"      // edge is tucked under the moulding instead of ending exactly at\n"
-"      // it.  Real sets always overscanned; it also means no seam can\n"
-"      // show between the last lit pixel and the dish.\n"
-"      vec2 e = u_overscan / max(rect.zw*outsize*0.5, vec2(1.0));\n"
-"      vec2 sb = (b - 0.5)/(1.0 + e)/max(1.0 - 2.0*margin, 1e-3) + 0.5;\n"
-"      // the deflection: a smaller raster means the same picture drawn\n"
-"      // in less of the glass, with the rest unlit\n"
-"      sb = 0.5 + (sb - 0.5)/max(u_raster, vec2(1e-3));\n"
-"      vec2 cb = clamp(sb, 0.0, 1.0);\n"
-"      vec2 od = max(max(-sb, sb - vec2(1.0)), vec2(0.0));\n"
-"      float outd = length(od);          // 0 inside the raster\n"
-"      float px = 1.0/max(rect.w*outsize.y,1.0);\n"
-"      vec3 s = vec3(0.0);\n"
-"      float bm = 1.0;\n"
-"      if (outd < 1e-6) {\n"
-"        // RGB SHIFT: the three guns landing at slightly different places,\n"
-"        // splayed outward from the centre the way real convergence errors\n"
-"        // grow toward the edges of the tube\n"
-"        vec2 ctr = sb - 0.5;\n"
-"        vec2 sep = ctr * u_rgb * 0.020;\n"
-"        s.r = texture(tube, tap(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y)))).r;\n"
-"        s.g = texture(tube, tap(vec2(sb.x,       1.0- sb.y      ))).g;\n"
-"        s.b = texture(tube, tap(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y)))).b;\n"
-"        s = (s - 0.5)*contrast + 0.5 + (bright-0.5)*0.6;\n"
-"        bm = beam(sb.y, px);\n"
-"        bm *= column(sb.x, 1.0/max(rect.z*outsize.x,1.0));\n"
-"      }\n"
-"      // Aperture-grille triad locked to the SOURCE pixel grid: one full\n"
-"      // R|G|B triad per source pixel.  Pinning it to output pixels on a\n"
-"      // 3px period meant every character cell landed on a different\n"
-"      // sub-phase of the stripes, so the same glyph came out with a\n"
-"      // bright left edge in one column and a bright right edge in the\n"
-"      // next, with colour fringing that changed across the screen.\n"
-"      float gx = fract(cb.x*crt_cols);\n"
-"      vec3 mask = vec3(0.94);\n"
-"      mask.r += 0.20*step(gx,0.333); mask.g += 0.20*step(0.333,gx)*step(gx,0.666);\n"
-"      mask.b += 0.20*step(0.666,gx);\n"
-"      col = max(s,0.0)*bm*mask*u_gain;\n"
-"\n"
-"      // BURN-IN: the slow accumulator, added as a faint ghost\n"
-"      vec3 burn = texture(burnsrc, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += burn * u_burn * 0.55 * mask * u_gain;\n"
-"\n"
-"      // BLOOM: light bleeding between lit pixels\n"
-"      vec3 bl = texture(bloom, vec2(cb.x,1.0-cb.y)).rgb;\n"
-"      col += bl*u_bloom*0.34*exp(-outd*11.0)*mask*u_gain;\n"
-"\n"
-"      // GLOW LINE: the bright band drifting slowly down the tube, left by\n"
-"      // the refresh beating against the eye\n"
-"      // sb.y == 1 is the TOP of the picture, so the phase must ADVANCE\n"
-"      // with time for the band to drift downward, the way the refresh\n"
-"      // beating against mains actually rolls.\n"
-"      float gl = fract(cb.y*0.5 + time*0.10);\n"
-"      col += vec3(0.55,0.85,1.0) * u_glowline * 0.055\n"
-"           * exp(-pow((gl-0.5)/0.06, 2.0));\n"
-"\n"
-"      vec2 c2 = b*2.0-1.0;\n"
-"      col *= 1.0 - 0.30*dot(c2,c2)*0.5;\n"
-"      col += ambient*0.016*vec3(0.9,0.95,1.0);\n"
-"      float sheen = smoothstep(0.42,0.0, distance(b, vec2(0.28,0.16)));\n"
-"      col += sheen*(0.008+0.022*ambient);\n"
-"\n"
-"      // STATIC NOISE: snow on the phosphor\n"
-"      // the animation offset is WRAPPED - letting it grow without bound\n"
-"      // walks the hash input off into the range where any hash starts\n"
-"      // to lose resolution\n"
-"      float n = hash(floor(uv*outsize)\n"
-"                     + vec2(mod(time*371.0,977.0), mod(time*137.0,743.0)))\n"
-"              - 0.5;\n"
-"      col += n * u_noise * 0.16;\n"
-"\n"
-"      // FLICKER: the mains-rate brightness wobble of an old set\n"
-"      float fl = 1.0 + u_flicker*0.10*(sin(time*47.0)*0.6 + sin(time*113.0)*0.4)\n"
-"               + u_flicker*0.05*(hash(vec2(floor(time*50.0),3.0))-0.5);\n"
-"      col *= fl;\n"
-"    }\n"
-"  }\n"
-"  // bezel spill: heavily blurred tube lights the surrounding plastic (6.6)\n"
-"  vec2 sp = clamp((uv-rect.xy)/rect.zw, 0.0, 1.0);\n"
-"  vec3 spill = texture(spillsrc, vec2(sp.x,1.0-sp.y)).rgb;\n"
-"  vec2 outv = max(max(rect.xy-uv, uv-(rect.xy+rect.zw)), vec2(0.0));\n"
-"  outv.x *= outsize.x/outsize.y;   // uv.x and uv.y are not the same distance\n"
-"  float d = length(outv)/max(rect.w,1e-4);      // in tube-heights\n"
-"  float fall = exp(-d*5.0);      // reaches further across the moulding\n"
-"  // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear\n"
-"  // factors toward 1, so a linear ramp here looks nearly flat.\n"
-"  float amb = pow(0.16 + 0.98*ambient, 2.2);\n"
-"  // What the tube throws into the ROOM: a near-average of the whole\n"
-"  // picture, lighting the entire chassis and falling off only slowly.\n"
-"  vec3 room = texture(roomsrc, vec2(0.5,0.5)).rgb;\n"
-"  float roomfall = exp(-d*1.1);\n"
-"  vec3 lit = plastic*amb\n"
-"           + spill*fall*u_chassis*facing*(0.30+0.26*(1.0-ambient))\n"
-"           + room*roomfall*u_chassis*facing*(0.34+0.40*(1.0-ambient));\n"
-"  vec3 fin = mix(lit, col, inside);\n"
-"  for (int i = 0; i < 2; ++i) {\n"
-"    if (ledon[i] <= 0.001) continue;\n"
-"    vec2 lc = led[i].xy + led[i].zw*0.5;\n"
-"    vec2 dd  = (uv - lc) / (led[i].zw*0.5);\n"
-"    float m = mix(max(abs(dd.x),abs(dd.y)), length(dd), ledround[i]);\n"
-"    float lens = 1.0 - smoothstep(0.82, 1.02, m);\n"
-"    // A frosted light pipe does not emit as a flat rectangle: it is\n"
-"    // brightest over the die and carries the same striations the unlit\n"
-"    // face shows.  Without this the LED lights up as a colour swatch.\n"
-"    lens *= mix(1.0,\n"
-"                (0.80 + 0.30*exp(-dot(dd,dd)*1.30))\n"
-"                * (1.0 + 0.055*sin(dd.y*9.0)),\n"
-"                1.0 - ledround[i]);\n"
-"    // A lit LED throws real light onto the plastic around it: a tight\n"
-"    // core plus a much wider, softer halo.  A single narrow falloff\n"
-"    // made the lens glow but left the case around it untouched.\n"
-"    float d2  = dot(dd,dd);\n"
-"    float core  = exp(-d2*0.75);\n"
-"    float wide  = exp(-d2*0.10);\n"
-"    float bleed = core*0.30 + wide*0.16;\n"
-"    // What sits above the LED - the power cap - is a separate face at a\n"
-"    // different height.  Its underside shadows the light, so the bleed\n"
-"    // stops there; a lamp does not light the front of a button above it.\n"
-"    bleed *= 1.0 - smoothstep(ledclip[i] - 1.5/outsize.y, ledclip[i], uv.y);\n"
-"    fin += ledcol[i] * (lens*1.50 + bleed) * ledon[i];\n"
-"  }\n"
-"  o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);\n"
-"}\n";
-
-/* burn-in accumulator: a very slow exponential average of the picture.  Its
- * time constant is in TENS OF SECONDS, which is what makes static content
- * (a prompt, a HUD) etch in while moving content leaves nothing. */
-static const char *FS_BURN =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D src, prev;\n"
-"uniform float dt, rate;\n"
-"void main(){\n"
-"  vec3 cur = pow(texture(src, uv).rgb, vec3(2.2));\n"
-"  vec3 old = texture(prev, uv).rgb;\n"
-"  float k = 1.0 - exp(-dt/max(rate,0.001));   // seconds, time-based\n"
-"  o = vec4(mix(old, cur, k), 1.0);\n"
-"}\n";
-
 /* the settings panel, straight alpha over the finished frame */
-/* Startup splash: the wordmark on black, before the machine exists.  It is
- * drawn PREMULTIPLIED - the source is baked that way so that scaling it up
- * with linear filtering cannot pull the transparent pixels' black into the
- * edges as a dark fringe. */
-static const char *FS_SPLASH =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D src;\n"
-"uniform vec4  rect;      // where the logo sits, in 0..1 output space\n"
-"uniform float alpha;\n"
-"void main(){\n"
-"  vec2 t = (uv - rect.xy) / rect.zw;\n"
-"  o = vec4(0.0);\n"
-"  if (t.x>=0.0 && t.x<=1.0 && t.y>=0.0 && t.y<=1.0)\n"
-"    o = texture(src, vec2(t.x, 1.0-t.y)) * alpha;\n"
-"}\n";
-
-/* A plain black veil, for bringing the whole machine up out of nothing
- * after the splash.  It goes over everything - chassis, tube and panel - so
- * what fades in is the room, not just the picture. */
-static const char *FS_FADE =
-"#version 330 core\n"
-"out vec4 o; uniform float a;\n"
-"void main(){ o = vec4(0.0,0.0,0.0,a); }\n";
-
-static const char *FS_OVERLAY =
-"#version 330 core\n"
-"in vec2 uv; out vec4 o;\n"
-"uniform sampler2D src;\n"
-"void main(){ o = texture(src, vec2(uv.x, 1.0-uv.y)); }\n";
 
 static GLuint mkshader(GLenum t, const char *src){
     GLuint s=glCreateShader(t); glShaderSource(s,1,&src,NULL); glCompileShader(s);
@@ -449,7 +140,7 @@ static GLuint mkshader(GLenum t, const char *src){
 }
 static GLuint mkprog(const char *fs){
     GLuint p=glCreateProgram();
-    GLuint v=mkshader(GL_VERTEX_SHADER,VS), f=mkshader(GL_FRAGMENT_SHADER,fs);
+    GLuint v=mkshader(GL_VERTEX_SHADER,shader_quad_vert), f=mkshader(GL_FRAGMENT_SHADER,fs);
     glAttachShader(p,v); glAttachShader(p,f); glLinkProgram(p);
     GLint ok=0; glGetProgramiv(p,GL_LINK_STATUS,&ok);
     if(!ok){ char log[4096]; glGetProgramInfoLog(p,sizeof log,NULL,log);
@@ -494,13 +185,13 @@ gpu *gpu_create(int w,int h){
     glGenBuffers(1,&g->vbo); glBindBuffer(GL_ARRAY_BUFFER,g->vbo);
     glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);
     glEnableVertexAttribArray(0); glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,0);
-    g->prog_persist=mkprog(FS_PERSIST);
-    g->prog_blur=mkprog(FS_BLUR);
-    g->prog_composite=mkprog(FS_COMPOSITE);
-    g->prog_burn=mkprog(FS_BURN);
-    g->prog_overlay=mkprog(FS_OVERLAY);
-    g->prog_splash=mkprog(FS_SPLASH);
-    g->prog_fade=mkprog(FS_FADE);
+    g->prog_persist=mkprog(shader_persist_frag);
+    g->prog_blur=mkprog(shader_blur_frag);
+    g->prog_composite=mkprog(shader_composite_frag);
+    g->prog_burn=mkprog(shader_burn_frag);
+    g->prog_overlay=mkprog(shader_overlay_frag);
+    g->prog_splash=mkprog(shader_splash_frag);
+    g->prog_fade=mkprog(shader_fade_frag);
     glGenTextures(1,&g->tex_splash); glBindTexture(GL_TEXTURE_2D,g->tex_splash);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
