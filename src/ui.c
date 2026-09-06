@@ -9,22 +9,25 @@
 typedef struct { const char *name; float *val; float lo, hi; } param;
 
 #define MAXP 20
-static param P[MAXP];
-static int   NP;
-static int   shown;
-static int   drag = -1;
-static uint8_t *buf;
-static int   bw, bh;
+/* The panel: its parameters, visibility, drag, bitmap and layout */
+static struct {
+    param param[MAXP];
+    int n;
+    int shown;
+    int drag;
+    uint8_t *buf;
+    int bw, bh;
+    /* panel geometry, in output pixels; scaled from display height */
+    int x, y, w, row_h, label_w, slider_w, pad;
+} panel = { .drag=-1 };
 
-/* panel geometry, in output pixels; scaled from display height */
-static int PX, PY, PW, ROWH, LABW, SLW, PAD;
 
 static void add(const char *n, float *v, float lo, float hi){
-    if(NP<MAXP){ P[NP].name=n; P[NP].val=v; P[NP].lo=lo; P[NP].hi=hi; NP++; }
+    if(panel.n<MAXP){ panel.param[panel.n].name=n; panel.param[panel.n].val=v; panel.param[panel.n].lo=lo; panel.param[panel.n].hi=hi; panel.n++; }
 }
 
 void ui_init(gpu_knobs *k){
-    NP=0;
+    panel.n=0;
     add("BLOOM",        &k->bloom,        0.0f, 1.5f);
     add("BURN IN",      &k->burn_in,      0.0f, 1.0f);
     add("STATIC NOISE", &k->noise,        0.0f, 1.0f);
@@ -42,45 +45,45 @@ void ui_init(gpu_knobs *k){
     add("BRIGHTNESS",   &k->brightness,   0.0f, 1.0f);
     add("CONTRAST",     &k->contrast,     0.4f, 1.8f);
 }
-int  ui_visible(void){ return shown; }
-void ui_toggle(void){ shown=!shown; drag=-1; }
+int  ui_visible(void){ return panel.shown; }
+void ui_toggle(void){ panel.shown=!panel.shown; panel.drag=-1; }
 
 static void layout(int out_w,int out_h){
     (void)out_w;
     float s = out_h/1080.0f; if(s<0.75f) s=0.75f;
-    ROWH=(int)(26*s); LABW=(int)(190*s); SLW=(int)(260*s); PAD=(int)(16*s);
-    PW = LABW+SLW+(int)(70*s)+PAD*2;
-    PX = (int)(28*s); PY = (int)(28*s);
+    panel.row_h=(int)(26*s); panel.label_w=(int)(190*s); panel.slider_w=(int)(260*s); panel.pad=(int)(16*s);
+    panel.w = panel.label_w+panel.slider_w+(int)(70*s)+panel.pad*2;
+    panel.x = (int)(28*s); panel.y = (int)(28*s);
 }
 
 int ui_mouse(int x,int y,int down,int moving){
-    if(!shown) return 0;
-    int ph = PAD*2 + (int)(ROWH*1.6f) + NP*ROWH;
-    int inside = (x>=PX && x<PX+PW && y>=PY && y<PY+ph);
-    if(!down && !moving){ drag=-1; return inside; }
+    if(!panel.shown) return 0;
+    int ph = panel.pad*2 + (int)(panel.row_h*1.6f) + panel.n*panel.row_h;
+    int inside = (x>=panel.x && x<panel.x+panel.w && y>=panel.y && y<panel.y+ph);
+    if(!down && !moving){ panel.drag=-1; return inside; }
     if(down && !moving){
-        drag=-1;
+        panel.drag=-1;
         if(!inside) return 0;
-        int y0 = PY+PAD+(int)(ROWH*1.6f);
-        for(int i=0;i<NP;i++){
-            int ry=y0+i*ROWH;
-            if(y>=ry && y<ry+ROWH){ drag=i; break; }
+        int y0 = panel.y+panel.pad+(int)(panel.row_h*1.6f);
+        for(int i=0;i<panel.n;i++){
+            int ry=y0+i*panel.row_h;
+            if(y>=ry && y<ry+panel.row_h){ panel.drag=i; break; }
         }
     }
-    if(drag>=0){
-        int sx = PX+PAD+LABW;
-        float f = (float)(x-sx)/(float)SLW;
+    if(panel.drag>=0){
+        int sx = panel.x+panel.pad+panel.label_w;
+        float f = (float)(x-sx)/(float)panel.slider_w;
         if(f<0) f=0;
         if(f>1) f=1;
-        *P[drag].val = P[drag].lo + f*(P[drag].hi-P[drag].lo);
+        *panel.param[panel.drag].val = panel.param[panel.drag].lo + f*(panel.param[panel.drag].hi-panel.param[panel.drag].lo);
         return 1;
     }
     return inside;
 }
 
 static void px(int x,int y,int r,int g,int b,int a){
-    if(x<0||y<0||x>=bw||y>=bh) return;
-    uint8_t *p=buf+((size_t)y*bw+x)*4;
+    if(x<0||y<0||x>=panel.bw||y>=panel.bh) return;
+    uint8_t *p=panel.buf+((size_t)y*panel.bw+x)*4;
     float A=a/255.0f;
     p[0]=(uint8_t)(p[0]*(1-A)+r*A); p[1]=(uint8_t)(p[1]*(1-A)+g*A);
     p[2]=(uint8_t)(p[2]*(1-A)+b*A); p[3]=(uint8_t)(p[3]+(255-p[3])*A);
@@ -99,46 +102,46 @@ static void label(int x,int y,const char *s,float sc,int r,int g,int b,int a){
 }
 
 const uint8_t *ui_render(int out_w,int out_h,int *w,int *h){
-    if(!shown) return NULL;
+    if(!panel.shown) return NULL;
     layout(out_w,out_h);
-    if(!buf || bw!=out_w || bh!=out_h){
-        free(buf); bw=out_w; bh=out_h;
-        buf=malloc((size_t)bw*bh*4);
-        if(!buf){ bw=bh=0; return NULL; }
+    if(!panel.buf || panel.bw!=out_w || panel.bh!=out_h){
+        free(panel.buf); panel.bw=out_w; panel.bh=out_h;
+        panel.buf=malloc((size_t)panel.bw*panel.bh*4);
+        if(!panel.buf){ panel.bw=panel.bh=0; return NULL; }
     }
-    memset(buf,0,(size_t)bw*bh*4);
+    memset(panel.buf,0,(size_t)panel.bw*panel.bh*4);
     float s = out_h/1080.0f; if(s<0.75f) s=0.75f;
     float tsc = s*1.5f; if(tsc<1.0f) tsc=1.0f;
-    int ph = PAD*2 + (int)(ROWH*1.6f) + NP*ROWH;
+    int ph = panel.pad*2 + (int)(panel.row_h*1.6f) + panel.n*panel.row_h;
 
-    box(PX,PY,PW,ph, 10,12,14, 214);                 /* panel */
-    box(PX,PY,PW,(int)(2*s), 90,220,110,200);        /* top rule */
-    label(PX+PAD, PY+PAD, "CRT ADJUST", tsc, 120,235,140,255);
-    label(PX+PW-PAD-(int)(8*tsc*4), PY+PAD, "F1", tsc, 90,110,95,255);
+    box(panel.x,panel.y,panel.w,ph, 10,12,14, 214);                 /* panel */
+    box(panel.x,panel.y,panel.w,(int)(2*s), 90,220,110,200);        /* top rule */
+    label(panel.x+panel.pad, panel.y+panel.pad, "CRT ADJUST", tsc, 120,235,140,255);
+    label(panel.x+panel.w-panel.pad-(int)(8*tsc*4), panel.y+panel.pad, "F1", tsc, 90,110,95,255);
 
-    int y0 = PY+PAD+(int)(ROWH*1.6f);
-    for(int i=0;i<NP;i++){
-        int ry=y0+i*ROWH;
-        int sx=PX+PAD+LABW, sy=ry+ROWH/2-(int)(3*s);
-        float f=(*P[i].val - P[i].lo)/(P[i].hi-P[i].lo);
+    int y0 = panel.y+panel.pad+(int)(panel.row_h*1.6f);
+    for(int i=0;i<panel.n;i++){
+        int ry=y0+i*panel.row_h;
+        int sx=panel.x+panel.pad+panel.label_w, sy=ry+panel.row_h/2-(int)(3*s);
+        float f=(*panel.param[i].val - panel.param[i].lo)/(panel.param[i].hi-panel.param[i].lo);
         if(f<0)f=0;
         if(f>1)f=1;
-        label(PX+PAD, ry+ROWH/2-(int)(4*tsc), P[i].name, tsc, 176,190,180,255);
-        box(sx, sy, SLW, (int)(4*s), 42,50,46, 235);          /* track  */
-        box(sx, sy, (int)(SLW*f), (int)(4*s), 70,190,95, 245);/* filled */
-        int kx=sx+(int)(SLW*f);
-        box(kx-(int)(3*s), ry+ROWH/2-(int)(9*s), (int)(6*s), (int)(18*s),
-            (drag==i)?230:170, 245, (drag==i)?190:180, 255);  /* handle */
-        char v[16]; snprintf(v,sizeof v,"%.2f",(double)*P[i].val);
-        label(sx+SLW+(int)(12*s), ry+ROWH/2-(int)(4*tsc), v, tsc, 140,160,150,255);
+        label(panel.x+panel.pad, ry+panel.row_h/2-(int)(4*tsc), panel.param[i].name, tsc, 176,190,180,255);
+        box(sx, sy, panel.slider_w, (int)(4*s), 42,50,46, 235);          /* track  */
+        box(sx, sy, (int)(panel.slider_w*f), (int)(4*s), 70,190,95, 245);/* filled */
+        int kx=sx+(int)(panel.slider_w*f);
+        box(kx-(int)(3*s), ry+panel.row_h/2-(int)(9*s), (int)(6*s), (int)(18*s),
+            (panel.drag==i)?230:170, 245, (panel.drag==i)?190:180, 255);  /* handle */
+        char v[16]; snprintf(v,sizeof v,"%.2f",(double)*panel.param[i].val);
+        label(sx+panel.slider_w+(int)(12*s), ry+panel.row_h/2-(int)(4*tsc), v, tsc, 140,160,150,255);
     }
-    *w=bw; *h=bh;
-    return buf;
+    *w=panel.bw; *h=panel.bh;
+    return panel.buf;
 }
 
 void ui_save(const char *path){
     FILE *f=fopen(path,"w"); if(!f) return;
-    for(int i=0;i<NP;i++) fprintf(f,"%s=%.4f\n",P[i].name,(double)*P[i].val);
+    for(int i=0;i<panel.n;i++) fprintf(f,"%s=%.4f\n",panel.param[i].name,(double)*panel.param[i].val);
     fclose(f);
 }
 void ui_load(const char *path){
@@ -147,8 +150,8 @@ void ui_load(const char *path){
     while(fgets(line,sizeof line,f)){
         char *eq=strchr(line,'='); if(!eq) continue;
         *eq=0;
-        for(int i=0;i<NP;i++)
-            if(!strcmp(P[i].name,line)){ *P[i].val=(float)atof(eq+1); break; }
+        for(int i=0;i<panel.n;i++)
+            if(!strcmp(panel.param[i].name,line)){ *panel.param[i].val=(float)atof(eq+1); break; }
     }
     fclose(f);
 }

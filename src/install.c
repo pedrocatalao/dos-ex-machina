@@ -20,34 +20,37 @@
 #include <stdarg.h>
 #include <string.h>
 
-static inst_status  st;
-static SDL_Mutex   *mu;
-static SDL_Thread  *th;
-static volatile int cancel;
-static cat_game     job;
-static int          data_only;    /* skip the module: a reset */
+/* The install in progress, shared with its worker thread */
+static struct {
+    inst_status st;
+    SDL_Mutex *mu;
+    SDL_Thread *th;
+    volatile int cancel;
+    cat_game job;
+    int data_only;   /* skip the module: a reset */
+} inst;
 
 static void set_stage(const char *what, int step, int steps) {
-    SDL_LockMutex(mu);
-    snprintf(st.stage, sizeof st.stage, "%s", what);
-    st.step = step; st.steps = steps; st.frac = 0.0;
-    SDL_UnlockMutex(mu);
+    SDL_LockMutex(inst.mu);
+    snprintf(inst.st.stage, sizeof inst.st.stage, "%s", what);
+    inst.st.step = step; inst.st.steps = steps; inst.st.frac = 0.0;
+    SDL_UnlockMutex(inst.mu);
 }
 static void on_progress(void *ud, double got, double total) {
     (void)ud;
-    SDL_LockMutex(mu);
-    st.got = got; st.total = total;
-    st.frac = total > 0 ? got / total : 0.0;
-    SDL_UnlockMutex(mu);
+    SDL_LockMutex(inst.mu);
+    inst.st.got = got; inst.st.total = total;
+    inst.st.frac = total > 0 ? got / total : 0.0;
+    SDL_UnlockMutex(inst.mu);
 }
 static void fail(const char *fmt, ...) __attribute__((format(printf,1,2)));
 static void fail(const char *fmt, ...) {
-    SDL_LockMutex(mu);
+    SDL_LockMutex(inst.mu);
     va_list ap; va_start(ap, fmt);
-    vsnprintf(st.err, sizeof st.err, fmt, ap);
+    vsnprintf(inst.st.err, sizeof inst.st.err, fmt, ap);
     va_end(ap);
-    st.state = INST_FAILED;
-    SDL_UnlockMutex(mu);
+    inst.st.state = INST_FAILED;
+    SDL_UnlockMutex(inst.mu);
 }
 
 static int SDLCALL worker(void *ud) {
@@ -57,22 +60,22 @@ static int SDLCALL worker(void *ud) {
     /* the three the user waits through */
     const int STEPS = 3;
 
-    if (lib_make_dir(job.id, dir, sizeof dir) != 0) {
+    if (lib_make_dir(inst.job.id, dir, sizeof dir) != 0) {
         fail("cannot create the game directory");
         return 0;
     }
 
     /* ---- 1. the module ---- */
-    if (!data_only) {
+    if (!inst.data_only) {
         set_stage("Downloading game", 1, STEPS);
         snprintf(path, sizeof path, "%s%cgame.dxm", dir, DXM_SEP);
-        if (net_get_file(job.module.url, path, on_progress, NULL, &cancel,
+        if (net_get_file(inst.job.module.url, path, on_progress, NULL, &inst.cancel,
                          err, sizeof err) != 0) {
             fail("%s", err);
             return 0;
         }
         set_stage("Verifying", 1, STEPS);
-        if (!sha256_matches(path, job.module.sha256)) {
+        if (!sha256_matches(path, inst.job.module.sha256)) {
             remove(path);
             fail("the download does not match its checksum");
             return 0;
@@ -82,16 +85,16 @@ static int SDLCALL worker(void *ud) {
     /* ---- 2. the data ---- */
     snprintf(data, sizeof data, "%s%cdata", dir, DXM_SEP);
     SDL_CreateDirectory(data);
-    if (job.data.url[0]) {
+    if (inst.job.data.url[0]) {
         set_stage("Downloading data", 2, STEPS);
         snprintf(zip, sizeof zip, "%s%cdata.zip", dir, DXM_SEP);
-        if (net_get_file(job.data.url, zip, on_progress, NULL, &cancel,
+        if (net_get_file(inst.job.data.url, zip, on_progress, NULL, &inst.cancel,
                          err, sizeof err) != 0) {
             fail("%s", err);
             return 0;
         }
         set_stage("Verifying", 2, STEPS);
-        if (!sha256_matches(zip, job.data.sha256)) {
+        if (!sha256_matches(zip, inst.job.data.sha256)) {
             remove(zip);
             fail("the game data does not match its checksum");
             return 0;
@@ -113,16 +116,16 @@ static int SDLCALL worker(void *ud) {
 
     /* Which release this is, written beside the module.  The catalogue
      * knows the CURRENT release; only this file knows the one on disk. */
-    if (job.version[0]) {
+    if (inst.job.version[0]) {
         snprintf(path, sizeof path, "%s%cversion", dir, DXM_SEP);
         FILE *f = fopen(path, "wb");
-        if (f) { fprintf(f, "%s\n", job.version); fclose(f); }
+        if (f) { fprintf(f, "%s\n", inst.job.version); fclose(f); }
     }
 
-    SDL_LockMutex(mu);
-    st.frac = 1.0;
-    st.state = INST_DONE;
-    SDL_UnlockMutex(mu);
+    SDL_LockMutex(inst.mu);
+    inst.st.frac = 1.0;
+    inst.st.state = INST_DONE;
+    SDL_UnlockMutex(inst.mu);
     return 0;
 }
 
@@ -130,42 +133,42 @@ static int start(const cat_game *g, int only_data);
 int install_start(const cat_game *g)      { return start(g, 0); }
 int install_start_data(const cat_game *g) { return start(g, 1); }
 static int start(const cat_game *g, int only_data) {
-    if (!mu) mu = SDL_CreateMutex();
-    if (st.state == INST_RUNNING) return -1;
-    data_only = only_data;
-    if (th) { SDL_WaitThread(th, NULL); th = NULL; }
-    job = *g;
-    memset(&st, 0, sizeof st);
-    st.state = INST_RUNNING;
-    snprintf(st.id, sizeof st.id, "%s", g->id);
-    snprintf(st.title, sizeof st.title, "%s", g->title);
-    snprintf(st.stage, sizeof st.stage, "Starting");
-    cancel = 0;
-    th = SDL_CreateThread(worker, "install", NULL);
-    if (!th) { st.state = INST_FAILED;
-               snprintf(st.err, sizeof st.err, "cannot start the download");
+    if (!inst.mu) inst.mu = SDL_CreateMutex();
+    if (inst.st.state == INST_RUNNING) return -1;
+    inst.data_only = only_data;
+    if (inst.th) { SDL_WaitThread(inst.th, NULL); inst.th = NULL; }
+    inst.job = *g;
+    memset(&inst.st, 0, sizeof inst.st);
+    inst.st.state = INST_RUNNING;
+    snprintf(inst.st.id, sizeof inst.st.id, "%s", g->id);
+    snprintf(inst.st.title, sizeof inst.st.title, "%s", g->title);
+    snprintf(inst.st.stage, sizeof inst.st.stage, "Starting");
+    inst.cancel = 0;
+    inst.th = SDL_CreateThread(worker, "install", NULL);
+    if (!inst.th) { inst.st.state = INST_FAILED;
+               snprintf(inst.st.err, sizeof inst.st.err, "cannot start the download");
                return -1; }
     return 0;
 }
 
-void install_cancel(void) { cancel = 1; }
+void install_cancel(void) { inst.cancel = 1; }
 
 void install_poll(inst_status *out) {
-    if (!mu) { memset(out, 0, sizeof *out); return; }
-    SDL_LockMutex(mu);
-    *out = st;
-    SDL_UnlockMutex(mu);
+    if (!inst.mu) { memset(out, 0, sizeof *out); return; }
+    SDL_LockMutex(inst.mu);
+    *out = inst.st;
+    SDL_UnlockMutex(inst.mu);
     /* Reap the thread once, on the frame the caller first sees the result -
      * so the next install can start without a stale handle around. */
-    if (th && (out->state == INST_DONE || out->state == INST_FAILED)) {
-        SDL_WaitThread(th, NULL);
-        th = NULL;
+    if (inst.th && (out->state == INST_DONE || out->state == INST_FAILED)) {
+        SDL_WaitThread(inst.th, NULL);
+        inst.th = NULL;
     }
 }
 
 void install_clear(void) {
-    if (!mu) return;
-    SDL_LockMutex(mu);
-    if (st.state != INST_RUNNING) memset(&st, 0, sizeof st);
-    SDL_UnlockMutex(mu);
+    if (!inst.mu) return;
+    SDL_LockMutex(inst.mu);
+    if (inst.st.state != INST_RUNNING) memset(&inst.st, 0, sizeof inst.st);
+    SDL_UnlockMutex(inst.mu);
 }

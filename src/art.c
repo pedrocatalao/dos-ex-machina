@@ -17,13 +17,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char      cur_key[65];        /* hash of what is decoded now */
-static uint8_t  *cur_px;
-static int       cur_w, cur_h;
+/* The artwork cache: what is decoded now, and the fetch in flight */
+static struct {
+    char cur_key[65];   /* hash of what is decoded now */
+    uint8_t *cur_px;
+    int cur_w, cur_h;
+    SDL_Thread *th;
+    volatile int busy;
+    char job_url[CAT_URL_MAX], job_path[LIB_PATH], job_sha[65];
+} art;
 
-static SDL_Thread  *th;
-static volatile int busy;
-static char         job_url[CAT_URL_MAX], job_path[LIB_PATH], job_sha[65];
 
 static void cache_path(const char *sha, char *out, size_t n) {
     char dir[LIB_PATH];
@@ -35,11 +38,11 @@ static void cache_path(const char *sha, char *out, size_t n) {
 static int SDLCALL fetch(void *ud) {
     (void)ud;
     char err[160];
-    if (net_get_file(job_url, job_path, NULL, NULL, NULL, err, sizeof err) != 0
-     || !sha256_matches(job_path, job_sha)) {
-        remove(job_path);                /* a bad cache entry is worse than none */
+    if (net_get_file(art.job_url, art.job_path, NULL, NULL, NULL, err, sizeof err) != 0
+     || !sha256_matches(art.job_path, art.job_sha)) {
+        remove(art.job_path);                /* a bad cache entry is worse than none */
     }
-    busy = 0;
+    art.busy = 0;
     return 0;
 }
 
@@ -47,12 +50,12 @@ const uint8_t *art_get(const cat_file *f, int *w, int *h) {
     if (!f || !f->url[0]) return NULL;
     const char *key = f->sha256[0] ? f->sha256 : f->url;
 
-    if (cur_px && !strncmp(cur_key, key, sizeof cur_key - 1)) {
-        *w = cur_w; *h = cur_h;
-        return cur_px;
+    if (art.cur_px && !strncmp(art.cur_key, key, sizeof art.cur_key - 1)) {
+        *w = art.cur_w; *h = art.cur_h;
+        return art.cur_px;
     }
-    if (busy) return NULL;               /* a fetch is already in flight */
-    if (th) { SDL_WaitThread(th, NULL); th = NULL; }
+    if (art.busy) return NULL;               /* a fetch is already in flight */
+    if (art.th) { SDL_WaitThread(art.th, NULL); art.th = NULL; }
 
     char path[LIB_PATH];
     cache_path(key, path, sizeof path);
@@ -65,20 +68,20 @@ const uint8_t *art_get(const cat_file *f, int *w, int *h) {
         int nw, nh;
         uint8_t *px = png_load(path, &nw, &nh, err, sizeof err);
         if (px) {
-            free(cur_px);
-            cur_px = px; cur_w = nw; cur_h = nh;
-            snprintf(cur_key, sizeof cur_key, "%s", key);
+            free(art.cur_px);
+            art.cur_px = px; art.cur_w = nw; art.cur_h = nh;
+            snprintf(art.cur_key, sizeof art.cur_key, "%s", key);
             *w = nw; *h = nh;
             return px;
         }
         remove(path);                    /* undecodable: fetch it again */
     }
 
-    snprintf(job_url,  sizeof job_url,  "%s", f->url);
-    snprintf(job_sha,  sizeof job_sha,  "%s", f->sha256);
-    snprintf(job_path, sizeof job_path, "%s", path);
-    busy = 1;
-    th = SDL_CreateThread(fetch, "art", NULL);
-    if (!th) busy = 0;
+    snprintf(art.job_url,  sizeof art.job_url,  "%s", f->url);
+    snprintf(art.job_sha,  sizeof art.job_sha,  "%s", f->sha256);
+    snprintf(art.job_path, sizeof art.job_path, "%s", path);
+    art.busy = 1;
+    art.th = SDL_CreateThread(fetch, "art", NULL);
+    if (!art.th) art.busy = 0;
     return NULL;                         /* the placeholder shows meanwhile */
 }

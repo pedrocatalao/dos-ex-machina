@@ -17,8 +17,17 @@
 #define CAT_URL "https://raw.githubusercontent.com/pedrocatalao/" \
                 "dos-ex-machina/main/catalogue.json"
 
-static cat_game games[CAT_MAX];
-static int      n_games;
+/* The catalogue: the games it lists, and the refresh in flight */
+static struct {
+    cat_game games[CAT_MAX];
+    int n_games;
+    /* ---- background refresh ------------------------------------------------
+     * The fetch happens on a thread; the PARSE happens on the main thread when *it collects the result.  That way `games` is only ever written by one *thread and no lock is needed around the accessors the navigator uses on *every frame. */
+    SDL_Thread *rth;
+    char *pending;
+    volatile int pending_ready;
+    char rerr[160];
+} cat;
 
 const char *cat_platform(void) {
 #if defined(_WIN32)
@@ -124,16 +133,16 @@ static void get_file(const char *obj, const char *key, cat_file *f) {
 }
 
 static int parse(const char *json) {
-    n_games = 0;
+    cat.n_games = 0;
     const char *arr = member(json, "games");
     if (!arr || *arr != '[') return -1;
     const char *p = arr + 1;
-    while (n_games < CAT_MAX) {
+    while (cat.n_games < CAT_MAX) {
         p = skip_ws(p);
         if (*p == ']' || !*p) break;
         if (*p != '{') return -1;
         const char *g = p;
-        cat_game *e = &games[n_games];
+        cat_game *e = &cat.games[cat.n_games];
         memset(e, 0, sizeof *e);
         get_str(g, "id",    e->id,    sizeof e->id);
         get_str(g, "title", e->title, sizeof e->title);
@@ -181,13 +190,13 @@ static int parse(const char *json) {
               get_str(d, "probe",  e->data_probe,  sizeof e->data_probe);
           } }
 
-        if (e->id[0]) n_games++;
+        if (e->id[0]) cat.n_games++;
         p = skip_value(p);
         if (!p) break;
         p = skip_ws(p);
         if (*p == ',') p++;
     }
-    return n_games;
+    return cat.n_games;
 }
 
 /* ---- disk cache ------------------------------------------------------- */
@@ -230,54 +239,45 @@ int cat_refresh(char *err, size_t errsz) {
     FILE *f = fopen(path, "wb");
     if (f) { fwrite(buf, 1, n, f); fclose(f); }
     free(buf);
-    return n_games;
+    return cat.n_games;
 }
 
-int             cat_count(void)  { return n_games; }
-const cat_game *cat_at(int i)    { return (i>=0 && i<n_games) ? &games[i] : NULL; }
+int             cat_count(void)  { return cat.n_games; }
+const cat_game *cat_at(int i)    { return (i>=0 && i<cat.n_games) ? &cat.games[i] : NULL; }
 
 const cat_game *cat_find(const char *id) {
-    for (int i = 0; i < n_games; i++)
-        if (!strcmp(games[i].id, id)) return &games[i];
+    for (int i = 0; i < cat.n_games; i++)
+        if (!strcmp(cat.games[i].id, id)) return &cat.games[i];
     return NULL;
 }
 
-/* ---- background refresh ------------------------------------------------
- * The fetch happens on a thread; the PARSE happens on the main thread when
- * it collects the result.  That way `games` is only ever written by one
- * thread and no lock is needed around the accessors the navigator uses on
- * every frame. */
-static SDL_Thread  *rth;
-static char        *pending;
-static volatile int pending_ready;
-static char         rerr[160];
 
 static int SDLCALL refresh_thread(void *ud) {
     (void)ud;
     char *buf = NULL; size_t n = 0;
-    if (net_get_mem(CAT_URL, &buf, &n, rerr, sizeof rerr) == 0) pending = buf;
-    pending_ready = 1;
+    if (net_get_mem(CAT_URL, &buf, &n, cat.rerr, sizeof cat.rerr) == 0) cat.pending = buf;
+    cat.pending_ready = 1;
     return 0;
 }
 
 void cat_refresh_begin(void) {
-    if (rth || pending_ready) return;
-    rerr[0] = 0;
-    rth = SDL_CreateThread(refresh_thread, "catalogue", NULL);
+    if (cat.rth || cat.pending_ready) return;
+    cat.rerr[0] = 0;
+    cat.rth = SDL_CreateThread(refresh_thread, "catalogue", NULL);
 }
 
 int cat_refresh_collect(void) {
-    if (!pending_ready) return 0;
-    if (rth) { SDL_WaitThread(rth, NULL); rth = NULL; }
-    pending_ready = 0;
-    if (!pending) return -1;                 /* offline; the cache still stands */
-    int r = parse(pending);
+    if (!cat.pending_ready) return 0;
+    if (cat.rth) { SDL_WaitThread(cat.rth, NULL); cat.rth = NULL; }
+    cat.pending_ready = 0;
+    if (!cat.pending) return -1;                 /* offline; the cache still stands */
+    int r = parse(cat.pending);
     if (r >= 0) {
         char path[LIB_PATH];
         cache_path(path, sizeof path);
         FILE *f = fopen(path, "wb");
-        if (f) { fwrite(pending, 1, strlen(pending), f); fclose(f); }
+        if (f) { fwrite(cat.pending, 1, strlen(cat.pending), f); fclose(f); }
     }
-    free(pending); pending = NULL;
+    free(cat.pending); cat.pending = NULL;
     return r >= 0 ? 1 : -1;
 }
