@@ -196,7 +196,7 @@ Small, behavior-neutral, done in the game repo:
    `src/dxm_entry.c` (info struct + call into the game's top-level flow).
    **The adapter itself is NOT written here** — because `platform.h` is
    standardized across all ports, DXM ships one shared
-   `corehost/platform_dxm.c` and every game reuses it. This is a change from
+   `contract/dxm_platform.c` and every game reuses it. This is a change from
    v0.1 and it makes game #3 cheaper than game #2. See PORTING.md §1.
 2c. Fix the embed-hostility violations found by the audit, all in game code:
    replace `exit()` with `plat_exit()` at `menus.c:20`, `menus.c:293`,

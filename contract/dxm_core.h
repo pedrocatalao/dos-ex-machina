@@ -100,7 +100,7 @@ enum {
     DXM_SC_DOWN = 0x50, DXM_SC_F9 = 0x43, DXM_SC_F10 = 0x44,
 };
 
-/* Provided by the shared adapter (platform_dxm.c) to a core's dxm_entry.c. */
+/* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c. */
 #include <setjmp.h>
 void     dxm_adapter_bind(const dxm_host *h);
 jmp_buf *dxm_adapter_exit_target(void);

@@ -76,7 +76,7 @@ void snd_disk(double seconds){ (void)seconds; }   /* head seeks removed */
  * bursts, and three attempts at synthesising it never stopped sounding like
  * a buzz or a whistle.  The clip is baked into the binary (see
  * tools/mkpcm.py) so nothing is loaded at runtime. */
-#include "fdd_pcm.h"
+#include "gen/fdd_pcm.h"
 static double fdd_left;          /* seconds of activity remaining */
 static float  fdd_env;
 static double fdd_pos;           /* playback position, fractional */

@@ -112,11 +112,18 @@ X-macro GL loader in `glfuncs.h` is a good pattern and should stay; the
 shaders should be `.glsl` files baked into a generated header at build
 time, which keeps the single-binary property.
 
-**F5. Generated data lives among the code.** Seven generated headers and
-`dxm_splash.c` (1.4 MB) sit in `src/` beside the hand-written files, all
-marked "do not edit" but with no single script that regenerates them, and
-no check that the committed output matches the tool. `assets/dmx-badge.png`
-is misspelled (`dmx`), and the header it produces says so.
+**F5. Generated data lives among the code, and most of it does not
+reproduce.** Seven generated headers and `dxm_splash.c` (1.4 MB) sit in
+`src/` beside the hand-written files, all marked "do not edit" but with no
+single script that regenerates them and no check that the committed output
+matches the tool. Trying to regenerate them shows why that check matters:
+only the splash and the DXM mark come out byte-identical from `assets/`.
+The wordmark, icon, road and corner sticker were made by an earlier
+`mklogo.py` that scaled differently, and the Sound Blaster sticker and the
+floppy PCM have no source in the repository at all. Those six are frozen
+bytes until someone decides to regenerate them, looks at the result, and
+re-blesses the golden frames; the decision is recorded in
+`src/gen/README.md` rather than made silently.
 
 **F6. The porting contract is not separated from the host.** `dxm_core.h`
 and `platform_dxm.c` are the two files a port vendors. One is built into
@@ -290,7 +297,7 @@ ordered so that the safety net exists before anything is moved.
 |---|---|---|---|
 | 0 | **Done.** `--deterministic` mode (fixed 60 Hz clock, no HiDPI, shipped CRT defaults, no vsync); `tests/golden/run.py` with three cases (prompt and README pager at 1280×800, prompt at 1720×720); references under `tests/golden/references/macos/`; `ctest` runs it in 9 s | S | itself |
 | 1 | **Done.** Strict warning set in `target_compile_options` (clang and GCC 15 clean); `DXM_WERROR` option, on in all three CI jobs; format attributes on the log and message helpers, which became variadic; const-correct icon upload and zlib input; explicit float→double casts; one `if` per line where GCC saw misleading indentation; allocation checks with a message box for the chassis canvas; `version.h`; build type defaults to Release | S | build + golden + `--selftest` |
-| 2 | `src/gen/` and `contract/`; `tools/regen.sh`; CI step that regenerates and fails on diff; rename `dmx-badge.png`; delete `screenshots/` | S | build + golden |
+| 2 | **Done.** Generated data under `src/gen/` (`splash`, `mark`, `logo`, `icon`, `road`, `sb_logo`, `corner_sticker`, `fdd_pcm`), the contract under `contract/` (`dxm_core.h`, `dxm_platform.c`, the name ports use); `tools/regen.sh` with `--check` in the Linux job; `src/gen/README.md` lists each file, its tool, its source and whether it reproduces; `screenshots/` removed. The badge asset was already correctly named; only the stale header comment said otherwise | S | build + golden |
 | 3 | Shaders to `shaders/*.glsl`, baked to `gen/shaders.h` by CMake | M | golden |
 | 4 | Split `chassis.c` into `chassis/` per §4; extract `chassis_render` sections into named functions; `params.h` | L | golden, pixel-exact |
 | 5 | Split `dos.c` into `dos/` per §4; one state struct per file | L | golden at prompt and NC frames; manual NC pass |

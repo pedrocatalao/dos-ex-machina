@@ -41,7 +41,7 @@ yourgame/
 The seam is `platform.h`, and it is **the same header in every port**. That is
 the point: because the seam is standardized, the adapter that maps it onto
 `dxm_host` is written **once, by DXM**, and shipped as
-`corehost/platform_dxm.c`. A porter never writes an adapter — only
+`contract/dxm_platform.c`. A porter never writes an adapter — only
 `dxm_entry.c`, which declares what the game is and calls its own entry
 function.
 

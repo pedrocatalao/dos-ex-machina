@@ -17,8 +17,8 @@
 #include "sound.h"
 #include "ui.h"
 #include "version.h"
-#include "dxm_splash.h"
-#include "dxm_icon.h"
+#include "gen/splash.h"
+#include "gen/icon.h"
 #include <math.h>
 #include <stdarg.h>
 

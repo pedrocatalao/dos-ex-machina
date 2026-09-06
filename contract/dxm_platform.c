@@ -1,4 +1,4 @@
-/* platform_dxm.c — THE shared adapter (PORTING.md §1).
+/* dxm_platform.c — THE shared adapter (PORTING.md §1).
  * Implements the standard platform.h seam in terms of dxm_host.  Contains no
  * game-specific logic, so every port links this same file rather than writing
  * its own: that is what makes game N cheap. */

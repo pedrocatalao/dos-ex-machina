@@ -149,7 +149,7 @@ const char *dos_launch_request(void){
  * bar along the bottom.  Everything here draws straight into the character
  * grid and its attribute plane; the one exception is the artwork, which is
  * pixels and so is composited after the text in dos_render(). */
-#include "dxm_road.h"
+#include "gen/road.h"
 
 /* CP437 line drawing, named so the layout below reads as a drawing */
 #define BX_H  0xC4
@@ -1075,7 +1075,7 @@ dos_state dos_update(double t){
 /* The DXM mark, shown top-right during POST the way a 486 showed its BIOS
  * or power-management badge.  Baked in by tools/mklogo.py with the white
  * background keyed to alpha so it composites onto the black screen. */
-#include "dxm_logo.h"
+#include "gen/logo.h"
 static void draw_badge(double t){
     if(t0<0) return;
     float a=(float)((t-t0-0.55)/1.2);            /* fade in */

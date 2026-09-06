@@ -3,10 +3,10 @@
  * it is one texture. */
 #include "chassis.h"
 #include "font.h"
-#include "dxm_road.h"
-#include "corner_sticker.h"
-#include "dxm_mark.h"
-#include "sb_logo.h"
+#include "gen/road.h"
+#include "gen/corner_sticker.h"
+#include "gen/mark.h"
+#include "gen/sb_logo.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>

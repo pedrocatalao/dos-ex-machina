@@ -27,15 +27,15 @@ endif()
 
 add_executable(dxm
     src/main.c src/gpu.c src/chassis.c src/font.c src/dos.c src/sound.c
-    src/corehost.c src/coreload.c src/library.c src/ui.c src/dxm_splash.c
+    src/corehost.c src/coreload.c src/library.c src/ui.c src/gen/splash.c
     src/sha256.c src/net.c src/catalog.c src/unzip.c src/install.c
     src/png.c src/art.c src/disk.c ${DXM_WIN_RC})
-# NOTE: src/platform_dxm.c is deliberately NOT built here.  The adapter is
-# compiled INTO each core (ports vendor it as src/dxm_platform.c), because a
-# core loaded as a module cannot reach back into this executable for the
-# plat_* symbols it needs.  The copy in src/ is the authoritative one that
-# ports vendor from, exactly like src/dxm_core.h.
-target_include_directories(dxm PRIVATE src)
+# contract/ is what a port vendors: dxm_core.h, the interface both sides
+# compile against, and dxm_platform.c, the shared adapter.  The adapter is
+# deliberately NOT built here - it is compiled INTO each core, because a
+# module cannot reach back into this executable for the plat_* symbols it
+# needs.  The host only includes the header.
+target_include_directories(dxm PRIVATE src contract)
 # The warning set the code is kept clean under, on both compilers it ships
 # with.  -Wswitch-enum is deliberately absent: a switch over SDL's scancodes
 # with a default is the right shape, and that flag objects to it.

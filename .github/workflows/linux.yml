@@ -57,6 +57,9 @@ jobs:
           cmake --build sdl3-build
           cmake --install sdl3-build
 
+      - name: Generated data is reproducible
+        run: tools/regen.sh --check
+
       - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDXM_WERROR=ON \
