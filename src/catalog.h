@@ -35,6 +35,11 @@ typedef struct {
 const char *cat_platform(void);
 
 /* Load the cached copy if there is one.  Never touches the network. */
+/* Replace the list with what a catalogue document says.  Returns the
+ * number of games read, or -1 if the document is not a catalogue.  What
+ * the cache and the refresh both go through; public so it can be tested
+ * without a network. */
+int cat_parse(const char *json);
 int cat_load_cached(void);
 /* Fetch a fresh copy and cache it.  Safe to call from a worker thread. */
 int cat_refresh(char *err, size_t errsz);

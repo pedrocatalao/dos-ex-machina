@@ -14,7 +14,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 CF=${CLANG_FORMAT:-clang-format}
-files=$(find src contract -name '*.c' -o -name '*.h' | grep -v '^src/gen/' | sort)
+files=$(find src contract tests/unit -name '*.c' -o -name '*.h' | grep -v '^src/gen/' | sort)
 if [ "${1:-}" = "--check" ]; then
     # shellcheck disable=SC2086
     $CF --dry-run --Werror $files && echo "formatting: clean"

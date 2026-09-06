@@ -45,6 +45,9 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDXM_WERROR=ON
           cmake --build build
 
+      - name: Unit tests
+        run: ctest --test-dir build -L unit --output-on-failure
+
       - name: Verify
         run: |
           test -f build/dxm.exe

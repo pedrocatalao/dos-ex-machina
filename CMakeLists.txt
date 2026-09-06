@@ -61,7 +61,7 @@ target_sources(dxm PRIVATE ${CMAKE_BINARY_DIR}/generated/shaders.h)
 # The warning set the code is kept clean under, on both compilers it ships
 # with.  -Wswitch-enum is deliberately absent: a switch over SDL's scancodes
 # with a default is the right shape, and that flag objects to it.
-target_compile_options(dxm PRIVATE
+set(DXM_WARNINGS
     -Wall -Wextra -Wno-unused-parameter
     -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wvla
     -Wdouble-promotion -Wcast-qual -Wimplicit-fallthrough -Wundef -Wformat=2
@@ -70,6 +70,7 @@ target_compile_options(dxm PRIVATE
     # point of snprintf, so that one is off.  The rest of -Wall stays.
     $<$<C_COMPILER_ID:GNU>:-Wno-format-truncation>
     $<$<BOOL:${DXM_WERROR}>:-Werror>)
+target_compile_options(dxm PRIVATE ${DXM_WARNINGS})
 # The version lives in project() above and nowhere else: the binary's log
 # banner takes it from here, and so does the macOS bundle - Info.plist is
 # generated from the .in template into the build tree, where the packaging

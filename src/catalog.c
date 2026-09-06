@@ -158,7 +158,7 @@ static void get_file(const char *obj, const char *key, cat_file *f) {
     f->size = get_num(v, "size");
 }
 
-static int parse(const char *json) {
+int cat_parse(const char *json) {
     cat.n_games = 0;
     const char *arr = member(json, "games");
     if (!arr || *arr != '[')
@@ -269,7 +269,7 @@ int cat_load_cached(void) {
     size_t got = fread(buf, 1, (size_t)n, f);
     fclose(f);
     buf[got] = 0;
-    int r = parse(buf);
+    int r = cat_parse(buf);
     free(buf);
     return r;
 }
@@ -279,7 +279,7 @@ int cat_refresh(char *err, size_t errsz) {
     size_t n = 0;
     if (net_get_mem(CAT_URL, &buf, &n, err, errsz) != 0)
         return -1;
-    if (parse(buf) < 0) {
+    if (cat_parse(buf) < 0) {
         snprintf(err, errsz, "catalogue is not readable");
         free(buf);
         return -1;
@@ -338,7 +338,7 @@ int cat_refresh_collect(void) {
     cat.pending_ready = 0;
     if (!cat.pending)
         return -1; /* offline; the cache still stands */
-    int r = parse(cat.pending);
+    int r = cat_parse(cat.pending);
     if (r >= 0) {
         char path[LIB_PATH];
         cache_path(path, sizeof path);

@@ -113,10 +113,11 @@ time; nothing is read from disk at run time.
 
 The C is formatted with the project's `.clang-format`; `tools/format.sh`
 applies it and CI checks it with the same pinned release of clang-format.
-`ctest --test-dir build` runs the tests. The golden-frame test draws the
-machine under `--deterministic` and compares it pixel for pixel with the
-reference frames in `tests/golden/references/`; see the README there for
-when and how those change.
+`ctest --test-dir build` runs the tests: unit tests for the modules that
+need no display (`-L unit`, also run by CI), and the golden-frame test
+(`-L golden`), which draws the machine under `--deterministic` and compares
+it pixel for pixel with the reference frames in `tests/golden/references/`;
+see the README there for when and how those change.
 
 ## Using it
 

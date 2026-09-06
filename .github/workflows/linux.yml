@@ -71,6 +71,9 @@ jobs:
                 -DCMAKE_PREFIX_PATH="$HOME/sdl3-install"
           cmake --build build -j$(nproc)
 
+      - name: Unit tests
+        run: ctest --test-dir build -L unit --output-on-failure
+
       - name: Verify
         run: |
           test -x build/dxm
