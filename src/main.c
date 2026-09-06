@@ -158,6 +158,9 @@ int main(int argc, char **argv) {
 
     Uint64 t_start = app_now_ns();
     int frame = 0, core_started = 0;
+    /* the running game, by id: lib_scan rebuilds the library array in
+     * place, so a pointer into it would not survive a rescan */
+    char core_id[32] = "";
     input_state in;
     input_init(&in, &a, &L);
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
@@ -190,6 +193,14 @@ int main(int argc, char **argv) {
          * launch, and testing the state alone aborted the launch instantly. */
         if (core_started && !corehost_running()) {
             core_started = 0;
+            /* The run is over: let go of the module so the next launch opens
+             * a fresh copy with its globals at their initial values
+             * (PORTING.md 3.2).  corehost_stop() joins the core thread and
+             * fences the audio callback first, so nothing is still inside
+             * the image when it goes. */
+            corehost_stop();
+            corehost_use_module(NULL);
+            lib_unload(lib_find(core_id));
             dos_core_exited();
         }
         const char *req = dos_launch_request();
@@ -204,6 +215,7 @@ int main(int argc, char **argv) {
                 const char *dd = getenv("DXM_DATA");
                 if (corehost_start(m->info, dd ? dd : lg->data) == 0) {
                     core_started = 1;
+                    snprintf(core_id, sizeof core_id, "%s", lg->id);
                     lib_touch_played(lg);
                     input_capture(&in, &a, &L, 1);
                 }

@@ -74,7 +74,7 @@ int selftest_step(double t) {
         break;
     case 4:
         printf(fail ? "SELFTEST FAIL\n"
-                    : "SELFTEST PASS: launch, unwind, relaunch (PORTING 3.1 + 3.2)\n");
+                    : "SELFTEST PASS: launch, unwind, reload, relaunch (PORTING 3.1 + 3.2)\n");
         return 1;
     }
     return 0;

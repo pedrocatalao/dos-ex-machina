@@ -195,17 +195,27 @@ structure.
 restructuring of game control flow. The alternative — threading return codes
 up through every call site — is the kind of surgery on faithful code that
 SPEC §4.1 exists to avoid. The cost is that resources are not released on the
-jump, which is why §3.2 exists.
+jump, which is why the host reloads the module between runs (§3.2).
 
-### 3.2 MUST be restartable in the same process
+### 3.2 MUST unwind on request; the host reloads the module for each run
 
 The user types `SKYROADS`, plays, quits to `C:\>`, and types `SKYROADS` again.
 That must work, and it must work after a `plat_exit()` longjmp left the
 previous run's state arbitrary.
 
-Every port exports `void <game>_reset_state(void)` which returns all
-file-scope state to its initial value. Run-quit-run is a conformance test
-(§5), not a promise, because this is the rule most likely to rot silently.
+The host does not ask the core to put itself back together. When a run
+ends, the host unloads the module and opens a fresh copy for the next one,
+so every run starts from the image's initial globals. What the core owes in
+return is the unwind itself: `dxm_core_main` must return within ~2 s of
+`should_quit()` (§3.6), and nothing may go on executing in the module after
+it returns - no thread of its own (§3.6) and no callback still registered
+anywhere. The audio callback is the host's to fence, and it does.
+
+A port may still export `void <game>_reset_state(void)` and call it at the
+top of `dxm_core_main`; it costs nothing and makes the core usable by a host
+that keeps it loaded. It is no longer required. Run-quit-run is a
+conformance test (§5) because the unwind is the rule most likely to rot
+silently.
 
 ### 3.3 MUST NOT write to stdio or install signal handlers
 
@@ -280,7 +290,7 @@ static const dxm_core_info INFO = {
 const dxm_core_info *sky_core_info(void) { return &INFO; }
 
 int sky_core_main(const dxm_host *host, const char *data_dir) {
-    sky_reset_state();                    /* §3.2 */
+    sky_reset_state();                    /* optional since the host reloads (§3.2) */
     if (setjmp(*plat_exit_target())) return 0;   /* §3.1 */
     sky_run();                            /* the game's own top-level flow */
     return 0;
@@ -300,8 +310,9 @@ regress into unembeddability between releases:
    a mode in `info->modes`.
 3. **Quit.** `should_quit()` raised at an arbitrary frame; core returns within
    2 s. Process still alive — this is the §3.1 regression test.
-4. **Restart.** Run the whole sequence again in the same process; frame 1 must
-   be byte-identical to the first run's frame 1 (§3.2).
+4. **Restart.** Reload the module and run the whole sequence again in the
+   same process, as the host does between runs; frame 1 must be
+   byte-identical to the first run's frame 1 (§3.2).
 5. **Isolation.** cwd set to an empty temp dir, environment cleared,
    `data_dir` at a non-obvious path (§3.4, §3.7).
 6. **Mode sweep.** Every declared mode is exercised and its `crt_lines` and

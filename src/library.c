@@ -234,6 +234,8 @@ const dxm_module *lib_module(const lib_game *g) {
 }
 
 void lib_unload(const lib_game *g) {
+    if (!g)
+        return;
     int i = (int)(g - lib.games);
     if (i < 0 || i >= lib.n_games || !lib.mods[i].handle)
         return;
