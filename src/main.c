@@ -1,362 +1,70 @@
-/* main.c — the appliance.  One window, always fullscreen, no chrome.
- * --windowed and --shot are hidden dev flags (SPEC §11). */
-#include <SDL3/SDL.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "gpu.h"
+/* main.c — the appliance: the order things come up in, and the frame loop.
+ * --windowed, --shot and the rest are hidden dev flags (SPEC §11). */
+#include "app.h"
+#include "log.h"
+#include "splash.h"
+#include "theatre.h"
+#include "input.h"
+#include "selftest.h"
 #include "dos.h"
 #include "chassis.h"
 #include "corehost.h"
 #include "coreload.h"
 #include "library.h"
 #include "catalog.h"
-#include "net.h"
-#include "dxm_core.h"
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
-#include "version.h"
-#include "gen/splash.h"
-#include "gen/icon.h"
-#include <math.h>
-#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-/* Startup diagnostics go to stderr AND to dxm.log in the preferences
- * directory.  stderr alone is useless for the case that matters: a machine
- * where DXM was double-clicked and sits on the splash.  There is no console
- * to read, and the report that comes back is "it hangs".  The file says how
- * far it got and how long each step took, from either thread. */
-static FILE *g_log;
-/* The machine's clock.  Normally the wall clock; under --deterministic a
- * counter that advances exactly one sixtieth of a second per frame, so a
- * given frame number is the same picture on every run - which is what the
- * golden-frame test compares against. */
-static int    g_fixed_step;
-static Uint64 g_vclock;
-static Uint64 clock_ns(void){ return g_fixed_step ? g_vclock : SDL_GetTicksNS(); }
-static void dxm_log(const char *fmt,...) __attribute__((format(printf,1,2)));
-static void dxm_log(const char *fmt,...){
-    char line[1024]; va_list ap; va_start(ap,fmt);
-    vsnprintf(line,sizeof line,fmt,ap); va_end(ap);
-    unsigned long long ms=SDL_GetTicksNS()/1000000ull;
-    fprintf(stderr,"[dxm] %6llu ms  %s\n",ms,line);
-    if(g_log){ fprintf(g_log,"%6llu ms  %s\n",ms,line); fflush(g_log); }
-}
-static void gpu_log_cb(const char *m){ dxm_log("%s",m); }
+typedef struct {
+    app_options app;
+    int selftest;
+    const char *shot;          /* --shot: write this frame and exit */
+    int shot_frames;           /* ...after this many frames (60 if unset) */
+    const char *autocmd;       /* --type: commands, ';'-separated, one per prompt */
+    float ambient;             /* room light: 0 dark room .. 1 bright */
+} options;
 
-static int sc_from_sdl(SDL_Scancode s){
-    switch(s){
-        case SDL_SCANCODE_ESCAPE: return DXM_SC_ESC;
-        case SDL_SCANCODE_RETURN: return DXM_SC_ENTER;
-        case SDL_SCANCODE_SPACE:  return DXM_SC_SPACE;
-        case SDL_SCANCODE_UP:     return DXM_SC_UP;
-        case SDL_SCANCODE_DOWN:   return DXM_SC_DOWN;
-        case SDL_SCANCODE_LEFT:   return DXM_SC_LEFT;
-        case SDL_SCANCODE_RIGHT:  return DXM_SC_RIGHT;
-        case SDL_SCANCODE_F9:     return DXM_SC_F9;
-        case SDL_SCANCODE_F10:    return DXM_SC_F10;
-        /* plain DOS scancodes; the navigator's key bar lives on these */
-        case SDL_SCANCODE_F1:     return 0x3B;
-        case SDL_SCANCODE_F2:     return 0x3C;
-        case SDL_SCANCODE_F3:     return 0x3D;
-        case SDL_SCANCODE_F4:     return 0x3E;
-        case SDL_SCANCODE_TAB:    return 0x0F;
-        default: return 0;
-    }
-}
-static FILE *g_audio_dump;   /* --dump-audio, dev verification */
-
-static void audio_cb(void *ud,SDL_AudioStream *st,int add,int total){
-    (void)ud;(void)total;
-    if(add<=0) return;
-    static int16_t buf[4096];
-    int frames=add/4; if(frames>2048) frames=2048;
-    corehost_audio(buf,frames);
-    snd_mix(buf,frames);
-    if(g_audio_dump){ fwrite(buf,4,(size_t)frames,g_audio_dump); }
-    SDL_PutAudioStreamData(st,buf,frames*4);
-}
-static void write_bmp(const char *path,const uint8_t *rgb,int w,int h){
-    FILE *f=fopen(path,"wb"); if(!f) return;
-    int row=(w*3+3)&~3, sz=54+row*h;
-    uint8_t hd[54]={0}; hd[0]='B';hd[1]='M';
-    memcpy(hd+2,&sz,4); int off=54; memcpy(hd+10,&off,4);
-    int ih=40; memcpy(hd+14,&ih,4); memcpy(hd+18,&w,4); memcpy(hd+22,&h,4);
-    hd[26]=1; hd[28]=24; fwrite(hd,1,54,f);
-    uint8_t pad[3]={0};
-    for(int y=0;y<h;y++){                      /* GL readback is bottom-up */
-        for(int x=0;x<w;x++){ const uint8_t *p=rgb+((size_t)y*w+x)*3;
-                              uint8_t bgr[3]={p[2],p[1],p[0]}; fwrite(bgr,1,3,f); }
-        fwrite(pad,1,row-w*3,f);
-    }
-    fclose(f);
-}
-
-/* chassis_render() is the one genuinely slow thing at startup - a few
- * million pixels of signed-distance work - and it touches no GL, so it runs
- * on a worker while the main thread holds the splash up.  Doing it inline
- * would freeze the fade for its whole duration. */
-/* The worker reports completion itself, through `done`; that also covers
- * the no-threads fallback, where the work has already happened inline. */
-typedef struct { int W,H; dxm_layout L; uint8_t *px;
-                 volatile int done; Uint64 ms; } chassis_job;
-static int SDLCALL chassis_worker(void *ud){
-    chassis_job *j=(chassis_job *)ud;
-    Uint64 t0=SDL_GetTicksNS();
-    dxm_log("chassis worker: start, %dx%d",j->W,j->H);
-    j->L=chassis_layout(j->W,j->H);
-    dxm_log("chassis worker: layout done");
-    j->px=chassis_render(&j->L,j->W,j->H);
-    j->ms=(SDL_GetTicksNS()-t0)/1000000;
-    dxm_log("chassis worker: render %s in %llu ms",
-            j->px?"done":"FAILED - no pixels",(unsigned long long)j->ms);
-    j->done=1;
-    return 0;
-}
-
-/* Which knob, if any, is under a point in drawable pixels; -1 for none.
- * The hit circle is a little larger than the knob, since a finger is. */
-static int knob_at(const dxm_layout *L,float x,float y){
-    for(int i=0;i<2;i++){
-        float dx=x-L->knob[i][0], dy=y-L->knob[i][1], r=L->knob[i][2]*1.35f;
-        if(dx*dx+dy*dy<=r*r) return i;
-    }
-    return -1;
-}
-/* The mouse belongs either to the machine - confined to the glass, unseen,
- * which is how it starts and how a game has it - or to the operating
- * system, where the arrow shows and turns the knobs.  Ctrl+F10 switches,
- * as it does in DOSBox. */
-static void set_capture(SDL_Window *win,const dxm_layout *L,int W,int H,
-                        float win_wf,float win_hf,int on){
-    bool ok;
-    if(on){
-        SDL_Rect r={ (int)(L->tube_x*win_wf/W), (int)(L->tube_y*win_hf/H),
-                     (int)(L->tube_w*win_wf/W), (int)(L->tube_h*win_hf/H) };
-        ok=SDL_SetWindowMouseRect(win,&r);
-    } else ok=SDL_SetWindowMouseRect(win,NULL);
-    dxm_log("mouse %s%s%s",on?"captured (confined to the glass)":"released to the machine",
-            ok?"":" - but SDL could not confine it: ",ok?"":SDL_GetError());
-}
-
-int main(int argc,char **argv){
-    int windowed=0, shot_frames=0, selftest=0, quit_early=0, deterministic=0;
-    const char *shot=NULL; const char *autocmd=NULL;
-    float ambient=0.5f;             /* room light: 0 dark room .. 1 bright */
-    int win_w=1600, win_h=900;
+static options parse(int argc,char **argv){
+    options o={{0,1600,900,0,NULL},0,NULL,0,NULL,0.5f};
     for(int i=1;i<argc;i++){
-        if(!strcmp(argv[i],"--dump-audio")&&i+1<argc)
-            g_audio_dump=fopen(argv[++i],"wb");
-        else if(!strcmp(argv[i],"--windowed")) windowed=1;
-        else if(!strcmp(argv[i],"--selftest")){ selftest=1; windowed=1; }
-        else if(!strcmp(argv[i],"--shot")&&i+1<argc) shot=argv[++i];   /* honours fullscreen */
-        else if(!strcmp(argv[i],"--frames")&&i+1<argc) shot_frames=atoi(argv[++i]);
-        else if(!strcmp(argv[i],"--type")&&i+1<argc) autocmd=argv[++i];
-        /* --deterministic: the same frame every run.  A fixed-step clock, no
-         * HiDPI scaling (the drawable is exactly --size), the shipped CRT
-         * defaults rather than the user's crt.cfg, no vsync wait. */
-        else if(!strcmp(argv[i],"--deterministic")) deterministic=1;
-        else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&win_w,&win_h);
-        else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ ambient=(float)atof(argv[++i]);
-            if(ambient<0)ambient=0;
-            if(ambient>1)ambient=1; }
+        if(!strcmp(argv[i],"--dump-audio")&&i+1<argc) o.app.audio_dump=argv[++i];
+        else if(!strcmp(argv[i],"--windowed")) o.app.windowed=1;
+        else if(!strcmp(argv[i],"--selftest")){ o.selftest=1; o.app.windowed=1; }
+        else if(!strcmp(argv[i],"--shot")&&i+1<argc) o.shot=argv[++i];   /* honours fullscreen */
+        else if(!strcmp(argv[i],"--frames")&&i+1<argc) o.shot_frames=atoi(argv[++i]);
+        else if(!strcmp(argv[i],"--type")&&i+1<argc) o.autocmd=argv[++i];
+        else if(!strcmp(argv[i],"--deterministic")) o.app.deterministic=1;
+        else if(!strcmp(argv[i],"--size")&&i+1<argc) sscanf(argv[++i],"%dx%d",&o.app.win_w,&o.app.win_h);
+        else if(!strcmp(argv[i],"--ambient")&&i+1<argc){ o.ambient=(float)atof(argv[++i]);
+            if(o.ambient<0)o.ambient=0;
+            if(o.ambient>1)o.ambient=1; }
     }
-    if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO)){
-        fprintf(stderr,"SDL_Init: %s\n",SDL_GetError()); return 1; }
-    const char *pref=SDL_GetPrefPath("DOSexMachina","dxm");
-    { char lp[1024]; snprintf(lp,sizeof lp,"%sdxm.log",pref?pref:"./");
-      g_log=fopen(lp,"w"); }
-    { int v=SDL_GetVersion();
-      dxm_log("DOS ex Machina " DXM_VERSION " on %s, SDL %d.%d.%d",SDL_GetPlatform(),
-              SDL_VERSIONNUM_MAJOR(v),SDL_VERSIONNUM_MINOR(v),SDL_VERSIONNUM_MICRO(v)); }
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
-    SDL_WindowFlags wflags=SDL_WINDOW_OPENGL;
-    if(!deterministic) wflags|=SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if(!windowed) wflags|=SDL_WINDOW_FULLSCREEN;
-    SDL_Window *win=SDL_CreateWindow("DOS ex Machina",win_w,win_h,wflags);
-    if(!win){
-        dxm_log("window: %s",SDL_GetError());
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",
-                                 SDL_GetError(),NULL);
-        return 1;
-    }
-    /* The window/taskbar icon.  Windows also carries one as a resource for
-     * Explorer to show on the .exe, and macOS gets it from the bundle - this
-     * is what Linux has, and it costs nothing on the others. */
-    { /* SDL_CreateSurfaceFrom wants writable pixels and the icon is
-       * const data, so it gets a copy for the moment SetWindowIcon needs */
-      size_t icn=(size_t)DXM_ICON_W*DXM_ICON_HT*4;
-      void *icpx=malloc(icn);
-      if(icpx){
-          memcpy(icpx,dxm_icon,icn);
-          SDL_Surface *ic=SDL_CreateSurfaceFrom(DXM_ICON_W,DXM_ICON_HT,
-                                                SDL_PIXELFORMAT_RGBA32,icpx,DXM_ICON_W*4);
-          if(ic){ SDL_SetWindowIcon(win,ic); SDL_DestroySurface(ic); }
-          free(icpx);
-      } }
+    return o;
+}
 
-    SDL_GLContext ctx=SDL_GL_CreateContext(win);
-    if(!ctx){
-        /* The most likely failure on a machine that cannot run DXM at all:
-         * no OpenGL 3.3 core context to be had.  Say so on screen. */
-        char msg[600];
-        snprintf(msg,sizeof msg,"Could not create an OpenGL 3.3 core context, "
-                 "which DOS ex Machina needs.\n\n%s",SDL_GetError());
-        dxm_log("%s",msg);
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
-        return 1;
-    }
-    SDL_GL_SetSwapInterval(deterministic?0:1);
-    /* Typed characters come from SDL's text input, not from key-down: the
-     * keycode of Shift+2 is still '2', and only the text event knows what
-     * the keyboard layout made of it.  Control keys stay on key-down. */
-    SDL_StartTextInput(win);
-
-    if(!windowed){
-        SDL_SetWindowFullscreenMode(win,NULL);   /* NULL = desktop mode */
-        SDL_SetWindowFullscreen(win,true);
-        SDL_SyncWindow(win);                     /* the transition is ASYNC on
-                                                  * macOS; measuring before it
-                                                  * settles lays the machine
-                                                  * out for the wrong size */
-    }
-    /* HiDPI: size from the DRAWABLE, never the window (SPEC §6.3) */
-    int W=0,H=0; SDL_GetWindowSizeInPixels(win,&W,&H);
-    /* mouse arrives in WINDOW units; the panel works in drawable px */
-    float win_wf=1,win_hf=1;
-    { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
-      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H);
-      dxm_log("window %dx%d px (%dx%d units), %s",W,H,ww,wh,
-              windowed?"windowed":"fullscreen"); }
-    gpu_set_log(gpu_log_cb);
-    gpu *g=gpu_create(W,H);
-    if(!g){
-        /* Say so where it will be seen.  A person who double-clicked the
-         * program has no stderr; a message box they have. */
-        char msg[1400];
-        snprintf(msg,sizeof msg,
-                 "This computer's OpenGL driver does not provide OpenGL 3.3 "
-                 "core, which DOS ex Machina needs.\n\nDriver: %s\nMissing: %s",
-                 gpu_describe(),gpu_missing());
-        dxm_log("%s",msg);
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
-        return 1;
-    }
-    dxm_log("GL: %s",gpu_describe());
-
-    /* The machine is switched on before it is drawn: the splash and the
-     * sound of it running come up first, and the chassis is built behind
-     * them. */
-    { uint8_t *spl=dxm_splash_rgba();
-      if(spl){ gpu_set_splash(g,spl,DXM_SPLASH_W,DXM_SPLASH_HT); free(spl); } }
-
-    /* The core renders at 44100 Hz (skyroads audio.c SAMPLE_RATE).  The
-     * stream must be opened at the CORE's rate - SDL3 resamples to whatever
-     * the hardware wants.  Opening at 48000 played everything 8.8%% fast. */
-    SDL_AudioSpec as={SDL_AUDIO_S16,2,44100};
-    SDL_AudioStream *ast=SDL_OpenAudioDeviceStream(
-        SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&as,audio_cb,NULL);
-    if(ast) SDL_ResumeAudioStreamDevice(ast);
-    if(ast) dxm_log("audio stream open");
-    else    dxm_log("audio: no device (%s) - silent",SDL_GetError());
-    snd_init(44100);
-    snd_power(1);                 /* fans and spindle spin up, immediately */
-
-    chassis_job job={W,H,{0},NULL,0,0};
-    SDL_Thread *cth=SDL_CreateThread(chassis_worker,"chassis",&job);
-    if(!cth){
-        dxm_log("no worker thread (%s) - drawing inline",SDL_GetError());
-        chassis_worker(&job);
-    }
-
-    if(!selftest){
-        /* Fast in, hold until the machine is ready, then out.  The hold has
-         * a floor so a quick build does not flash the mark up and away. */
-        const double FADE_IN=0.30, HOLD_MIN=0.95, FADE_OUT=0.45;
-        Uint64 s0=SDL_GetTicksNS();
-        int frames=0; double beat=0;
-        for(;;){
-            SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
-            double e=(SDL_GetTicksNS()-s0)/1e9;
-            float a=(float)(e<FADE_IN ? e/FADE_IN : 1.0);
-            gpu_draw_splash(g,a*a*(3.0f-2.0f*a));   /* ease, no linear ramp */
-            SDL_GL_SwapWindow(win);
-            if(++frames==1) dxm_log("splash: first frame on screen");
-            /* a heartbeat, so a log from a machine that never leaves the
-             * splash shows whether the swaps come back and the worker ends */
-            if(e-beat>=2.0){ beat=e;
-                dxm_log("splash: %.1f s, %d frames, worker %s",e,frames,
-                        job.done?"done":"still running"); }
-            if(quit_early) break;
-            if(e>=HOLD_MIN && job.done) break;
-        }
-        dxm_log("splash: over after %.2f s, %d frames",(SDL_GetTicksNS()-s0)/1e9,frames);
-        Uint64 f0=SDL_GetTicksNS();
-        while(!quit_early){
-            SDL_Event se; while(SDL_PollEvent(&se)) if(se.type==SDL_EVENT_QUIT) quit_early=1;
-            double e=(SDL_GetTicksNS()-f0)/1e9;
-            if(e>=FADE_OUT) break;
-            float a=(float)(1.0-e/FADE_OUT);
-            gpu_draw_splash(g,a*a*(3.0f-2.0f*a));
-            SDL_GL_SwapWindow(win);
-        }
-    }
-    /* The machine comes up out of the same black the splash left behind,
-     * so the two reads as one continuous power-on rather than a cut. */
-    if(deterministic){ g_vclock=SDL_GetTicksNS(); g_fixed_step=1; }
-    Uint64 mach_fade0=clock_ns();
-    const double MACH_FADE=0.70;
-    /* Power on: the mains switch, and the monitor's degauss thump as its
-     * coil kicks in.  The picture then WARMS UP over the next second or so
-     * - small and dim first, filling out as the tube comes to temperature -
-     * rather than simply being there. */
-    snd_relay(); snd_degauss();
-    const double WARM=1.6;
-    /* Power off runs the other way: switch, fans spin down, the raster
-     * collapses to a line, the line to a dot, the dot fades; then the
-     * room goes dark and the program ends.  off_t0 is when it began. */
-    double off_t0=-1.0;
-    const double OFF_END=1.1;
-    if(cth) SDL_WaitThread(cth,NULL);
-    dxm_log("chassis %dx%d joined, %llu ms%s",
-            W,H,(unsigned long long)job.ms, job.px?"":"  (FAILED - no pixels)");
-    dxm_layout L=job.L;
-    uint8_t *chas=job.px;
-    if(!chas){
-        /* Out of memory for the case itself - W*H*4 bytes.  Nothing sensible
-         * can be drawn without it. */
-        char msg[200];
-        snprintf(msg,sizeof msg,"Could not allocate the %dx%d chassis image.",W,H);
-        dxm_log("%s",msg);
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,win);
-        return 1;
-    }
-    gpu_set_chassis(g,chas,W,H);
-    dxm_log("chassis uploaded");
-
-
+/* The shipped look: a machine that has been used, tuned by eye on the F1
+ * panel and copied from its crt.cfg.  The imperfections are all small -
+ * h-sync and RGB shift in particular are kept low, since past a point they
+ * put every character at a different sub-pixel phase and the same glyph
+ * reads thin-edged on one side here and the other there.  The panel's own
+ * file overrides all of this once it exists. */
+static gpu_knobs shipped_knobs(float ambient){
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
      * scan, vgrid, sharp_text, warp, margin, overscan, aperture_r,
      * crt_lines, crt_cols */
-    /* The shipped look: a machine that has been used, tuned by eye on the
-     * F1 panel and copied from its crt.cfg.  The imperfections are all
-     * small - h-sync and RGB shift in particular are kept low, since past a
-     * point they put every character at a different sub-pixel phase and
-     * the same glyph reads thin-edged on one side here and the other there.
-     * The panel's own file overrides all of this once it exists. */
     gpu_knobs k={0.219f, 0.710f, 0.190f, 0.044f, 0.190f, 0.029f, 0.087f,
                  ambient, 0.229f, 0.029f, 0.048f, 0.646f, 0.490f,
                  0.414f, 0.077f, 1.0f, DXM_WARP, 0.0f, 1.0f, 0.0f, 400, DOS_W};
+    return k;
+}
 
-    ui_init(&k);
-    static char cfgpath[1024];
-    snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",pref?pref:"./");
-    if(!deterministic) ui_load(cfgpath);
+/* The machine's own contents: what is installed, and what could be. */
+static void scan_library(void){
     /* What DXM can run is whatever is installed, not what it was built
      * with.  Scanning here means the prompt and the navigator agree about
      * the machine's contents from the first frame. */
@@ -374,165 +82,87 @@ int main(int argc,char **argv){
     }
     if(lib_count()==0)
         dxm_log("no games installed - %sgames",lib_root());
+}
+
+/* The knobs show the live values - turned by hand, by the F1 panel, or
+ * loaded from the file - and only a knob that moved is redrawn. */
+static void show_knobs(gpu *g,const gpu_knobs *k,float *last_b,float *last_c){
+    if(k->brightness!=*last_b){
+        int px,py,pw,ph; const uint8_t *p=chassis_knob_set(0,k->brightness,&px,&py,&pw,&ph);
+        if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
+        *last_b=k->brightness;
+    }
+    if(k->contrast!=*last_c){
+        int px,py,pw,ph; const uint8_t *p=chassis_knob_set(1,(k->contrast-0.4f)/1.4f,&px,&py,&pw,&ph);
+        if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
+        *last_c=k->contrast;
+    }
+}
+
+int main(int argc,char **argv){
+    options o=parse(argc,argv);
+    app a;
+    if(app_init(&a,&o.app)!=0) return 1;
+
+    chassis_job job;
+    SDL_Thread *cth=chassis_build_begin(&job,a.W,a.H);
+    int quit=0;
+    if(!o.selftest) quit=splash_show(&a,&job);
+    if(a.deterministic) app_fixed_step();
+    theatre th;
+    theatre_power_on(&th,o.selftest,a.deterministic);
+    chassis_build_join(cth,&job);
+    dxm_layout L=job.L;
+    uint8_t *chas=job.px;
+    if(!chas){
+        /* Out of memory for the case itself - W*H*4 bytes.  Nothing sensible
+         * can be drawn without it. */
+        char msg[200];
+        snprintf(msg,sizeof msg,"Could not allocate the %dx%d chassis image.",a.W,a.H);
+        dxm_log("%s",msg);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,"DOS ex Machina",msg,a.win);
+        return 1;
+    }
+    gpu_set_chassis(a.gpu,chas,a.W,a.H);
+    dxm_log("chassis uploaded");
+
+    gpu_knobs k=shipped_knobs(o.ambient);
+    ui_init(&k);
+    static char cfgpath[1024];
+    snprintf(cfgpath,sizeof cfgpath,"%scrt.cfg",a.pref?a.pref:"./");
+    if(!a.deterministic) ui_load(cfgpath);
+    scan_library();
     dos_init();
     dxm_log("dos ready, entering the frame loop");
 
-    Uint64 t_start=clock_ns();
-    int frame=0, quit=quit_early;
-    /* the knobs and the mouse.  The machine holds the mouse from the
-     * start - hidden, fenced to the glass - and Ctrl+F10 gives it to the
-     * operating system when the knobs are wanted. */
-    int captured=1, knob_drag=-1;
-    set_capture(win,&L,W,H,win_wf,win_hf,1);
-    float knob_y0=0.0f, knob_v0=0.0f;
+    Uint64 t_start=app_now_ns();
+    int frame=0, core_started=0;
+    input_state in;
+    input_init(&in,&a,&L);
     float last_b=-1.0f, last_c=-1.0f;     /* what the knobs currently show */
+    const char *autocmd=o.autocmd;
     while(!quit){
         SDL_Event e;
         while(SDL_PollEvent(&e)){
-            if(e.type==SDL_EVENT_QUIT) quit=1;
-            else if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN){
-                float mx=e.button.x*W/win_wf, my=e.button.y*H/win_hf;
-                int kn=(!captured && !ui_visible())?knob_at(&L,mx,my):-1;
-                if(kn>=0 && e.button.button==SDL_BUTTON_LEFT){
-                    /* grab: remember where the hand and the knob started */
-                    knob_drag=kn; knob_y0=my;
-                    knob_v0=(kn==0)?k.brightness:(k.contrast-0.4f)/1.4f;
-                } else ui_mouse((int)mx,(int)my,1,0);
-            }
-            else if(e.type==SDL_EVENT_MOUSE_BUTTON_UP){
-                if(knob_drag>=0) knob_drag=-1;
-                else ui_mouse((int)(e.button.x*W/win_wf),(int)(e.button.y*H/win_hf),0,0);
-            }
-            else if(e.type==SDL_EVENT_MOUSE_MOTION){
-                float mx=e.motion.x*W/win_wf, my=e.motion.y*H/win_hf;
-                if(knob_drag>=0){
-                    /* up is more: a third of the screen's height is the
-                     * knob's whole travel, so a turn is a wrist, not an arm */
-                    float v=knob_v0+(knob_y0-my)/(H*0.30f);
-                    if(v<0.0f) v=0.0f;
-                    if(v>1.0f) v=1.0f;
-                    if(knob_drag==0) k.brightness=v; else k.contrast=0.4f+1.4f*v;
-                } else ui_mouse((int)mx,(int)my,(e.motion.state&SDL_BUTTON_LMASK)?1:0,1);
-            }
-            else if(e.type==SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-                    e.type==SDL_EVENT_WINDOW_DISPLAY_CHANGED){
-                int nw,nh; SDL_GetWindowSizeInPixels(win,&nw,&nh);
-                if(nw>0 && nh>0 && (nw!=W || nh!=H)){
-                    W=nw; H=nh;
-                    gpu_resize(g,W,H);
-                    { int ww,wh; SDL_GetWindowSize(win,&ww,&wh);
-                      win_wf=(float)(ww>0?ww:W); win_hf=(float)(wh>0?wh:H); }
-                    L=chassis_layout(W,H);
-                    free(chas); chas=chassis_render(&L,W,H);
-                    gpu_set_chassis(g,chas,W,H);
-                    last_b=last_c=-1.0f;
-                    if(captured) set_capture(win,&L,W,H,win_wf,win_hf,1);
-                }
-            }
-            else if(e.type==SDL_EVENT_TEXT_INPUT){
-                /* what the layout produced: ASCII for now, one char at a
-                 * time; the prompt has no use for anything the font's
-                 * lower half cannot show */
-                if(!corehost_running())
-                    for(const char *p=e.text.text;*p;p++)
-                        if((unsigned char)*p>=32 && (unsigned char)*p<127) dos_key(*p,0);
-            }
-            else if(e.type==SDL_EVENT_KEY_DOWN||e.type==SDL_EVENT_KEY_UP){
-                int down=(e.type==SDL_EVENT_KEY_DOWN);
-                int sc=sc_from_sdl(e.key.scancode);
-                /* Ctrl+F10 everywhere, as DOSBox.  On a Mac the F10 key is
-                 * Mute unless Fn is held, so a tap of Command alone - a key
-                 * no DOS game could have bound - does the same there. */
-                int toggle = down && e.key.key==SDLK_F10 && (e.key.mod&SDL_KMOD_CTRL);
-#ifdef __APPLE__
-                { static int gui_alone=0;
-                  if(e.key.key==SDLK_LGUI || e.key.key==SDLK_RGUI){
-                      if(down) gui_alone=1;
-                      else if(gui_alone){ gui_alone=0; toggle=1; }
-                  } else if(down) gui_alone=0; }
-#endif
-                if(toggle){
-                    captured=!captured;
-                    set_capture(win,&L,W,H,win_wf,win_hf,captured);
-                    knob_drag=-1;
-                }
-                else if(corehost_running()){
-                    int ch=0;
-                    if(sc==DXM_SC_ESC) ch=27; else if(sc==DXM_SC_ENTER) ch=13;
-                    else if(sc==DXM_SC_SPACE) ch=' ';
-                    else if(sc) ch=0x100|sc;
-                    corehost_push_key(sc,down,ch);
-                } else if(down){
-                    /* dev-only room-light adjust while at the prompt:
-                     * F5 darker, F6 brighter (the real fiction control is a
-                     * chassis knob, SPEC 6.8 - this is for tuning taste) */
-                    if(e.key.key==SDLK_F1 && !dos_nc_open()){ ui_toggle(); }
-                    else if(e.key.key==SDLK_F5||e.key.key==SDLK_F6){
-                        k.ambient+=(e.key.key==SDLK_F6)?0.05f:-0.05f;
-                        if(k.ambient<0)k.ambient=0;
-                        if(k.ambient>1)k.ambient=1;
-                        dxm_log("ambient = %.2f",(double)k.ambient);
-                    }
-                    else if(e.key.key=='\r') dos_key('\r',sc);
-                    else if(e.key.key==SDLK_BACKSPACE) dos_key('\b',sc);
-                    /* the navigator is driven by keys that carry no
-                     * character at all - without this the prompt never
-                     * hears an arrow or an Esc */
-                    else if(sc) dos_key(0,sc);
-                }
+            input_result r=input_event(&in,&a,&L,&k,&e);
+            if(r==INPUT_QUIT) quit=1;
+            else if(r==INPUT_RESIZED){
+                app_measure(&a);
+                gpu_resize(a.gpu,a.W,a.H);
+                L=chassis_layout(a.W,a.H);
+                free(chas); chas=chassis_render(&L,a.W,a.H);
+                gpu_set_chassis(a.gpu,chas,a.W,a.H);
+                last_b=last_c=-1.0f;
+                if(in.captured) input_capture(&in,&a,&L,1);
             }
         }
-        double t=(clock_ns()-t_start)/1e9;
-        if(selftest){
-            /* Timed in SECONDS, not frames.  Everything this waits on is
-             * wall-clock - the launch holds 2.3s while the drive reads, the
-             * intro runs at its own pace - so a frame-count timeout makes
-             * the test pass or fail on how fast the machine draws.  Windowed
-             * with no true vsync that is hundreds of frames a second, and
-             * the window closed before the launch had even fired. */
-            static int stage=0, runs=0, fail=0;
-            static double mark=-1.0;
-            if(mark<0.0) mark=t;
-            double E=t-mark;                      /* seconds in this stage */
-            switch(stage){
-            /* Games live in C:\GAMES and run from there, so the test has to
-             * walk there like a user would. */
-            case 0: if(dos_update(t)==DOS_PROMPT){
-                        for(const char *q="CD GAMES";*q;q++) dos_key(*q,0);
-                        dos_key('\r',0);
-                        for(const char *q="SKYROADS";*q;q++) dos_key(*q,0);
-                        dos_key('\r',0); mark=t; stage=1; }
-                    break;
-            case 1: if(E>4.0){                    /* > the 2.3s load pause */
-                        if(!corehost_running()){
-                            printf("FAIL: core did not start (run %d)\n",runs+1); fail=1; stage=4; }
-                        else { printf("  run %d: core running\n",runs+1); mark=t; stage=2; }
-                    } break;
-            case 2: /* Esc: intro -> menu -> plat_exit -> longjmp -> unwind */
-                    { int phase=(int)(E/0.33);
-                      corehost_push_key(DXM_SC_ESC,(phase&1)==0,(phase&1)?0:27); }
-                    if(!corehost_running()){
-                        printf("  run %d: core unwound, host ALIVE (PORTING 3.1)\n",runs+1);
-                        runs++; mark=t; stage=(runs<2)?3:4;
-                    } else if(E>12.0){ printf("FAIL: core never unwound\n"); fail=1; stage=4; }
-                    break;
-            case 3: if(E>1.5){
-                        /* the prompt comes back where the game left it, so
-                         * this is already C:\GAMES */
-                        for(const char *q="SKYROADS";*q;q++) dos_key(*q,0);
-                        dos_key('\r',0); mark=t; stage=1; }
-                    break;
-            case 4: printf(fail?"SELFTEST FAIL\n"
-                               :"SELFTEST PASS: launch, unwind, relaunch (PORTING 3.1 + 3.2)\n");
-                    quit=1; break;
-            }
-        }
+        double t=(app_now_ns()-t_start)/1e9;
+        if(o.selftest && selftest_step(t)) quit=1;
 
         /* core lifecycle */
         /* Only return to the prompt if a core was ACTUALLY started and has
          * since exited.  DOS_RUNNING also covers the loading pause before a
          * launch, and testing the state alone aborted the launch instantly. */
-        static int core_started=0;
         if(core_started && !corehost_running()){
             core_started=0;
             dos_core_exited();
@@ -542,7 +172,7 @@ int main(int argc,char **argv){
             const lib_game   *lg=lib_find(req);
             const dxm_module *m=lg?lib_module(lg):NULL;
             if(m){
-                snd_floppy(2.2);      /* the drive works while it loads */
+                theatre_drive(&th,2.2,t);      /* the drive works while it loads */
                 corehost_use_module(m);
                 /* DXM_DATA still overrides, for working on a port without
                  * installing it first. */
@@ -550,13 +180,13 @@ int main(int argc,char **argv){
                 if(corehost_start(m->info, dd?dd:lg->data)==0){
                     core_started=1;
                     lib_touch_played(lg);
-                    captured=1; set_capture(win,&L,W,H,win_wf,win_hf,1);
+                    input_capture(&in,&a,&L,1);
                 }
             }
             if(!core_started) dos_core_failed();
         }
         if(dos_take_beep()) snd_beep(240.0);  /* after the RAM check */
-        { double f=dos_take_floppy(); if(f>0.0) snd_floppy(f); }
+        { double f=dos_take_floppy(); if(f>0.0) theatre_drive(&th,f,t); }
         /* --type takes a ';'-separated list, typed one per return to the
          * prompt - so a sequence like "CD GAMES;DIR" can be driven. */
         if(autocmd && *autocmd && dos_update(t)==DOS_PROMPT){
@@ -566,112 +196,37 @@ int main(int argc,char **argv){
             dos_key('\r',0);
             autocmd = semi ? semi+1 : NULL;
         }
-        if(dos_update(t)==DOS_OFF && off_t0<0.0){
-            off_t0=t; snd_power(0); snd_relay();
-            dxm_log("power off");
-        }
-        /* the tube's state this frame: warming up, steady, or dying */
-        { float rh=1.0f, rv=1.0f, gain=1.0f;
-          double fe=(clock_ns()-mach_fade0)/1e9;
-          if(off_t0>=0.0){
-              double o=t-off_t0;
-              if(o<0.10){                       /* vertical collapse */
-                  float p=(float)(o/0.10); p=p*p;
-                  rv=1.0f-0.985f*p; gain=1.0f+1.4f*p;
-              } else if(o<0.18){                /* the line shrinks to a dot */
-                  float p=(float)((o-0.10)/0.08);
-                  rv=0.015f; rh=1.0f-0.98f*p; gain=2.4f-0.6f*p;
-              } else {                          /* the dot fades */
-                  float p=(float)((o-0.18)/0.45); if(p>1.0f) p=1.0f;
-                  rv=0.015f; rh=0.02f; gain=1.8f*(1.0f-p)*(1.0f-p);
-              }
-              if(o>=OFF_END) quit=1;
-          } else if(fe<WARM && !selftest){
-              /* the raster opens quickly and then creeps the last of the
-               * way, the way a cold tube settles: a cubic ease-OUT, all
-               * the speed at the start and none at the end */
-              float u=1.0f-(float)(fe/WARM);
-              float p=1.0f-u*u*u;
-              rh=0.96f+0.04f*p; rv=0.90f+0.10f*p; gain=p*p;
-          }
-          gpu_set_tube_power(g,rh,rv,gain); }
+        if(dos_update(t)==DOS_OFF && th.off_t0<0.0) theatre_power_off(&th,t);
+        if(theatre_frame(&th,a.gpu,&L,a.W,a.H,t)) quit=1;
 
         /* pick the tube source: the running core, or the DOS text screen */
         int cw,ch,cl;
         const uint8_t *src=corehost_running()?corehost_frame(&cw,&ch,&cl):NULL;
-        if(src){ gpu_set_tube(g,src,cw,ch); k.crt_lines=cl; k.crt_cols=cw;
+        if(src){ gpu_set_tube(a.gpu,src,cw,ch); k.crt_lines=cl; k.crt_cols=cw;
                  k.sharp_text=0.0f; }        /* game art: hard pixels */
-        else   { gpu_set_tube(g,dos_render(),DOS_W,DOS_H);
+        else   { gpu_set_tube(a.gpu,dos_render(),DOS_W,DOS_H);
                  k.crt_lines=400; k.crt_cols=DOS_W;
                  k.sharp_text=1.0f; }        /* text: even stroke weights */
 
-        /* GL's origin is bottom-left; chassis_render draws top-down. */
-        /* the activity LED follows the drive, with a little flicker so it
-         * reads as head movement rather than a steady lamp */
-        { /* floppy activity: flickers with head movement */
-          float lv=snd_floppy_level();
-          float fl=0.72f+0.28f*(float)sin(t*47.0)*(float)sin(t*23.0);
-          gpu_set_led(g,0, L.fdd_led[0]/W, 1.0f-(L.fdd_led[1]+L.fdd_led[3])/H,
-                      L.fdd_led[2]/W, L.fdd_led[3]/H,
-                      lv*fl, 0.16f,1.0f,0.22f, 0, 2.0f);
-          /* power: steady, and it comes up with the machine */
-          static float pwr=0.0f;
-          pwr += ((off_t0>=0.0?0.0f:1.0f)-pwr)*(off_t0>=0.0?0.25f:0.02f);
-          gpu_set_led(g,1, L.pwr_led[0]/W, 1.0f-(L.pwr_led[1]+L.pwr_led[3])/H,
-                      L.pwr_led[2]/W, L.pwr_led[3]/H,
-                      pwr, 0.20f,1.0f,0.26f, 1,
-                      1.0f-L.pwr_shelf/H); }
-        /* The knobs show the live values - turned by hand, by the F1 panel,
-         * or loaded from the file - and only a knob that moved is redrawn. */
-        if(k.brightness!=last_b){
-            int px,py,pw,ph; const uint8_t *p=chassis_knob_set(0,k.brightness,&px,&py,&pw,&ph);
-            if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
-            last_b=k.brightness;
-        }
-        if(k.contrast!=last_c){
-            int px,py,pw,ph; const uint8_t *p=chassis_knob_set(1,(k.contrast-0.4f)/1.4f,&px,&py,&pw,&ph);
-            if(p) gpu_patch_chassis(g,px,py,pw,ph,p);
-            last_c=k.contrast;
-        }
+        show_knobs(a.gpu,&k,&last_b,&last_c);
         k.aperture_r = L.aperture_r;      /* match the chassis hole */
-        gpu_draw(g, L.tube_x/W, 1.0f-(L.tube_y+L.tube_h)/H,
-                    L.tube_w/W, L.tube_h/H, &k, t);
+        gpu_draw(a.gpu, L.tube_x/a.W, 1.0f-(L.tube_y+L.tube_h)/a.H,
+                        L.tube_w/a.W, L.tube_h/a.H, &k, t);
         { int ow,oh;
-          const uint8_t *ov=ui_render(W,H,&ow,&oh);
-          if(ov){ gpu_set_overlay(g,ov,ow,oh); gpu_draw_overlay(g); }
-        if(!selftest){
-            double fe=(clock_ns()-mach_fade0)/1e9;
-            if(fe<MACH_FADE){
-                float a=(float)(1.0-fe/MACH_FADE);
-                gpu_draw_fade(g,a*a*(3.0f-2.0f*a));
-            }
-        }
-        if(off_t0>=0.0){
-            /* the room goes dark after the tube has, not with it */
-            double o=t-off_t0, f0=0.6;
-            if(o>f0){ float a=(float)((o-f0)/(OFF_END-f0)); if(a>1.0f)a=1.0f;
-                      gpu_draw_fade(g,a*a*(3.0f-2.0f*a)); }
-        }
-
-          /* the arrow shows only while the mouse has been given to the
-           * operating system, or over the panel */
-          if(captured && !ui_visible()) SDL_HideCursor();
-          else SDL_ShowCursor(); }
-        SDL_GL_SwapWindow(win);
+          const uint8_t *ov=ui_render(a.W,a.H,&ow,&oh);
+          if(ov){ gpu_set_overlay(a.gpu,ov,ow,oh); gpu_draw_overlay(a.gpu); } }
+        theatre_room(&th,a.gpu,t);
+        input_cursor(&in);
+        SDL_GL_SwapWindow(a.win);
         frame++;
-        if(g_fixed_step) g_vclock+=1000000000ull/60;
+        app_frame_done();
         if(frame==1) dxm_log("first machine frame on screen");
-        if(shot && frame>=(shot_frames?shot_frames:60)){
-            int rw,rh; uint8_t *px=gpu_readback(g,&rw,&rh);
-            if(px){
-                write_bmp(shot,px,rw,rh); free(px);
-                fprintf(stderr,"wrote %s (%dx%d)\n",shot,rw,rh);
-            } else fprintf(stderr,"readback failed\n");
+        if(o.shot && frame>=(o.shot_frames?o.shot_frames:60)){
+            app_screenshot(&a,o.shot);
             quit=1;
         }
     }
-    if(!deterministic) ui_save(cfgpath);
-    corehost_stop();
-    SDL_Quit();
+    if(!a.deterministic) ui_save(cfgpath);
+    app_shutdown(&a);
     return 0;
 }

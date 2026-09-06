@@ -24,11 +24,11 @@ after someone has looked at the frames it produced.
 - A refactor must not change them. A pixel-exact pass on every case is
   what "behaviour-neutral" means for this code base.
 
-## A known gap
+## The floppy LED
 
-The floppy activity LED follows the drive sound's playback position, which
-the audio thread advances in real time even under `--deterministic`. A
-frame captured while the drive is "running" - the boot seek, DIR, an
-install, opening the navigator - can differ in that one patch between two
-runs. The cases above are chosen after the drive has stopped; a new case
-should be too, or wait for the LED to be driven from the machine clock.
+In normal running the activity LED follows the drive sound's envelope on
+the audio thread, in real time. Under `--deterministic` it follows the
+machine clock instead: on for exactly the seconds the drive was asked to
+run, then off. That is what makes a frame taken while the drive runs
+reproducible; it also means such a frame shows a lamp that is simply on,
+without the envelope's flicker.
