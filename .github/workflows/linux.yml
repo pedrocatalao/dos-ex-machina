@@ -60,6 +60,11 @@ jobs:
       - name: Generated data is reproducible
         run: tools/regen.sh --check
 
+      - name: Formatting
+        run: |
+          python3 -m pip install --user clang-format==18.1.8
+          tools/format.sh --check
+
       - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDXM_WERROR=ON \

@@ -27,26 +27,30 @@ static struct {
     SDL_Thread *th;
     volatile int cancel;
     cat_game job;
-    int data_only;   /* skip the module: a reset */
+    int data_only; /* skip the module: a reset */
 } inst;
 
 static void set_stage(const char *what, int step, int steps) {
     SDL_LockMutex(inst.mu);
     snprintf(inst.st.stage, sizeof inst.st.stage, "%s", what);
-    inst.st.step = step; inst.st.steps = steps; inst.st.frac = 0.0;
+    inst.st.step = step;
+    inst.st.steps = steps;
+    inst.st.frac = 0.0;
     SDL_UnlockMutex(inst.mu);
 }
 static void on_progress(void *ud, double got, double total) {
     (void)ud;
     SDL_LockMutex(inst.mu);
-    inst.st.got = got; inst.st.total = total;
+    inst.st.got = got;
+    inst.st.total = total;
     inst.st.frac = total > 0 ? got / total : 0.0;
     SDL_UnlockMutex(inst.mu);
 }
-static void fail(const char *fmt, ...) __attribute__((format(printf,1,2)));
+static void fail(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void fail(const char *fmt, ...) {
     SDL_LockMutex(inst.mu);
-    va_list ap; va_start(ap, fmt);
+    va_list ap;
+    va_start(ap, fmt);
     vsnprintf(inst.st.err, sizeof inst.st.err, fmt, ap);
     va_end(ap);
     inst.st.state = INST_FAILED;
@@ -69,8 +73,8 @@ static int SDLCALL worker(void *ud) {
     if (!inst.data_only) {
         set_stage("Downloading game", 1, STEPS);
         snprintf(path, sizeof path, "%s%cgame.dxm", dir, DXM_SEP);
-        if (net_get_file(inst.job.module.url, path, on_progress, NULL, &inst.cancel,
-                         err, sizeof err) != 0) {
+        if (net_get_file(inst.job.module.url, path, on_progress, NULL, &inst.cancel, err,
+                         sizeof err) != 0) {
             fail("%s", err);
             return 0;
         }
@@ -88,8 +92,8 @@ static int SDLCALL worker(void *ud) {
     if (inst.job.data.url[0]) {
         set_stage("Downloading data", 2, STEPS);
         snprintf(zip, sizeof zip, "%s%cdata.zip", dir, DXM_SEP);
-        if (net_get_file(inst.job.data.url, zip, on_progress, NULL, &inst.cancel,
-                         err, sizeof err) != 0) {
+        if (net_get_file(inst.job.data.url, zip, on_progress, NULL, &inst.cancel, err,
+                         sizeof err) != 0) {
             fail("%s", err);
             return 0;
         }
@@ -119,7 +123,10 @@ static int SDLCALL worker(void *ud) {
     if (inst.job.version[0]) {
         snprintf(path, sizeof path, "%s%cversion", dir, DXM_SEP);
         FILE *f = fopen(path, "wb");
-        if (f) { fprintf(f, "%s\n", inst.job.version); fclose(f); }
+        if (f) {
+            fprintf(f, "%s\n", inst.job.version);
+            fclose(f);
+        }
     }
 
     SDL_LockMutex(inst.mu);
@@ -130,13 +137,22 @@ static int SDLCALL worker(void *ud) {
 }
 
 static int start(const cat_game *g, int only_data);
-int install_start(const cat_game *g)      { return start(g, 0); }
-int install_start_data(const cat_game *g) { return start(g, 1); }
+int install_start(const cat_game *g) {
+    return start(g, 0);
+}
+int install_start_data(const cat_game *g) {
+    return start(g, 1);
+}
 static int start(const cat_game *g, int only_data) {
-    if (!inst.mu) inst.mu = SDL_CreateMutex();
-    if (inst.st.state == INST_RUNNING) return -1;
+    if (!inst.mu)
+        inst.mu = SDL_CreateMutex();
+    if (inst.st.state == INST_RUNNING)
+        return -1;
     inst.data_only = only_data;
-    if (inst.th) { SDL_WaitThread(inst.th, NULL); inst.th = NULL; }
+    if (inst.th) {
+        SDL_WaitThread(inst.th, NULL);
+        inst.th = NULL;
+    }
     inst.job = *g;
     memset(&inst.st, 0, sizeof inst.st);
     inst.st.state = INST_RUNNING;
@@ -145,16 +161,23 @@ static int start(const cat_game *g, int only_data) {
     snprintf(inst.st.stage, sizeof inst.st.stage, "Starting");
     inst.cancel = 0;
     inst.th = SDL_CreateThread(worker, "install", NULL);
-    if (!inst.th) { inst.st.state = INST_FAILED;
-               snprintf(inst.st.err, sizeof inst.st.err, "cannot start the download");
-               return -1; }
+    if (!inst.th) {
+        inst.st.state = INST_FAILED;
+        snprintf(inst.st.err, sizeof inst.st.err, "cannot start the download");
+        return -1;
+    }
     return 0;
 }
 
-void install_cancel(void) { inst.cancel = 1; }
+void install_cancel(void) {
+    inst.cancel = 1;
+}
 
 void install_poll(inst_status *out) {
-    if (!inst.mu) { memset(out, 0, sizeof *out); return; }
+    if (!inst.mu) {
+        memset(out, 0, sizeof *out);
+        return;
+    }
     SDL_LockMutex(inst.mu);
     *out = inst.st;
     SDL_UnlockMutex(inst.mu);
@@ -167,8 +190,10 @@ void install_poll(inst_status *out) {
 }
 
 void install_clear(void) {
-    if (!inst.mu) return;
+    if (!inst.mu)
+        return;
     SDL_LockMutex(inst.mu);
-    if (inst.st.state != INST_RUNNING) memset(&inst.st, 0, sizeof inst.st);
+    if (inst.st.state != INST_RUNNING)
+        memset(&inst.st, 0, sizeof inst.st);
     SDL_UnlockMutex(inst.mu);
 }

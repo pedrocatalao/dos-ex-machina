@@ -7,20 +7,21 @@
  * surface.c, the moulded parts in parts.c and marks.c, the monitor bezel in
  * bezel.c, the knobs in knobs.c, and the layout solve in layout.c. */
 #include "internal.h"
-#include "gen/mark.h"             /* only the mark's dimensions are used here */
-#include "gen/corner_sticker.h"   /* likewise */
+#include "gen/mark.h"           /* only the mark's dimensions are used here */
+#include "gen/corner_sticker.h" /* likewise */
 
 /* ---- speaker columns, one each side of the tube ---- */
-static void speaker_columns(canvas *c,dxm_layout *L,int W,int H,const chassis_geom *G,int *knobs_placed){
-    float mm=G->mm, inset=G->inset, edge=G->edge, hous=G->hous;
-    float gap_d=G->gap_d, gap_lo=G->gap_lo, gap_hi=G->gap_hi;
-    {   /* the block the columns were solved in; the braces stay so the
-         * nested code reads as it did */
-        float gl2=L->tube_x-hous-(edge+inset*0.45f);   /* space per side */
-        float gw=gl2-inset*0.35f;
-        if(gw>inset*0.5f){
-            float gh=L->tube_h*0.5f;
-            float gy=L->tube_y+(L->tube_h-gh)*0.5f;   /* centred on the tube */
+static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
+                            int *knobs_placed) {
+    float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
+    float gap_d = G->gap_d, gap_lo = G->gap_lo, gap_hi = G->gap_hi;
+    { /* the block the columns were solved in; the braces stay so the
+       * nested code reads as it did */
+        float gl2 = L->tube_x - hous - (edge + inset * 0.45f); /* space per side */
+        float gw = gl2 - inset * 0.35f;
+        if (gw > inset * 0.5f) {
+            float gh = L->tube_h * 0.5f;
+            float gy = L->tube_y + (L->tube_h - gh) * 0.5f; /* centred on the tube */
             /* Each grille sits in a raised moulded POD - a tall rounded
              * pad standing a fraction proud of the flank, with the holes
              * punched through its middle.  This is how the real cases did
@@ -28,57 +29,61 @@ static void speaker_columns(canvas *c,dxm_layout *L,int W,int H,const chassis_ge
              * decoration applied around it.  It also gives the space above
              * and below the holes something to be - plateau face - instead
              * of leaving it bare or striping it. */
-            float pw=gw*0.88f, ph=L->tube_h*0.94f;
-            float py=L->tube_y+(L->tube_h-ph)*0.5f;
-            float prad=fminf(pw,ph)*0.11f;
-            float pxs[2]={edge+inset*0.45f+(gw-pw)*0.5f,
-                          (float)W-edge-inset*0.45f-gw+(gw-pw)*0.5f};
-            for(int s2=0;s2<2;s2++){
-                float px0=pxs[s2];
+            float pw = gw * 0.88f, ph = L->tube_h * 0.94f;
+            float py = L->tube_y + (L->tube_h - ph) * 0.5f;
+            float prad = fminf(pw, ph) * 0.11f;
+            float pxs[2] = {edge + inset * 0.45f + (gw - pw) * 0.5f,
+                            (float)W - edge - inset * 0.45f - gw + (gw - pw) * 0.5f};
+            for (int s2 = 0; s2 < 2; s2++) {
+                float px0 = pxs[s2];
                 /* the proud face catches marginally more of the key light */
-                for(int j2=(int)py;j2<(int)(py+ph);j2++)
-                  for(int i2=(int)px0;i2<(int)(px0+pw);i2++)
-                    if(rr_sd((float)i2,(float)j2,px0+pw*0.5f,py+ph*0.5f,
-                             pw*0.5f,ph*0.5f,prad)<0.0f)
-                        px_shade(c,i2,j2,1.022f,0.0f);
-                housing_edge(c,px0,py,pw,ph,prad,
-                             fmaxf(1.5f,(float)W*0.0022f),
-                             fmaxf(2.0f,(float)W*0.0030f),1,0.85f);
+                for (int j2 = (int)py; j2 < (int)(py + ph); j2++)
+                    for (int i2 = (int)px0; i2 < (int)(px0 + pw); i2++)
+                        if (rr_sd((float)i2, (float)j2, px0 + pw * 0.5f, py + ph * 0.5f, pw * 0.5f,
+                                  ph * 0.5f, prad) < 0.0f)
+                            px_shade(c, i2, j2, 1.022f, 0.0f);
+                housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.5f, (float)W * 0.0022f),
+                             fmaxf(2.0f, (float)W * 0.0030f), 1, 0.85f);
                 /* moulding bosses tucked into the pod corners */
                 /* A real ejector boss is almost invisible EXCEPT at its
                  * rim - the flat top sits flush with the face around it.
                  * Darkening the whole disc instead read as a stamped spot,
                  * the more so because it came out the same radius as the
                  * pod corner it sat in. */
-                { float br=1.6f*(float)H/268.0f, in2=prad*0.86f;
-                  float bp[4][2]={{in2,in2},{pw-in2,in2},
-                                  {in2,ph-in2},{pw-in2,ph-in2}};
-                  for(int k=0;k<4;k++){
-                    float bx=px0+bp[k][0], by=py+bp[k][1];
-                    for(int j2=(int)(by-br-1);j2<=(int)(by+br+1);j2++)
-                      for(int i2=(int)(bx-br-1);i2<=(int)(bx+br+1);i2++){
-                        float dx2=i2-bx, dy2=j2-by;
-                        float dd=sqrtf(dx2*dx2+dy2*dy2);
-                        if(dd>br) continue;
-                        float rim=1.0f-fabsf(dd-br*0.88f)/(br*0.14f);
-                        if(rim<0.0f) rim=0.0f;
-                        px_shade(c,i2,j2,1.0f-0.005f+0.030f*rim*(-dy2/br),0.0f);
-                      }
-                  }
+                {
+                    float br = 1.6f * (float)H / 268.0f, in2 = prad * 0.86f;
+                    float bp[4][2] = {
+                        {in2, in2}, {pw - in2, in2}, {in2, ph - in2}, {pw - in2, ph - in2}};
+                    for (int k = 0; k < 4; k++) {
+                        float bx = px0 + bp[k][0], by = py + bp[k][1];
+                        for (int j2 = (int)(by - br - 1); j2 <= (int)(by + br + 1); j2++)
+                            for (int i2 = (int)(bx - br - 1); i2 <= (int)(bx + br + 1); i2++) {
+                                float dx2 = i2 - bx, dy2 = j2 - by;
+                                float dd = sqrtf(dx2 * dx2 + dy2 * dy2);
+                                if (dd > br)
+                                    continue;
+                                float rim = 1.0f - fabsf(dd - br * 0.88f) / (br * 0.14f);
+                                if (rim < 0.0f)
+                                    rim = 0.0f;
+                                px_shade(c, i2, j2, 1.0f - 0.005f + 0.030f * rim * (-dy2 / br),
+                                         0.0f);
+                            }
+                    }
                 }
             }
-            grille_panel(c,edge+inset*0.45f,gy,gw,gh,H*0.019f);
-            grille_panel(c,(float)W-edge-inset*0.45f-gw,gy,gw,gh,H*0.019f);
+            grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
+            grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
             /* The sound-card sticker, on the RIGHT pod under the holes.  A
              * FIXED physical size, like the badge: sized off the pod it was
              * 4 mm wide on a 4:3 screen and 59 mm on an ultrawide, because
              * the pods are whatever is left beside the tube.  A real sticker
              * is one size; when the pod cannot hold it, it is not there. */
-            { float sw=18.0f*mm;
-              float y0=gy+gh*0.94f, y1=py+ph;      /* holes end .. pod ends */
-              float sh=sw*0.5f;                    /* what sb_sticker builds */
-              if(sw<=pw*0.80f && y1-y0>sh*1.30f)
-                sb_sticker(c,pxs[1]+pw*0.5f,(y0+y1)*0.5f,sw);
+            {
+                float sw = 18.0f * mm;
+                float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
+                float sh = sw * 0.5f;                     /* what sb_sticker builds */
+                if (sw <= pw * 0.80f && y1 - y0 > sh * 1.30f)
+                    sb_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, sw);
             }
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -
@@ -87,37 +92,43 @@ static void speaker_columns(canvas *c,dxm_layout *L,int W,int H,const chassis_ge
              * LAST, after the wear and the yellowing, so the plastic saved
              * under each is the plastic around it.  A screen too short or
              * too narrow for them here gets them on the band instead. */
-            { float kr=3.9f*mm;
-              float top=py+ph, strip=gap_lo-top;
-              if(strip>=kr*2.0f+6.6f*mm && pw>=kr*5.9f){
-                  float cx2=pxs[1]+pw*0.5f;
-                  float ky=top+kr+5.2f*mm;
-                  float kx0=cx2-kr*1.75f, kx1=cx2+kr*1.75f;
-                  knob_icons(c,kx0,ky+kr+3.0f*mm,kx1,ky+kr+3.0f*mm,1.4f*mm);
-                  knobs_slot(0,kx0,ky,kr); knobs_slot(1,kx1,ky,kr);
-                  *knobs_placed=1;
-              } }
+            {
+                float kr = 3.9f * mm;
+                float top = py + ph, strip = gap_lo - top;
+                if (strip >= kr * 2.0f + 6.6f * mm && pw >= kr * 5.9f) {
+                    float cx2 = pxs[1] + pw * 0.5f;
+                    float ky = top + kr + 5.2f * mm;
+                    float kx0 = cx2 - kr * 1.75f, kx1 = cx2 + kr * 1.75f;
+                    knob_icons(c, kx0, ky + kr + 3.0f * mm, kx1, ky + kr + 3.0f * mm, 1.4f * mm);
+                    knobs_slot(0, kx0, ky, kr);
+                    knobs_slot(1, kx1, ky, kr);
+                    *knobs_placed = 1;
+                }
+            }
             /* The maker's mark: the DXM wordmark, engraved into the case
              * above the LEFT pod and centred on it, in the flat between the
              * top parting and the pod, with its colour laid in the cut.  A
              * fixed physical size; a strip too short or a pod too narrow
              * for it goes without. */
-            { float mw=16.0f*mm, mh=mw*(float)DXM_MARK_HT/(float)DXM_MARK_W;
-              float top2=gap_hi+gap_d+1.5f*mm, bot2=py-1.0f*mm;
-              if(bot2-top2>=mh+1.0f*mm && pw>=mw*1.1f)
-                  engrave_mark(c,pxs[0]+pw*0.5f,(top2+bot2)*0.5f-1.2f*mm,mw,0.75f);
+            {
+                float mw = 16.0f * mm, mh = mw * (float)DXM_MARK_HT / (float)DXM_MARK_W;
+                float top2 = gap_hi + gap_d + 1.5f * mm, bot2 = py - 1.0f * mm;
+                if (bot2 - top2 >= mh + 1.0f * mm && pw >= mw * 1.1f)
+                    engrave_mark(c, pxs[0] + pw * 0.5f, (top2 + bot2) * 0.5f - 1.2f * mm, mw,
+                                 0.75f);
             }
         }
     }
 }
 
 /* ---- bottom band: badge | power+LEDs | volume/phones | floppy ---- */
-static void bottom_band(canvas *c,dxm_layout *L,int W,int H,const chassis_geom *G,int *knobs_placed){
-    float mm=G->mm, inset=G->inset, edge=G->edge, hous=G->hous;
-    float gap_d=G->gap_d, gap_lo=G->gap_lo;
-    float band_y=L->tube_y+L->tube_h+hous+inset*0.22f;
-    float band_h=(float)H-inset*0.55f-band_y;
-    if(band_h>inset*0.8f){
+static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
+                        int *knobs_placed) {
+    float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
+    float gap_d = G->gap_d, gap_lo = G->gap_lo;
+    float band_y = L->tube_y + L->tube_h + hous + inset * 0.22f;
+    float band_h = (float)H - inset * 0.55f - band_y;
+    if (band_h > inset * 0.8f) {
         /* The two mouldings part here.  It runs the FULL width, across the
          * turned-away side strips as well: the parting between two parts
          * goes right round the case, and stopping it at the front face made
@@ -126,109 +137,121 @@ static void bottom_band(canvas *c,dxm_layout *L,int W,int H,const chassis_geom *
          * out there the base's top surface meets the monitor's set-back
          * side directly, as the ledge, and a groove crossing that would
          * cut through geometry that has no groove in it. */
-        panel_gap(c,edge,gap_lo,(float)W-2.0f*edge,gap_d);
-        surface_monitor_recess(c,W,H,G);
-        float mid=band_y+band_h*0.46f;
+        panel_gap(c, edge, gap_lo, (float)W - 2.0f * edge, gap_d);
+        surface_monitor_recess(c, W, H, G);
+        float mid = band_y + band_h * 0.46f;
 
         /* badge: the logo, kept, but narrow */
-        float pbw=fminf(W*0.115f,L->tube_h*0.34f);
-        float pbh=fminf(band_h*0.52f,pbw*0.42f);
-        float pbx=edge+inset*0.65f, pby=mid-pbh*0.5f;
-        badge(c,pbx,pby,pbw,pbh);
+        float pbw = fminf(W * 0.115f, L->tube_h * 0.34f);
+        float pbh = fminf(band_h * 0.52f, pbw * 0.42f);
+        float pbx = edge + inset * 0.65f, pby = mid - pbh * 0.5f;
+        badge(c, pbx, pby, pbw, pbh);
 
         /* power button + status LEDs */
-        float px0=pbx+pbw+inset*0.85f;
-        float pw=16.0f*mm;                       /* a 16mm power cap */
-        power_button(c,px0,pw,mid,mm,band_h,L);
+        float px0 = pbx + pbw + inset * 0.85f;
+        float pw = 16.0f * mm; /* a 16mm power cap */
+        power_button(c, px0, pw, mid, mm, band_h, L);
 
         /* the knobs' fallback: on the band beside the power cap, for a
          * screen whose pods have no room under them */
-        if(!*knobs_placed){ float kr=3.9f*mm;
-          float kx=px0+pw+inset*0.85f+kr;
-          float ky=mid;
-          knob_icons(c,kx,ky+kr+3.0f*mm,kx+kr*3.0f,ky+kr+3.0f*mm,1.4f*mm);
-          /* only their places for now: the knobs themselves go on LAST,
-           * after the wear and the yellowing, so the plastic saved under
-           * each one is the plastic around it - otherwise a turned knob
-           * came back on a square of cleaner case */
-          knobs_slot(0,kx,ky,kr); knobs_slot(1,kx+kr*3.0f,ky,kr);
-          *knobs_placed=1; }
+        if (!*knobs_placed) {
+            float kr = 3.9f * mm;
+            float kx = px0 + pw + inset * 0.85f + kr;
+            float ky = mid;
+            knob_icons(c, kx, ky + kr + 3.0f * mm, kx + kr * 3.0f, ky + kr + 3.0f * mm, 1.4f * mm);
+            /* only their places for now: the knobs themselves go on LAST,
+             * after the wear and the yellowing, so the plastic saved under
+             * each one is the plastic around it - otherwise a turned knob
+             * came back on a square of cleaner case */
+            knobs_slot(0, kx, ky, kr);
+            knobs_slot(1, kx + kr * 3.0f, ky, kr);
+            *knobs_placed = 1;
+        }
 
         /* The engraved mark, on the centre line of the base.  It is level
          * with the badge rather than lower down, which keeps it clear of
          * the vent run along the foot - two features sharing the middle of
          * the case is one too many. */
-        { float sh=pbh*0.74f;
-          float sw=sh*(float)CORNER_STICKER_W/(float)CORNER_STICKER_HT;
-          if(sw>8.0f) corner_engraving(c,(float)W*0.5f,mid,sw);
+        {
+            float sh = pbh * 0.74f;
+            float sw = sh * (float)CORNER_STICKER_W / (float)CORNER_STICKER_HT;
+            if (sw > 8.0f)
+                corner_engraving(c, (float)W * 0.5f, mid, sw);
         }
 
         /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
          * vertically between the divider ridge and the case bottom */
-        float fh=25.4f*mm, fw2=101.6f*mm;
-        float fx=(float)W-edge-inset*0.65f-fw2;
-        float fmid=((band_y-inset*0.26f)+(float)H)*0.5f;
+        float fh = 25.4f * mm, fw2 = 101.6f * mm;
+        float fx = (float)W - edge - inset * 0.65f - fw2;
+        float fmid = ((band_y - inset * 0.26f) + (float)H) * 0.5f;
 
         /* Vent cuts along the foot of the band, confined to the middle
          * fifth of the case.  A run all the way from the badge to the drive
          * read as a decorative band; a short group on the centre line reads
          * as what it is - ducting put where the airflow is. */
-        { float vy0=fmaxf(pby+pbh, mid+pw*0.39f+fmaxf(4.0f,band_h*0.09f)
-                                   +2.7f*mm) + inset*0.10f;
-          float vy1=(float)H-inset*0.28f;
-          float vx0=(float)W*0.40f, vx1=(float)W*0.60f;
-          /* the run hangs from its BOTTOM edge: shortening it from the top
-           * keeps it sitting on the foot of the case, which is where a cut
-           * that vents the floor of the machine belongs */
-          float avail=vy1-vy0, vspan=vx1-vx0;
-          float vh=avail*0.86f;
-          vy0=vy1-vh;
-          /* the test is on the room AVAILABLE, not on the shortened run -
-           * testing the latter is what silently deleted the whole row */
-          if(avail>1.8f*mm && vspan>8.0f*mm){
-              float vw=fmaxf(2.0f,1.15f*mm);
-              float pitch=vw*2.7f;
-              int n=(int)((vspan+pitch-vw)/pitch);
-              float x2=vx0+(vspan-((n-1)*pitch+vw))*0.5f;
-              for(int k=0;k<n;k++) vent_slot(c,x2+k*pitch,vy0,vw,vh);
-          }
+        {
+            float vy0 =
+                fmaxf(pby + pbh, mid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm) +
+                inset * 0.10f;
+            float vy1 = (float)H - inset * 0.28f;
+            float vx0 = (float)W * 0.40f, vx1 = (float)W * 0.60f;
+            /* the run hangs from its BOTTOM edge: shortening it from the top
+             * keeps it sitting on the foot of the case, which is where a cut
+             * that vents the floor of the machine belongs */
+            float avail = vy1 - vy0, vspan = vx1 - vx0;
+            float vh = avail * 0.86f;
+            vy0 = vy1 - vh;
+            /* the test is on the room AVAILABLE, not on the shortened run -
+             * testing the latter is what silently deleted the whole row */
+            if (avail > 1.8f * mm && vspan > 8.0f * mm) {
+                float vw = fmaxf(2.0f, 1.15f * mm);
+                float pitch = vw * 2.7f;
+                int n = (int)((vspan + pitch - vw) / pitch);
+                float x2 = vx0 + (vspan - ((n - 1) * pitch + vw)) * 0.5f;
+                for (int k = 0; k < n; k++)
+                    vent_slot(c, x2 + k * pitch, vy0, vw, vh);
+            }
         }
 
-        floppy_drive(c,fx,fmid-fh*0.5f,fw2,fh,L->fdd_led);
+        floppy_drive(c, fx, fmid - fh * 0.5f, fw2, fh, L->fdd_led);
     }
 }
 
-uint8_t *chassis_render(dxm_layout *L,int W,int H){
-    canvas C; C.w=W; C.h=H; C.px=calloc((size_t)W*H,4);
-    if(!C.px) return NULL;
-    canvas *c=&C;
-    canvas_lbl=fmaxf(1.0f,(float)H/760.0f);
-    float inset=H*0.052f, edge=W*0.024f;
+uint8_t *chassis_render(dxm_layout *L, int W, int H) {
+    canvas C;
+    C.w = W;
+    C.h = H;
+    C.px = calloc((size_t)W * H, 4);
+    if (!C.px)
+        return NULL;
+    canvas *c = &C;
+    canvas_lbl = fmaxf(1.0f, (float)H / 760.0f);
+    float inset = H * 0.052f, edge = W * 0.024f;
     /* ONE physical scale for everything that has a real-world size - the
      * drives, the LEDs, the stickers.  Tied to the DISPLAY height, not to
      * any band or pod, so a wide screen gets more case around the same
      * objects rather than bigger objects. */
-    float mm=H/268.0f;
-    float bz=L->tube_h*BEZEL_BAND;      /* measured off the reference */
-    float hous=L->tube_h*BEZEL_HOUSING;
+    float mm = H / 268.0f;
+    float bz = L->tube_h * BEZEL_BAND; /* measured off the reference */
+    float hous = L->tube_h * BEZEL_HOUSING;
     /* the two partings, and where the upper one sits - the top band is the
      * case above it, so both have to be solved from the same numbers */
-    float gap_d=fmaxf(3.0f,2.0f*(float)H/268.0f);
-    float gap_lo=L->tube_y+L->tube_h+hous+inset*0.22f-inset*0.30f;
-    float gap_hi=L->tube_y-(gap_lo-(L->tube_y+L->tube_h))-gap_d;
-    int knobs_placed=0;                 /* under the right pod, or on the band */
-    chassis_geom G={mm,inset,edge,bz,hous,gap_d,gap_lo,gap_hi};
+    float gap_d = fmaxf(3.0f, 2.0f * (float)H / 268.0f);
+    float gap_lo = L->tube_y + L->tube_h + hous + inset * 0.22f - inset * 0.30f;
+    float gap_hi = L->tube_y - (gap_lo - (L->tube_y + L->tube_h)) - gap_d;
+    int knobs_placed = 0; /* under the right pod, or on the band */
+    chassis_geom G = {mm, inset, edge, bz, hous, gap_d, gap_lo, gap_hi};
 
-    surface_base(c,W,H);
-    surface_top_roll(c,W,&G);
-    surface_edges(c,W,H,&G);
-    bezel_cut(c,L,&G);
-    speaker_columns(c,L,W,H,&G,&knobs_placed);
-    bottom_band(c,L,W,H,&G,&knobs_placed);
-    surface_moulding_traces(c,W,H,&G);
-    surface_wear(c,W,H);
-    surface_finish(c,W,H);
-    bezel_facing_alpha(c,L,W,H,&G);
+    surface_base(c, W, H);
+    surface_top_roll(c, W, &G);
+    surface_edges(c, W, H, &G);
+    bezel_cut(c, L, &G);
+    speaker_columns(c, L, W, H, &G, &knobs_placed);
+    bottom_band(c, L, W, H, &G, &knobs_placed);
+    surface_moulding_traces(c, W, H, &G);
+    surface_wear(c, W, H);
+    surface_finish(c, W, H);
+    bezel_facing_alpha(c, L, W, H, &G);
     /* the knobs, over the finished case */
     knobs_draw(c);
     knobs_layout(L);

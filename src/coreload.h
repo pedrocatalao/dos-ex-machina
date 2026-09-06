@@ -13,24 +13,24 @@
  * these calls go, but the paths are shown to the user in NC, so they should
  * look native. */
 #ifdef _WIN32
-#  define DXM_SEP '\\'
+#    define DXM_SEP '\\'
 #else
-#  define DXM_SEP '/'
+#    define DXM_SEP '/'
 #endif
 
 typedef struct {
-    void                 *handle;      /* dlopen/LoadLibrary handle       */
-    const dxm_core_info  *info;
-    dxm_core_get_info_fn  get_info;
-    dxm_core_main_fn      main_fn;
-    dxm_core_audio_fn     audio_fn;
+    void *handle; /* dlopen/LoadLibrary handle       */
+    const dxm_core_info *info;
+    dxm_core_get_info_fn get_info;
+    dxm_core_main_fn main_fn;
+    dxm_core_audio_fn audio_fn;
 } dxm_module;
 
 /* Open a module and resolve its three entry points.  Returns 0 on success;
  * on failure fills `err` with something worth showing a user and leaves the
  * module untouched.  Refuses a module whose ABI this build does not speak -
  * that check is the whole reason dxm_core_info carries `abi` first. */
-int  coreload_open(dxm_module *m, const char *path, char *err, size_t errsz);
+int coreload_open(dxm_module *m, const char *path, char *err, size_t errsz);
 void coreload_close(dxm_module *m);
 
 #endif

@@ -14,20 +14,20 @@
 #include "coreload.h"
 #include <stdint.h>
 
-#define LIB_MAX  32
+#define LIB_MAX 32
 #define LIB_PATH 1024
 
 typedef struct {
-    char id[32];                 /* directory name, and the DOS command    */
+    char id[32]; /* directory name, and the DOS command    */
     char title[64], by[80];
-    int  year;
-    char dir[LIB_PATH];          /* <root>games/<id>/                      */
+    int year;
+    char dir[LIB_PATH]; /* <root>games/<id>/                      */
     char module[LIB_PATH];
     char data[LIB_PATH];
-    int  ready;                  /* module loaded AND its data probe found */
-    char note[96];               /* if not ready, why - shown to the user  */
-    char version[16];            /* the release installed; "" = unknown    */
-    int64_t played_ns;           /* when it last ran; 0 = never            */
+    int ready;         /* module loaded AND its data probe found */
+    char note[96];     /* if not ready, why - shown to the user  */
+    char version[16];  /* the release installed; "" = unknown    */
+    int64_t played_ns; /* when it last ran; 0 = never            */
 } lib_game;
 
 /* The preferences directory, with a trailing separator.  Everything DXM
@@ -36,10 +36,10 @@ const char *lib_root(void);
 
 /* Rebuild the list from disk.  Cheap enough to call whenever something may
  * have changed - after an install, say. */
-void            lib_scan(void);
-int             lib_count(void);
+void lib_scan(void);
+int lib_count(void);
 const lib_game *lib_at(int i);
-const lib_game *lib_find(const char *id);          /* case-insensitive */
+const lib_game *lib_find(const char *id); /* case-insensitive */
 
 /* The module for a game, opened on first use and kept open afterwards.
  * Reopening between runs would mean relying on dlclose actually unloading,

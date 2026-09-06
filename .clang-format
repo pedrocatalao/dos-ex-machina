@@ -1,0 +1,47 @@
+# DOS ex Machina — C formatting.  The style the later files already used:
+# four spaces, 100 columns, K&R braces, one statement per line, spaces
+# around operators.  Comments keep their wrapping at 100 columns; what the
+# tool does to them is keep their continuation lines aligned.
+#
+# Run tools/format.sh; CI checks with the same pinned clang-format.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+UseTab: Never
+
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpacesInParentheses: false
+SpaceBeforeAssignmentOperators: true
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+
+IndentCaseLabels: false
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+AlignArrayOfStructures: None
+AlignOperands: Align
+BinPackArguments: true
+BinPackParameters: true
+
+ReflowComments: true
+SortIncludes: Never
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+IndentPPDirectives: AfterHash

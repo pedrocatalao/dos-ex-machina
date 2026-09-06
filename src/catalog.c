@@ -14,15 +14,19 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 
-#define CAT_URL "https://raw.githubusercontent.com/pedrocatalao/" \
-                "dos-ex-machina/main/catalogue.json"
+#define CAT_URL                                                                                    \
+    "https://raw.githubusercontent.com/pedrocatalao/"                                              \
+    "dos-ex-machina/main/catalogue.json"
 
 /* The catalogue: the games it lists, and the refresh in flight */
 static struct {
     cat_game games[CAT_MAX];
     int n_games;
-    /* ---- background refresh ------------------------------------------------
-     * The fetch happens on a thread; the PARSE happens on the main thread when *it collects the result.  That way `games` is only ever written by one *thread and no lock is needed around the accessors the navigator uses on *every frame. */
+    /* ---- background refresh ----------------------------------------------
+     * The fetch happens on a thread; the PARSE happens on the main thread
+     * when it collects the result.  That way `games` is only ever written
+     * by one thread and no lock is needed around the accessors the
+     * navigator uses on every frame. */
     SDL_Thread *rth;
     char *pending;
     volatile int pending_ready;
@@ -31,11 +35,11 @@ static struct {
 
 const char *cat_platform(void) {
 #if defined(_WIN32)
-#  if defined(__aarch64__) || defined(_M_ARM64)
+#    if defined(__aarch64__) || defined(_M_ARM64)
     return "windows-arm64";
-#  else
+#    else
     return "windows-x86_64";
-#  endif
+#    endif
 #elif defined(__APPLE__)
     /* macOS modules are shipped universal, so there is one key, not two. */
     return "macos-universal";
@@ -49,7 +53,8 @@ const char *cat_platform(void) {
 /* ---- the small JSON reader ------------------------------------------- */
 
 static const char *skip_ws(const char *p) {
-    while (*p==' '||*p=='\t'||*p=='\n'||*p=='\r') p++;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+        p++;
     return p;
 }
 
@@ -57,37 +62,49 @@ static const char *skip_ws(const char *p) {
  * that can actually appear in a URL or a title; anything else is passed
  * through, which is wrong for \u but no catalogue of ours will carry one. */
 static const char *read_str(const char *p, char *out, size_t outsz) {
-    if (*p != '"') return NULL;
+    if (*p != '"')
+        return NULL;
     p++;
     size_t k = 0;
     while (*p && *p != '"') {
         char c = *p++;
         if (c == '\\' && *p) {
             char e = *p++;
-            c = (e=='n')?'\n' : (e=='t')?'\t' : e;
+            c = (e == 'n') ? '\n' : (e == 't') ? '\t' : e;
         }
-        if (out && k + 1 < outsz) out[k++] = c;
+        if (out && k + 1 < outsz)
+            out[k++] = c;
     }
-    if (out) out[k] = 0;
+    if (out)
+        out[k] = 0;
     return *p == '"' ? p + 1 : NULL;
 }
 
 /* Step over any value, so we can walk a map without knowing its contents. */
 static const char *skip_value(const char *p) {
     p = skip_ws(p);
-    if (*p == '"') return read_str(p, NULL, 0);
+    if (*p == '"')
+        return read_str(p, NULL, 0);
     if (*p == '{' || *p == '[') {
-        char open = *p, close = (open=='{') ? '}' : ']';
+        char open = *p, close = (open == '{') ? '}' : ']';
         int depth = 0;
         while (*p) {
-            if (*p == '"') { p = read_str(p, NULL, 0); if (!p) return NULL; continue; }
-            if (*p == open) depth++;
-            else if (*p == close && --depth == 0) return p + 1;
+            if (*p == '"') {
+                p = read_str(p, NULL, 0);
+                if (!p)
+                    return NULL;
+                continue;
+            }
+            if (*p == open)
+                depth++;
+            else if (*p == close && --depth == 0)
+                return p + 1;
             p++;
         }
         return NULL;
     }
-    while (*p && *p!=',' && *p!='}' && *p!=']') p++;
+    while (*p && *p != ',' && *p != '}' && *p != ']')
+        p++;
     return p;
 }
 
@@ -96,29 +113,37 @@ static const char *skip_value(const char *p) {
  * it cannot accidentally match a key nested deeper. */
 static const char *member(const char *obj, const char *key) {
     obj = skip_ws(obj);
-    if (*obj != '{') return NULL;
+    if (*obj != '{')
+        return NULL;
     const char *p = obj + 1;
     for (;;) {
         p = skip_ws(p);
-        if (*p == '}' || !*p) return NULL;
+        if (*p == '}' || !*p)
+            return NULL;
         char name[64];
         const char *q = read_str(p, name, sizeof name);
-        if (!q) return NULL;
+        if (!q)
+            return NULL;
         q = skip_ws(q);
-        if (*q != ':') return NULL;
+        if (*q != ':')
+            return NULL;
         q = skip_ws(q + 1);
-        if (!strcmp(name, key)) return q;
+        if (!strcmp(name, key))
+            return q;
         q = skip_value(q);
-        if (!q) return NULL;
+        if (!q)
+            return NULL;
         q = skip_ws(q);
-        if (*q == ',') q++;
+        if (*q == ',')
+            q++;
         p = q;
     }
 }
 
 static void get_str(const char *obj, const char *key, char *out, size_t n) {
     const char *v = member(obj, key);
-    if (v && *v == '"') read_str(v, out, n);
+    if (v && *v == '"')
+        read_str(v, out, n);
 }
 static long get_num(const char *obj, const char *key) {
     const char *v = member(obj, key);
@@ -126,8 +151,9 @@ static long get_num(const char *obj, const char *key) {
 }
 static void get_file(const char *obj, const char *key, cat_file *f) {
     const char *v = member(obj, key);
-    if (!v || *v != '{') return;
-    get_str(v, "url",    f->url,    sizeof f->url);
+    if (!v || *v != '{')
+        return;
+    get_str(v, "url", f->url, sizeof f->url);
     get_str(v, "sha256", f->sha256, sizeof f->sha256);
     f->size = get_num(v, "size");
 }
@@ -135,66 +161,83 @@ static void get_file(const char *obj, const char *key, cat_file *f) {
 static int parse(const char *json) {
     cat.n_games = 0;
     const char *arr = member(json, "games");
-    if (!arr || *arr != '[') return -1;
+    if (!arr || *arr != '[')
+        return -1;
     const char *p = arr + 1;
     while (cat.n_games < CAT_MAX) {
         p = skip_ws(p);
-        if (*p == ']' || !*p) break;
-        if (*p != '{') return -1;
+        if (*p == ']' || !*p)
+            break;
+        if (*p != '{')
+            return -1;
         const char *g = p;
         cat_game *e = &cat.games[cat.n_games];
         memset(e, 0, sizeof *e);
-        get_str(g, "id",    e->id,    sizeof e->id);
+        get_str(g, "id", e->id, sizeof e->id);
         get_str(g, "title", e->title, sizeof e->title);
-        get_str(g, "by",    e->by,    sizeof e->by);
+        get_str(g, "by", e->by, sizeof e->by);
         get_str(g, "version", e->version, sizeof e->version);
         e->year = (int)get_num(g, "year");
-        e->abi  = (int)get_num(g, "abi");
+        e->abi = (int)get_num(g, "abi");
         get_file(g, "art", &e->art);
 
         /* the description array */
-        { const char *d = member(g, "desc");
-          if (d && *d == '[') {
-              d++;
-              for (int k = 0; k < CAT_DESC; k++) {
-                  d = skip_ws(d);
-                  if (*d != '"') break;
-                  d = read_str(d, e->desc[k], sizeof e->desc[k]);
-                  if (!d) break;
-                  d = skip_ws(d);
-                  if (*d == ',') d++; else break;
-              }
-          } }
+        {
+            const char *d = member(g, "desc");
+            if (d && *d == '[') {
+                d++;
+                for (int k = 0; k < CAT_DESC; k++) {
+                    d = skip_ws(d);
+                    if (*d != '"')
+                        break;
+                    d = read_str(d, e->desc[k], sizeof e->desc[k]);
+                    if (!d)
+                        break;
+                    d = skip_ws(d);
+                    if (*d == ',')
+                        d++;
+                    else
+                        break;
+                }
+            }
+        }
 
         /* the module for THIS platform.  Absent is not an error - it means
          * the game has no build for this machine yet, which the navigator
          * shows rather than hides. */
-        { const char *m = member(g, "module");
-          if (m && *m == '{') {
-              const char *mine = member(m, cat_platform());
-              if (mine && *mine == '{') {
-                  get_str(mine, "url",    e->module.url,    sizeof e->module.url);
-                  get_str(mine, "sha256", e->module.sha256, sizeof e->module.sha256);
-                  e->module.size = get_num(mine, "size");
-                  e->have_module = e->module.url[0] != 0;
-              }
-          } }
+        {
+            const char *m = member(g, "module");
+            if (m && *m == '{') {
+                const char *mine = member(m, cat_platform());
+                if (mine && *mine == '{') {
+                    get_str(mine, "url", e->module.url, sizeof e->module.url);
+                    get_str(mine, "sha256", e->module.sha256, sizeof e->module.sha256);
+                    e->module.size = get_num(mine, "size");
+                    e->have_module = e->module.url[0] != 0;
+                }
+            }
+        }
 
-        { const char *d = member(g, "data");
-          if (d && *d == '{') {
-              get_str(d, "url",    e->data.url,    sizeof e->data.url);
-              get_str(d, "sha256", e->data.sha256, sizeof e->data.sha256);
-              e->data.size = get_num(d, "size");
-              get_str(d, "kind",   e->data_kind,   sizeof e->data_kind);
-              get_str(d, "format", e->data_format, sizeof e->data_format);
-              get_str(d, "probe",  e->data_probe,  sizeof e->data_probe);
-          } }
+        {
+            const char *d = member(g, "data");
+            if (d && *d == '{') {
+                get_str(d, "url", e->data.url, sizeof e->data.url);
+                get_str(d, "sha256", e->data.sha256, sizeof e->data.sha256);
+                e->data.size = get_num(d, "size");
+                get_str(d, "kind", e->data_kind, sizeof e->data_kind);
+                get_str(d, "format", e->data_format, sizeof e->data_format);
+                get_str(d, "probe", e->data_probe, sizeof e->data_probe);
+            }
+        }
 
-        if (e->id[0]) cat.n_games++;
+        if (e->id[0])
+            cat.n_games++;
         p = skip_value(p);
-        if (!p) break;
+        if (!p)
+            break;
         p = skip_ws(p);
-        if (*p == ',') p++;
+        if (*p == ',')
+            p++;
     }
     return cat.n_games;
 }
@@ -209,13 +252,20 @@ int cat_load_cached(void) {
     char path[LIB_PATH];
     cache_path(path, sizeof path);
     FILE *f = fopen(path, "rb");
-    if (!f) return -1;
+    if (!f)
+        return -1;
     fseek(f, 0, SEEK_END);
     long n = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (n <= 0 || n > (long)NET_MAX_MEM) { fclose(f); return -1; }
+    if (n <= 0 || n > (long)NET_MAX_MEM) {
+        fclose(f);
+        return -1;
+    }
     char *buf = malloc((size_t)n + 1);
-    if (!buf) { fclose(f); return -1; }
+    if (!buf) {
+        fclose(f);
+        return -1;
+    }
     size_t got = fread(buf, 1, (size_t)n, f);
     fclose(f);
     buf[got] = 0;
@@ -225,8 +275,10 @@ int cat_load_cached(void) {
 }
 
 int cat_refresh(char *err, size_t errsz) {
-    char *buf = NULL; size_t n = 0;
-    if (net_get_mem(CAT_URL, &buf, &n, err, errsz) != 0) return -1;
+    char *buf = NULL;
+    size_t n = 0;
+    if (net_get_mem(CAT_URL, &buf, &n, err, errsz) != 0)
+        return -1;
     if (parse(buf) < 0) {
         snprintf(err, errsz, "catalogue is not readable");
         free(buf);
@@ -237,47 +289,66 @@ int cat_refresh(char *err, size_t errsz) {
     char path[LIB_PATH];
     cache_path(path, sizeof path);
     FILE *f = fopen(path, "wb");
-    if (f) { fwrite(buf, 1, n, f); fclose(f); }
+    if (f) {
+        fwrite(buf, 1, n, f);
+        fclose(f);
+    }
     free(buf);
     return cat.n_games;
 }
 
-int             cat_count(void)  { return cat.n_games; }
-const cat_game *cat_at(int i)    { return (i>=0 && i<cat.n_games) ? &cat.games[i] : NULL; }
+int cat_count(void) {
+    return cat.n_games;
+}
+const cat_game *cat_at(int i) {
+    return (i >= 0 && i < cat.n_games) ? &cat.games[i] : NULL;
+}
 
 const cat_game *cat_find(const char *id) {
     for (int i = 0; i < cat.n_games; i++)
-        if (!strcmp(cat.games[i].id, id)) return &cat.games[i];
+        if (!strcmp(cat.games[i].id, id))
+            return &cat.games[i];
     return NULL;
 }
 
-
 static int SDLCALL refresh_thread(void *ud) {
     (void)ud;
-    char *buf = NULL; size_t n = 0;
-    if (net_get_mem(CAT_URL, &buf, &n, cat.rerr, sizeof cat.rerr) == 0) cat.pending = buf;
+    char *buf = NULL;
+    size_t n = 0;
+    if (net_get_mem(CAT_URL, &buf, &n, cat.rerr, sizeof cat.rerr) == 0)
+        cat.pending = buf;
     cat.pending_ready = 1;
     return 0;
 }
 
 void cat_refresh_begin(void) {
-    if (cat.rth || cat.pending_ready) return;
+    if (cat.rth || cat.pending_ready)
+        return;
     cat.rerr[0] = 0;
     cat.rth = SDL_CreateThread(refresh_thread, "catalogue", NULL);
 }
 
 int cat_refresh_collect(void) {
-    if (!cat.pending_ready) return 0;
-    if (cat.rth) { SDL_WaitThread(cat.rth, NULL); cat.rth = NULL; }
+    if (!cat.pending_ready)
+        return 0;
+    if (cat.rth) {
+        SDL_WaitThread(cat.rth, NULL);
+        cat.rth = NULL;
+    }
     cat.pending_ready = 0;
-    if (!cat.pending) return -1;                 /* offline; the cache still stands */
+    if (!cat.pending)
+        return -1; /* offline; the cache still stands */
     int r = parse(cat.pending);
     if (r >= 0) {
         char path[LIB_PATH];
         cache_path(path, sizeof path);
         FILE *f = fopen(path, "wb");
-        if (f) { fwrite(cat.pending, 1, strlen(cat.pending), f); fclose(f); }
+        if (f) {
+            fwrite(cat.pending, 1, strlen(cat.pending), f);
+            fclose(f);
+        }
     }
-    free(cat.pending); cat.pending = NULL;
+    free(cat.pending);
+    cat.pending = NULL;
     return r >= 0 ? 1 : -1;
 }

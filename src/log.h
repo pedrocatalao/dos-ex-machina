@@ -7,7 +7,7 @@
  * got and how long each step took, from either thread. */
 #ifndef DXM_LOG_H
 #define DXM_LOG_H
-void log_open(const char *pref_dir);          /* dxm.log under pref_dir */
+void log_open(const char *pref_dir); /* dxm.log under pref_dir */
 void log_close(void);
-void dxm_log(const char *fmt,...) __attribute__((format(printf,1,2)));
+void dxm_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 #endif

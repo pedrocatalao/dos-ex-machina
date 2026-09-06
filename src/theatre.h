@@ -13,22 +13,22 @@
 #include "chassis.h"
 
 typedef struct {
-    Uint64 fade0;          /* when the machine came up out of the splash's black */
-    double off_t0;         /* when power-off began; <0 while the machine is on */
-    double drive_until;    /* the drive runs until this machine time */
-    float  pwr;            /* the power LED, eased toward on or off */
-    int    selftest;       /* no warm-up and no fade: the test wants the picture now */
-    int    deterministic;  /* the drive LED follows the machine clock, not the audio */
+    Uint64 fade0;       /* when the machine came up out of the splash's black */
+    double off_t0;      /* when power-off began; <0 while the machine is on */
+    double drive_until; /* the drive runs until this machine time */
+    float pwr;          /* the power LED, eased toward on or off */
+    int selftest;       /* no warm-up and no fade: the test wants the picture now */
+    int deterministic;  /* the drive LED follows the machine clock, not the audio */
 } theatre;
 
-void theatre_power_on(theatre *th,int selftest,int deterministic);
-void theatre_power_off(theatre *th,double t);
+void theatre_power_on(theatre *th, int selftest, int deterministic);
+void theatre_power_off(theatre *th, double t);
 /* The drive works for `seconds` from machine time t: sound, and the LED. */
-void theatre_drive(theatre *th,double seconds,double t);
+void theatre_drive(theatre *th, double seconds, double t);
 /* Per frame, before the picture: the tube's power state and both LEDs.
  * Returns 1 once the power-off sequence has run its course. */
-int  theatre_frame(theatre *th,gpu *g,const dxm_layout *L,int W,int H,double t);
+int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double t);
 /* Per frame, after the picture: the fade up from black, the room going
  * dark after the tube has. */
-void theatre_room(const theatre *th,gpu *g,double t);
+void theatre_room(const theatre *th, gpu *g, double t);
 #endif

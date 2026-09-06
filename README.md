@@ -111,6 +111,8 @@ No game checkout is needed — DXM builds and ships on its own. The tube's
 shaders are the GLSL files under `shaders/`, baked into the binary at build
 time; nothing is read from disk at run time.
 
+The C is formatted with the project's `.clang-format`; `tools/format.sh`
+applies it and CI checks it with the same pinned release of clang-format.
 `ctest --test-dir build` runs the tests. The golden-frame test draws the
 machine under `--deterministic` and compares it pixel for pixel with the
 reference frames in `tests/golden/references/`; see the README there for

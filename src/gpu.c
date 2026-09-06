@@ -17,12 +17,20 @@
 #include <stdarg.h>
 
 static void (*g_logfn)(const char *);
-void gpu_set_log(void (*fn)(const char *)){ g_logfn=fn; }
-static void gpu_logf(const char *fmt,...) __attribute__((format(printf,1,2)));
-static void gpu_logf(const char *fmt,...){
-    char buf[4600]; va_list ap; va_start(ap,fmt);
-    vsnprintf(buf,sizeof buf,fmt,ap); va_end(ap);
-    if(g_logfn) g_logfn(buf); else fprintf(stderr,"[dxm] %s\n",buf);
+void gpu_set_log(void (*fn)(const char *)) {
+    g_logfn = fn;
+}
+static void gpu_logf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void gpu_logf(const char *fmt, ...) {
+    char buf[4600];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    if (g_logfn)
+        g_logfn(buf);
+    else
+        fprintf(stderr, "[dxm] %s\n", buf);
 }
 
 /* Names the loader could not resolve, kept so the failure can be SHOWN to
@@ -31,83 +39,86 @@ static void gpu_logf(const char *fmt,...){
 static char gl_missing[1024];
 
 #ifdef __APPLE__
-#  define GL_SILENCE_DEPRECATION 1
-#  include <OpenGL/gl3.h>
-#  define gl_load() (1)
+#    define GL_SILENCE_DEPRECATION 1
+#    include <OpenGL/gl3.h>
+#    define gl_load() (1)
 #else
 /* Everywhere but macOS, the system GL library exports only 1.1 and the rest
  * has to come from the driver at run time.  glfuncs.h lists what we use; the
  * pointers and the loader are both generated from it, so the list cannot
  * drift out of step with either. */
-#  include <SDL3/SDL_opengl.h>
-#  include <SDL3/SDL.h>
-static void gl_note_missing(const char *n){
-    size_t l=strlen(gl_missing);
-    snprintf(gl_missing+l,sizeof gl_missing-l,"%s%s",l?", ":"",n);
+#    include <SDL3/SDL_opengl.h>
+#    include <SDL3/SDL.h>
+static void gl_note_missing(const char *n) {
+    size_t l = strlen(gl_missing);
+    snprintf(gl_missing + l, sizeof gl_missing - l, "%s%s", l ? ", " : "", n);
 }
-#  define GLF(ret,name,args) static ret (APIENTRY *p_##name) args;
-#  include "glfuncs.h"
-#  undef GLF
-#  define GLF(ret,name,args) \
-      p_##name = (ret (APIENTRY *) args)SDL_GL_GetProcAddress(#name); \
-      if(!p_##name){ gpu_logf("GL: no %s",#name); ok=0; \
-                     gl_note_missing(#name); }
-static int gl_load(void){
-    int ok=1;
-#  include "glfuncs.h"
+#    define GLF(ret, name, args) static ret(APIENTRY *p_##name) args;
+#    include "glfuncs.h"
+#    undef GLF
+#    define GLF(ret, name, args)                                                                   \
+        p_##name = (ret(APIENTRY *) args)SDL_GL_GetProcAddress(#name);                             \
+        if (!p_##name) {                                                                           \
+            gpu_logf("GL: no %s", #name);                                                          \
+            ok = 0;                                                                                \
+            gl_note_missing(#name);                                                                \
+        }
+static int gl_load(void) {
+    int ok = 1;
+#    include "glfuncs.h"
     return ok;
 }
-#  undef GLF
+#    undef GLF
 /* From here the plain names mean the loaded pointers, so every call site in
  * this file is unchanged.  Renaming rather than shadowing matters: some
  * system GL headers do declare the 1.2/1.3 entry points, and a pointer with
  * the same name would collide with the prototype. */
-#  define glActiveTexture           p_glActiveTexture
-#  define glAttachShader            p_glAttachShader
-#  define glBindBuffer              p_glBindBuffer
-#  define glBindFramebuffer         p_glBindFramebuffer
-#  define glBindVertexArray         p_glBindVertexArray
-#  define glBufferData              p_glBufferData
-#  define glCompileShader           p_glCompileShader
-#  define glCreateProgram           p_glCreateProgram
-#  define glCreateShader            p_glCreateShader
-#  define glDeleteShader            p_glDeleteShader
-#  define glEnableVertexAttribArray p_glEnableVertexAttribArray
-#  define glFramebufferTexture2D    p_glFramebufferTexture2D
-#  define glGenBuffers              p_glGenBuffers
-#  define glGenFramebuffers         p_glGenFramebuffers
-#  define glGenVertexArrays         p_glGenVertexArrays
-#  define glGetProgramInfoLog       p_glGetProgramInfoLog
-#  define glGetProgramiv            p_glGetProgramiv
-#  define glGetShaderInfoLog        p_glGetShaderInfoLog
-#  define glGetShaderiv             p_glGetShaderiv
-#  define glGetUniformLocation      p_glGetUniformLocation
-#  define glLinkProgram             p_glLinkProgram
-#  define glShaderSource            p_glShaderSource
-#  define glUniform1f               p_glUniform1f
-#  define glUniform1fv              p_glUniform1fv
-#  define glUniform1i               p_glUniform1i
-#  define glUniform2f               p_glUniform2f
-#  define glUniform3fv              p_glUniform3fv
-#  define glUniform4f               p_glUniform4f
-#  define glUniform4fv              p_glUniform4fv
-#  define glUseProgram              p_glUseProgram
-#  define glVertexAttribPointer     p_glVertexAttribPointer
+#    define glActiveTexture p_glActiveTexture
+#    define glAttachShader p_glAttachShader
+#    define glBindBuffer p_glBindBuffer
+#    define glBindFramebuffer p_glBindFramebuffer
+#    define glBindVertexArray p_glBindVertexArray
+#    define glBufferData p_glBufferData
+#    define glCompileShader p_glCompileShader
+#    define glCreateProgram p_glCreateProgram
+#    define glCreateShader p_glCreateShader
+#    define glDeleteShader p_glDeleteShader
+#    define glEnableVertexAttribArray p_glEnableVertexAttribArray
+#    define glFramebufferTexture2D p_glFramebufferTexture2D
+#    define glGenBuffers p_glGenBuffers
+#    define glGenFramebuffers p_glGenFramebuffers
+#    define glGenVertexArrays p_glGenVertexArrays
+#    define glGetProgramInfoLog p_glGetProgramInfoLog
+#    define glGetProgramiv p_glGetProgramiv
+#    define glGetShaderInfoLog p_glGetShaderInfoLog
+#    define glGetShaderiv p_glGetShaderiv
+#    define glGetUniformLocation p_glGetUniformLocation
+#    define glLinkProgram p_glLinkProgram
+#    define glShaderSource p_glShaderSource
+#    define glUniform1f p_glUniform1f
+#    define glUniform1fv p_glUniform1fv
+#    define glUniform1i p_glUniform1i
+#    define glUniform2f p_glUniform2f
+#    define glUniform3fv p_glUniform3fv
+#    define glUniform4f p_glUniform4f
+#    define glUniform4fv p_glUniform4fv
+#    define glUseProgram p_glUseProgram
+#    define glVertexAttribPointer p_glVertexAttribPointer
 #endif
 
 #define PERSIST_W 640
 #define PERSIST_H 400
-#define BLOOM_W   160
-#define BLOOM_H   100
+#define BLOOM_W 160
+#define BLOOM_H 100
 /* Spill source is deliberately tiny: sampling a sharp blur outside the
  * tube and clamping streaks the bright rows sideways across the room. */
-#define SPILL_W    24
-#define SPILL_H    15
+#define SPILL_W 24
+#define SPILL_H 15
 /* A near-average of the whole picture: how much light the tube is
  * actually throwing into the room, regardless of where you are on the
  * chassis.  The edge-local spill alone cannot express that. */
-#define ROOM_W      3
-#define ROOM_H      2
+#define ROOM_W 3
+#define ROOM_H 2
 
 struct gpu {
     int out_w, out_h;
@@ -115,37 +126,55 @@ struct gpu {
     GLuint prog_persist, prog_blur, prog_composite;
     GLuint tex_tube, tex_chassis;
     int tube_w, tube_h, chassis_w, chassis_h;
-    GLuint fbo_persist[2], tex_persist[2];  int persist_cur;
+    GLuint fbo_persist[2], tex_persist[2];
+    int persist_cur;
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_spill, tex_spill;
     GLuint fbo_room, tex_room;
-    GLuint fbo_burn[2], tex_burn[2]; int burn_cur;
+    GLuint fbo_burn[2], tex_burn[2];
+    int burn_cur;
     GLuint prog_burn, prog_overlay, tex_overlay;
-    GLuint prog_splash, tex_splash; int spl_w, spl_h;
+    GLuint prog_splash, tex_splash;
+    int spl_w, spl_h;
     GLuint prog_fade;
-    int    ov_w, ov_h;
-    double last_t; int have_last;
+    int ov_w, ov_h;
+    double last_t;
+    int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2], led_clip[2];
     float raster_h, raster_v, tube_gain;
 };
 
 /* the settings panel, straight alpha over the finished frame */
 
-static GLuint mkshader(GLenum t, const char *src){
-    GLuint s=glCreateShader(t); glShaderSource(s,1,&src,NULL); glCompileShader(s);
-    GLint ok=0; glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
-    if(!ok){ char log[4096]; glGetShaderInfoLog(s,sizeof log,NULL,log);
-             gpu_logf("shader compile failed:\n%s",log); }
+static GLuint mkshader(GLenum t, const char *src) {
+    GLuint s = glCreateShader(t);
+    glShaderSource(s, 1, &src, NULL);
+    glCompileShader(s);
+    GLint ok = 0;
+    glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) {
+        char log[4096];
+        glGetShaderInfoLog(s, sizeof log, NULL, log);
+        gpu_logf("shader compile failed:\n%s", log);
+    }
     return s;
 }
-static GLuint mkprog(const char *fs){
-    GLuint p=glCreateProgram();
-    GLuint v=mkshader(GL_VERTEX_SHADER,shader_quad_vert), f=mkshader(GL_FRAGMENT_SHADER,fs);
-    glAttachShader(p,v); glAttachShader(p,f); glLinkProgram(p);
-    GLint ok=0; glGetProgramiv(p,GL_LINK_STATUS,&ok);
-    if(!ok){ char log[4096]; glGetProgramInfoLog(p,sizeof log,NULL,log);
-             gpu_logf("shader link failed:\n%s",log); }
-    glDeleteShader(v); glDeleteShader(f); return p;
+static GLuint mkprog(const char *fs) {
+    GLuint p = glCreateProgram();
+    GLuint v = mkshader(GL_VERTEX_SHADER, shader_quad_vert), f = mkshader(GL_FRAGMENT_SHADER, fs);
+    glAttachShader(p, v);
+    glAttachShader(p, f);
+    glLinkProgram(p);
+    GLint ok = 0;
+    glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[4096];
+        glGetProgramInfoLog(p, sizeof log, NULL, log);
+        gpu_logf("shader link failed:\n%s", log);
+    }
+    glDeleteShader(v);
+    glDeleteShader(f);
+    return p;
 }
 /* Every target is CLEARED the moment it exists.  A texture created with
  * NULL data has undefined contents, and on Linux/AMD that means whatever
@@ -158,305 +187,395 @@ static GLuint mkprog(const char *fs){
  * this was seen on - while any stray +Inf shows as a speckle that never
  * decays.  Apple and Windows hand out zeroed memory, which is why it
  * never showed there. */
-static void mktarget(GLuint *fbo, GLuint *tex, int w, int h){
-    glGenTextures(1,tex); glBindTexture(GL_TEXTURE_2D,*tex);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16F,w,h,0,GL_RGBA,GL_FLOAT,NULL);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    glGenFramebuffers(1,fbo); glBindFramebuffer(GL_FRAMEBUFFER,*fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,*tex,0);
-    glClearColor(0,0,0,0); glClear(GL_COLOR_BUFFER_BIT);
-    glBindFramebuffer(GL_FRAMEBUFFER,0);
+static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
+    glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenFramebuffers(1, fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, *fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex, 0);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-gpu *gpu_create(int w,int h){
-    if(!gl_load()){
+gpu *gpu_create(int w, int h) {
+    if (!gl_load()) {
         gpu_logf("this GL context is missing functions DXM needs");
         return NULL;
     }
-    gpu *g=calloc(1,sizeof *g);
-    if(!g){ gpu_logf("out of memory for the GPU state"); return NULL; }
-    g->out_w=w; g->out_h=h;
-    g->raster_h=g->raster_v=g->tube_gain=1.0f;
-    static const float quad[]={-1,-1, 3,-1, -1,3};
-    glGenVertexArrays(1,&g->vao); glBindVertexArray(g->vao);
-    glGenBuffers(1,&g->vbo); glBindBuffer(GL_ARRAY_BUFFER,g->vbo);
-    glBufferData(GL_ARRAY_BUFFER,sizeof quad,quad,GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0); glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,0);
-    g->prog_persist=mkprog(shader_persist_frag);
-    g->prog_blur=mkprog(shader_blur_frag);
-    g->prog_composite=mkprog(shader_composite_frag);
-    g->prog_burn=mkprog(shader_burn_frag);
-    g->prog_overlay=mkprog(shader_overlay_frag);
-    g->prog_splash=mkprog(shader_splash_frag);
-    g->prog_fade=mkprog(shader_fade_frag);
-    glGenTextures(1,&g->tex_splash); glBindTexture(GL_TEXTURE_2D,g->tex_splash);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    glGenTextures(1,&g->tex_tube);   glBindTexture(GL_TEXTURE_2D,g->tex_tube);
+    gpu *g = calloc(1, sizeof *g);
+    if (!g) {
+        gpu_logf("out of memory for the GPU state");
+        return NULL;
+    }
+    g->out_w = w;
+    g->out_h = h;
+    g->raster_h = g->raster_v = g->tube_gain = 1.0f;
+    static const float quad[] = {-1, -1, 3, -1, -1, 3};
+    glGenVertexArrays(1, &g->vao);
+    glBindVertexArray(g->vao);
+    glGenBuffers(1, &g->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    g->prog_persist = mkprog(shader_persist_frag);
+    g->prog_blur = mkprog(shader_blur_frag);
+    g->prog_composite = mkprog(shader_composite_frag);
+    g->prog_burn = mkprog(shader_burn_frag);
+    g->prog_overlay = mkprog(shader_overlay_frag);
+    g->prog_splash = mkprog(shader_splash_frag);
+    g->prog_fade = mkprog(shader_fade_frag);
+    glGenTextures(1, &g->tex_splash);
+    glBindTexture(GL_TEXTURE_2D, g->tex_splash);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(1, &g->tex_tube);
+    glBindTexture(GL_TEXTURE_2D, g->tex_tube);
     /* LINEAR, but the shader snaps to texel centres when sharp() is off,
      * which reproduces NEAREST exactly - so the filter never has to change
      * between the DOS screen and a running game. */
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    glGenTextures(1,&g->tex_chassis);glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    mktarget(&g->fbo_persist[0],&g->tex_persist[0],PERSIST_W,PERSIST_H);
-    mktarget(&g->fbo_persist[1],&g->tex_persist[1],PERSIST_W,PERSIST_H);
-    mktarget(&g->fbo_bloom,&g->tex_bloom,BLOOM_W,BLOOM_H);
-    mktarget(&g->fbo_bloom2,&g->tex_bloom2,BLOOM_W,BLOOM_H);
-    mktarget(&g->fbo_spill,&g->tex_spill,SPILL_W,SPILL_H);
-    mktarget(&g->fbo_room,&g->tex_room,ROOM_W,ROOM_H);
-    mktarget(&g->fbo_burn[0],&g->tex_burn[0],PERSIST_W,PERSIST_H);
-    mktarget(&g->fbo_burn[1],&g->tex_burn[1],PERSIST_W,PERSIST_H);
-    glGenTextures(1,&g->tex_overlay); glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(1, &g->tex_chassis);
+    glBindTexture(GL_TEXTURE_2D, g->tex_chassis);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    mktarget(&g->fbo_persist[0], &g->tex_persist[0], PERSIST_W, PERSIST_H);
+    mktarget(&g->fbo_persist[1], &g->tex_persist[1], PERSIST_W, PERSIST_H);
+    mktarget(&g->fbo_bloom, &g->tex_bloom, BLOOM_W, BLOOM_H);
+    mktarget(&g->fbo_bloom2, &g->tex_bloom2, BLOOM_W, BLOOM_H);
+    mktarget(&g->fbo_spill, &g->tex_spill, SPILL_W, SPILL_H);
+    mktarget(&g->fbo_room, &g->tex_room, ROOM_W, ROOM_H);
+    mktarget(&g->fbo_burn[0], &g->tex_burn[0], PERSIST_W, PERSIST_H);
+    mktarget(&g->fbo_burn[1], &g->tex_burn[1], PERSIST_W, PERSIST_H);
+    glGenTextures(1, &g->tex_overlay);
+    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     return g;
 }
-void gpu_destroy(gpu *g){ if(g) free(g); }
-void gpu_resize(gpu *g,int w,int h){ g->out_w=w; g->out_h=h; }
-void gpu_set_led(gpu *g,int idx,float x,float y,float w,float h,
-                 float on,float r,float gr,float b,int round,float clip){
-    if(idx<0||idx>1) return;
-    g->led[idx][0]=x; g->led[idx][1]=y; g->led[idx][2]=w; g->led[idx][3]=h;
-    g->led_col[idx][0]=r; g->led_col[idx][1]=gr; g->led_col[idx][2]=b;
-    g->led_on[idx]=on; g->led_round[idx]=round?1.0f:0.0f; g->led_clip[idx]=clip;
+void gpu_destroy(gpu *g) {
+    if (g)
+        free(g);
+}
+void gpu_resize(gpu *g, int w, int h) {
+    g->out_w = w;
+    g->out_h = h;
+}
+void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
+                 float b, int round, float clip) {
+    if (idx < 0 || idx > 1)
+        return;
+    g->led[idx][0] = x;
+    g->led[idx][1] = y;
+    g->led[idx][2] = w;
+    g->led[idx][3] = h;
+    g->led_col[idx][0] = r;
+    g->led_col[idx][1] = gr;
+    g->led_col[idx][2] = b;
+    g->led_on[idx] = on;
+    g->led_round[idx] = round ? 1.0f : 0.0f;
+    g->led_clip[idx] = clip;
 }
 
-void gpu_set_tube_power(gpu *g,float h,float v,float gain){
-    g->raster_h=h; g->raster_v=v; g->tube_gain=gain;
+void gpu_set_tube_power(gpu *g, float h, float v, float gain) {
+    g->raster_h = h;
+    g->raster_v = v;
+    g->tube_gain = gain;
 }
 
-void gpu_set_chassis(gpu *g,const uint8_t *rgba,int w,int h){
-    g->chassis_w=w; g->chassis_h=h;
-    glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+void gpu_set_chassis(gpu *g, const uint8_t *rgba, int w, int h) {
+    g->chassis_w = w;
+    g->chassis_h = h;
+    glBindTexture(GL_TEXTURE_2D, g->tex_chassis);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
-void gpu_patch_chassis(gpu *g,int x,int y,int w,int h,const uint8_t *rgba){
-    if(!rgba||w<=0||h<=0) return;
+void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba) {
+    if (!rgba || w <= 0 || h <= 0)
+        return;
     /* clip to the texture - a knob near an edge on a tiny window - while
      * keeping the patch's own row stride */
-    int stride=w, sx=0, sy=0;
-    if(x<0){ sx=-x; w+=x; x=0; }
-    if(y<0){ sy=-y; h+=y; y=0; }
-    if(x+w>g->chassis_w) w=g->chassis_w-x;
-    if(y+h>g->chassis_h) h=g->chassis_h-y;
-    if(w<=0||h<=0) return;
-    glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH,stride);
-    glTexSubImage2D(GL_TEXTURE_2D,0,x,y,w,h,GL_RGBA,GL_UNSIGNED_BYTE,
-                    rgba+((size_t)sy*(size_t)stride+(size_t)sx)*4);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH,0);
+    int stride = w, sx = 0, sy = 0;
+    if (x < 0) {
+        sx = -x;
+        w += x;
+        x = 0;
+    }
+    if (y < 0) {
+        sy = -y;
+        h += y;
+        y = 0;
+    }
+    if (x + w > g->chassis_w)
+        w = g->chassis_w - x;
+    if (y + h > g->chassis_h)
+        h = g->chassis_h - y;
+    if (w <= 0 || h <= 0)
+        return;
+    glBindTexture(GL_TEXTURE_2D, g->tex_chassis);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE,
+                    rgba + ((size_t)sy * (size_t)stride + (size_t)sx) * 4);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
-void gpu_set_tube(gpu *g,const uint8_t *rgb,int w,int h){
-    g->tube_w=w; g->tube_h=h;
-    glBindTexture(GL_TEXTURE_2D,g->tex_tube);
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGB8,w,h,0,GL_RGB,GL_UNSIGNED_BYTE,rgb);
+void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h) {
+    g->tube_w = w;
+    g->tube_h = h;
+    glBindTexture(GL_TEXTURE_2D, g->tex_tube);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb);
 }
-static void pass(gpu *g,GLuint prog,GLuint fbo,int w,int h){
-    glBindFramebuffer(GL_FRAMEBUFFER,fbo);
-    glViewport(0,0,w,h); glUseProgram(prog); glBindVertexArray(g->vao);
-    glDrawArrays(GL_TRIANGLES,0,3);
+static void pass(gpu *g, GLuint prog, GLuint fbo, int w, int h) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, w, h);
+    glUseProgram(prog);
+    glBindVertexArray(g->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
 }
-void gpu_draw(gpu *g,float tx,float ty,float tw,float th,const gpu_knobs *k,double t){
-    float dt = g->have_last ? (float)(t-g->last_t) : 1.0f/60.0f;
-    if(dt<=0.0f||dt>0.25f) dt=1.0f/60.0f;
-    g->last_t=t; g->have_last=1;
-    int prev=g->persist_cur, cur=1-prev;
+void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k, double t) {
+    float dt = g->have_last ? (float)(t - g->last_t) : 1.0f / 60.0f;
+    if (dt <= 0.0f || dt > 0.25f)
+        dt = 1.0f / 60.0f;
+    g->last_t = t;
+    g->have_last = 1;
+    int prev = g->persist_cur, cur = 1 - prev;
     /* pass 1: persistence */
     glUseProgram(g->prog_persist);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_tube);
-    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D,g->tex_persist[prev]);
-    glUniform1i(glGetUniformLocation(g->prog_persist,"src"),0);
-    glUniform1i(glGetUniformLocation(g->prog_persist,"prev"),1);
-    glUniform1f(glGetUniformLocation(g->prog_persist,"dt"),dt);
-    glUniform1f(glGetUniformLocation(g->prog_persist,"persist"),k->persistence);
-    pass(g,g->prog_persist,g->fbo_persist[cur],PERSIST_W,PERSIST_H);
-    g->persist_cur=cur;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_tube);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, g->tex_persist[prev]);
+    glUniform1i(glGetUniformLocation(g->prog_persist, "src"), 0);
+    glUniform1i(glGetUniformLocation(g->prog_persist, "prev"), 1);
+    glUniform1f(glGetUniformLocation(g->prog_persist, "dt"), dt);
+    glUniform1f(glGetUniformLocation(g->prog_persist, "persist"), k->persistence);
+    pass(g, g->prog_persist, g->fbo_persist[cur], PERSIST_W, PERSIST_H);
+    g->persist_cur = cur;
     /* burn-in: a much slower average of the same signal */
-    { int bp=g->burn_cur, bc=1-bp;
-      glUseProgram(g->prog_burn);
-      glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
-      glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D,g->tex_burn[bp]);
-      glUniform1i(glGetUniformLocation(g->prog_burn,"src"),0);
-      glUniform1i(glGetUniformLocation(g->prog_burn,"prev"),1);
-      glUniform1f(glGetUniformLocation(g->prog_burn,"dt"),dt);
-      glUniform1f(glGetUniformLocation(g->prog_burn,"rate"),28.0f);
-      pass(g,g->prog_burn,g->fbo_burn[bc],PERSIST_W,PERSIST_H);
-      g->burn_cur=bc;
+    {
+        int bp = g->burn_cur, bc = 1 - bp;
+        glUseProgram(g->prog_burn);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g->tex_persist[cur]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, g->tex_burn[bp]);
+        glUniform1i(glGetUniformLocation(g->prog_burn, "src"), 0);
+        glUniform1i(glGetUniformLocation(g->prog_burn, "prev"), 1);
+        glUniform1f(glGetUniformLocation(g->prog_burn, "dt"), dt);
+        glUniform1f(glGetUniformLocation(g->prog_burn, "rate"), 28.0f);
+        pass(g, g->prog_burn, g->fbo_burn[bc], PERSIST_W, PERSIST_H);
+        g->burn_cur = bc;
     }
     /* pass 4a: bloom downsample+blur (fixed internal res, SPEC §6.7) */
     glUseProgram(g->prog_blur);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
-    glUniform1i(glGetUniformLocation(g->prog_blur,"src"),0);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.9f/BLOOM_W,0);
-    pass(g,g->prog_blur,g->fbo_bloom,BLOOM_W,BLOOM_H);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.9f/BLOOM_H);
-    pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_persist[cur]);
+    glUniform1i(glGetUniformLocation(g->prog_blur, "src"), 0);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0.9f / BLOOM_W, 0);
+    pass(g, g->prog_blur, g->fbo_bloom, BLOOM_W, BLOOM_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_bloom);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0, 0.9f / BLOOM_H);
+    pass(g, g->prog_blur, g->fbo_bloom2, BLOOM_W, BLOOM_H);
     /* A single pass at this resolution still carries the glyph shapes - a
      * character is a few bloom texels across, so the kernel cannot round it
      * off.  Two more, wider passes turn the glow into a soft halo that no
      * longer traces the letterforms. */
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0.55f/BLOOM_W,0);
-    pass(g,g->prog_blur,g->fbo_bloom,BLOOM_W,BLOOM_H);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),0,0.55f/BLOOM_H);
-    pass(g,g->prog_blur,g->fbo_bloom2,BLOOM_W,BLOOM_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_bloom2);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0.55f / BLOOM_W, 0);
+    pass(g, g->prog_blur, g->fbo_bloom, BLOOM_W, BLOOM_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_bloom);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0, 0.55f / BLOOM_H);
+    pass(g, g->prog_blur, g->fbo_bloom2, BLOOM_W, BLOOM_H);
     /* spill: downsample hard, then blur again — soft enough not to streak */
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.6f/SPILL_W,0);
-    pass(g,g->prog_blur,g->fbo_spill,SPILL_W,SPILL_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_bloom2);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 1.6f / SPILL_W, 0);
+    pass(g, g->prog_blur, g->fbo_spill, SPILL_W, SPILL_H);
     /* down again to almost nothing: the room-light term */
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_spill);
-    glUniform2f(glGetUniformLocation(g->prog_blur,"dir"),1.0f/ROOM_W,0);
-    pass(g,g->prog_blur,g->fbo_room,ROOM_W,ROOM_H);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_spill);
+    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 1.0f / ROOM_W, 0);
+    pass(g, g->prog_blur, g->fbo_room, ROOM_W, ROOM_H);
     /* composite */
-    glBindFramebuffer(GL_FRAMEBUFFER,0);
-    glViewport(0,0,g->out_w,g->out_h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, g->out_w, g->out_h);
     glUseProgram(g->prog_composite);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_persist[cur]);
-    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D,g->tex_bloom2);
-    glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D,g->tex_chassis);
-    GLuint p=g->prog_composite;
-    glUniform1i(glGetUniformLocation(p,"tube"),0);
-    glUniform1i(glGetUniformLocation(p,"bloom"),1);
-    glUniform1i(glGetUniformLocation(p,"chassis"),2);
-    glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D,g->tex_spill);
-    glUniform1i(glGetUniformLocation(p,"spillsrc"),3);
-    glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D,g->tex_room);
-    glUniform1i(glGetUniformLocation(p,"roomsrc"),4);
-    glUniform4f(glGetUniformLocation(p,"rect"),tx,ty,tw,th);
-    glUniform2f(glGetUniformLocation(p,"outsize"),(float)g->out_w,(float)g->out_h);
-    glUniform1f(glGetUniformLocation(p,"warp"),k->warp);
-    glUniform1f(glGetUniformLocation(p,"bright"),k->brightness);
-    glUniform1f(glGetUniformLocation(p,"contrast"),k->contrast);
-    glUniform1f(glGetUniformLocation(p,"ambient"),k->ambient);
-    glUniform1f(glGetUniformLocation(p,"scan"),k->scan);
-    glUniform1f(glGetUniformLocation(p,"margin"),k->margin);
-    glUniform1f(glGetUniformLocation(p,"aper_r"),k->aperture_r);
-    glUniform4fv(glGetUniformLocation(p,"led"),2,&g->led[0][0]);
-    glUniform3fv(glGetUniformLocation(p,"ledcol"),2,&g->led_col[0][0]);
-    glUniform1fv(glGetUniformLocation(p,"ledon"),2,g->led_on);
-    glUniform1fv(glGetUniformLocation(p,"ledround"),2,g->led_round);
-    glUniform1fv(glGetUniformLocation(p,"ledclip"),2,g->led_clip);
-    glUniform2f(glGetUniformLocation(p,"u_raster"),g->raster_h,g->raster_v);
-    glUniform1f(glGetUniformLocation(p,"u_gain"),g->tube_gain);
-    glUniform1f(glGetUniformLocation(p,"crt_lines"),(float)k->crt_lines);
-    glUniform1f(glGetUniformLocation(p,"crt_cols"),(float)k->crt_cols);
-    glUniform2f(glGetUniformLocation(p,"texsize"),
-                (float)g->tube_w,(float)g->tube_h);
-    glUniform2f(glGetUniformLocation(p,"texelpx"),
-                (float)g->tube_w /fmaxf(tw*(float)g->out_w,1.0f),
-                (float)g->tube_h /fmaxf(th*(float)g->out_h,1.0f));
-    glUniform1f(glGetUniformLocation(p,"u_sharp"),k->sharp_text);
-    glUniform1f(glGetUniformLocation(p,"u_overscan"),k->overscan);
-    glUniform1f(glGetUniformLocation(p,"vgrid"),k->vgrid);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_persist[cur]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, g->tex_bloom2);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, g->tex_chassis);
+    GLuint p = g->prog_composite;
+    glUniform1i(glGetUniformLocation(p, "tube"), 0);
+    glUniform1i(glGetUniformLocation(p, "bloom"), 1);
+    glUniform1i(glGetUniformLocation(p, "chassis"), 2);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, g->tex_spill);
+    glUniform1i(glGetUniformLocation(p, "spillsrc"), 3);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, g->tex_room);
+    glUniform1i(glGetUniformLocation(p, "roomsrc"), 4);
+    glUniform4f(glGetUniformLocation(p, "rect"), tx, ty, tw, th);
+    glUniform2f(glGetUniformLocation(p, "outsize"), (float)g->out_w, (float)g->out_h);
+    glUniform1f(glGetUniformLocation(p, "warp"), k->warp);
+    glUniform1f(glGetUniformLocation(p, "bright"), k->brightness);
+    glUniform1f(glGetUniformLocation(p, "contrast"), k->contrast);
+    glUniform1f(glGetUniformLocation(p, "ambient"), k->ambient);
+    glUniform1f(glGetUniformLocation(p, "scan"), k->scan);
+    glUniform1f(glGetUniformLocation(p, "margin"), k->margin);
+    glUniform1f(glGetUniformLocation(p, "aper_r"), k->aperture_r);
+    glUniform4fv(glGetUniformLocation(p, "led"), 2, &g->led[0][0]);
+    glUniform3fv(glGetUniformLocation(p, "ledcol"), 2, &g->led_col[0][0]);
+    glUniform1fv(glGetUniformLocation(p, "ledon"), 2, g->led_on);
+    glUniform1fv(glGetUniformLocation(p, "ledround"), 2, g->led_round);
+    glUniform1fv(glGetUniformLocation(p, "ledclip"), 2, g->led_clip);
+    glUniform2f(glGetUniformLocation(p, "u_raster"), g->raster_h, g->raster_v);
+    glUniform1f(glGetUniformLocation(p, "u_gain"), g->tube_gain);
+    glUniform1f(glGetUniformLocation(p, "crt_lines"), (float)k->crt_lines);
+    glUniform1f(glGetUniformLocation(p, "crt_cols"), (float)k->crt_cols);
+    glUniform2f(glGetUniformLocation(p, "texsize"), (float)g->tube_w, (float)g->tube_h);
+    glUniform2f(glGetUniformLocation(p, "texelpx"),
+                (float)g->tube_w / fmaxf(tw * (float)g->out_w, 1.0f),
+                (float)g->tube_h / fmaxf(th * (float)g->out_h, 1.0f));
+    glUniform1f(glGetUniformLocation(p, "u_sharp"), k->sharp_text);
+    glUniform1f(glGetUniformLocation(p, "u_overscan"), k->overscan);
+    glUniform1f(glGetUniformLocation(p, "vgrid"), k->vgrid);
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D,g->tex_burn[g->burn_cur]);
-    glUniform1i(glGetUniformLocation(p,"burnsrc"),5);
-    glUniform1f(glGetUniformLocation(p,"time"),(float)t);
-    glUniform1f(glGetUniformLocation(p,"u_bloom"),k->bloom);
-    glUniform1f(glGetUniformLocation(p,"u_burn"),k->burn_in);
-    glUniform1f(glGetUniformLocation(p,"u_noise"),k->noise);
-    glUniform1f(glGetUniformLocation(p,"u_jitter"),k->jitter);
-    glUniform1f(glGetUniformLocation(p,"u_glowline"),k->glow_line);
-    glUniform1f(glGetUniformLocation(p,"u_flicker"),k->flicker);
-    glUniform1f(glGetUniformLocation(p,"u_hsync"),k->hsync);
-    glUniform1f(glGetUniformLocation(p,"u_rgb"),k->rgb_shift);
-    glUniform1f(glGetUniformLocation(p,"u_chassis"),k->chassis_glow);
-    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glBindTexture(GL_TEXTURE_2D, g->tex_burn[g->burn_cur]);
+    glUniform1i(glGetUniformLocation(p, "burnsrc"), 5);
+    glUniform1f(glGetUniformLocation(p, "time"), (float)t);
+    glUniform1f(glGetUniformLocation(p, "u_bloom"), k->bloom);
+    glUniform1f(glGetUniformLocation(p, "u_burn"), k->burn_in);
+    glUniform1f(glGetUniformLocation(p, "u_noise"), k->noise);
+    glUniform1f(glGetUniformLocation(p, "u_jitter"), k->jitter);
+    glUniform1f(glGetUniformLocation(p, "u_glowline"), k->glow_line);
+    glUniform1f(glGetUniformLocation(p, "u_flicker"), k->flicker);
+    glUniform1f(glGetUniformLocation(p, "u_hsync"), k->hsync);
+    glUniform1f(glGetUniformLocation(p, "u_rgb"), k->rgb_shift);
+    glUniform1f(glGetUniformLocation(p, "u_chassis"), k->chassis_glow);
+    glBindVertexArray(g->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
 }
-uint8_t *gpu_readback(gpu *g,int *w,int *h){
-    *w=g->out_w; *h=g->out_h;
-    uint8_t *px=malloc((size_t)g->out_w*g->out_h*3);
-    if(!px) return NULL;
-    glPixelStorei(GL_PACK_ALIGNMENT,1);
-    glReadPixels(0,0,g->out_w,g->out_h,GL_RGB,GL_UNSIGNED_BYTE,px);
+uint8_t *gpu_readback(gpu *g, int *w, int *h) {
+    *w = g->out_w;
+    *h = g->out_h;
+    uint8_t *px = malloc((size_t)g->out_w * g->out_h * 3);
+    if (!px)
+        return NULL;
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, g->out_w, g->out_h, GL_RGB, GL_UNSIGNED_BYTE, px);
     return px;
 }
 
-void gpu_set_splash(gpu *g,const uint8_t *rgba,int w,int h){
-    if(!rgba||w<=0||h<=0){ g->spl_w=0; g->spl_h=0; return; }
-    g->spl_w=w; g->spl_h=h;
-    glBindTexture(GL_TEXTURE_2D,g->tex_splash);
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+void gpu_set_splash(gpu *g, const uint8_t *rgba, int w, int h) {
+    if (!rgba || w <= 0 || h <= 0) {
+        g->spl_w = 0;
+        g->spl_h = 0;
+        return;
+    }
+    g->spl_w = w;
+    g->spl_h = h;
+    glBindTexture(GL_TEXTURE_2D, g->tex_splash);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
-void gpu_draw_splash(gpu *g,float alpha){
-    glBindFramebuffer(GL_FRAMEBUFFER,0);
-    glViewport(0,0,g->out_w,g->out_h);
-    glClearColor(0,0,0,1); glClear(GL_COLOR_BUFFER_BIT);
-    if(g->spl_w<=0||alpha<=0.0f) return;
+void gpu_draw_splash(gpu *g, float alpha) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, g->out_w, g->out_h);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (g->spl_w <= 0 || alpha <= 0.0f)
+        return;
     /* fit to a share of the width, but never let a wide display push it
      * past a share of the height */
-    float ow=(float)g->out_w, oh=(float)g->out_h;
-    float w=ow*0.56f, h=w*(float)g->spl_h/(float)g->spl_w;
-    if(h>oh*0.34f){ h=oh*0.34f; w=h*(float)g->spl_w/(float)g->spl_h; }
-    float rx=(ow-w)*0.5f/ow, ry=(oh-h)*0.5f/oh;
+    float ow = (float)g->out_w, oh = (float)g->out_h;
+    float w = ow * 0.56f, h = w * (float)g->spl_h / (float)g->spl_w;
+    if (h > oh * 0.34f) {
+        h = oh * 0.34f;
+        w = h * (float)g->spl_w / (float)g->spl_h;
+    }
+    float rx = (ow - w) * 0.5f / ow, ry = (oh - h) * 0.5f / oh;
     glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE,GL_ONE_MINUS_SRC_ALPHA);   /* premultiplied */
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); /* premultiplied */
     glUseProgram(g->prog_splash);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_splash);
-    glUniform1i(glGetUniformLocation(g->prog_splash,"src"),0);
-    glUniform4f(glGetUniformLocation(g->prog_splash,"rect"),rx,ry,w/ow,h/oh);
-    glUniform1f(glGetUniformLocation(g->prog_splash,"alpha"),alpha);
-    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_splash);
+    glUniform1i(glGetUniformLocation(g->prog_splash, "src"), 0);
+    glUniform4f(glGetUniformLocation(g->prog_splash, "rect"), rx, ry, w / ow, h / oh);
+    glUniform1f(glGetUniformLocation(g->prog_splash, "alpha"), alpha);
+    glBindVertexArray(g->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisable(GL_BLEND);
 }
-void gpu_draw_fade(gpu *g,float a){
-    if(a<=0.0f) return;
-    glBindFramebuffer(GL_FRAMEBUFFER,0);
-    glViewport(0,0,g->out_w,g->out_h);
+void gpu_draw_fade(gpu *g, float a) {
+    if (a <= 0.0f)
+        return;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, g->out_w, g->out_h);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(g->prog_fade);
-    glUniform1f(glGetUniformLocation(g->prog_fade,"a"),a>1.0f?1.0f:a);
-    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glUniform1f(glGetUniformLocation(g->prog_fade, "a"), a > 1.0f ? 1.0f : a);
+    glBindVertexArray(g->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisable(GL_BLEND);
 }
-void gpu_set_overlay(gpu *g,const uint8_t *rgba,int w,int h){
-    if(!rgba || w<=0 || h<=0){ g->ov_w=0; g->ov_h=0; return; }
-    g->ov_w=w; g->ov_h=h;
-    glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+void gpu_set_overlay(gpu *g, const uint8_t *rgba, int w, int h) {
+    if (!rgba || w <= 0 || h <= 0) {
+        g->ov_w = 0;
+        g->ov_h = 0;
+        return;
+    }
+    g->ov_w = w;
+    g->ov_h = h;
+    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
-void gpu_draw_overlay(gpu *g){
-    if(g->ov_w<=0) return;
-    glBindFramebuffer(GL_FRAMEBUFFER,0);
-    glViewport(0,0,g->out_w,g->out_h);
+void gpu_draw_overlay(gpu *g) {
+    if (g->ov_w <= 0)
+        return;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, g->out_w, g->out_h);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(g->prog_overlay);
-    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,g->tex_overlay);
-    glUniform1i(glGetUniformLocation(g->prog_overlay,"src"),0);
-    glBindVertexArray(g->vao); glDrawArrays(GL_TRIANGLES,0,3);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
+    glUniform1i(glGetUniformLocation(g->prog_overlay, "src"), 0);
+    glBindVertexArray(g->vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisable(GL_BLEND);
 }
 
-const char *gpu_describe(void){
+const char *gpu_describe(void) {
     static char buf[512];
-    const char *v=(const char *)glGetString(GL_VENDOR);
-    const char *r=(const char *)glGetString(GL_RENDERER);
-    const char *ver=(const char *)glGetString(GL_VERSION);
-    snprintf(buf,sizeof buf,"%s / %s / GL %s",v?v:"?",r?r:"?",ver?ver:"?");
+    const char *v = (const char *)glGetString(GL_VENDOR);
+    const char *r = (const char *)glGetString(GL_RENDERER);
+    const char *ver = (const char *)glGetString(GL_VERSION);
+    snprintf(buf, sizeof buf, "%s / %s / GL %s", v ? v : "?", r ? r : "?", ver ? ver : "?");
     return buf;
 }
-const char *gpu_missing(void){ return gl_missing; }
+const char *gpu_missing(void) {
+    return gl_missing;
+}

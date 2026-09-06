@@ -3,7 +3,6 @@
 #define DXM_PNG_H
 #include <stdint.h>
 #include <stddef.h>
-uint8_t *png_decode(const uint8_t *data, size_t n, int *w, int *h,
-                    char *err, size_t errsz);
+uint8_t *png_decode(const uint8_t *data, size_t n, int *w, int *h, char *err, size_t errsz);
 uint8_t *png_load(const char *path, int *w, int *h, char *err, size_t errsz);
 #endif

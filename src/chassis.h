@@ -4,16 +4,16 @@
 typedef enum { LAY_COMPACT, LAY_STANDARD, LAY_STEREO } dxm_variant;
 typedef struct {
     dxm_variant variant;
-    float tube_x, tube_y, tube_w, tube_h;   /* output pixels */
-    float cx, cy, cw, ch;                   /* chassis rect  */
-    float aperture_r;                       /* corner radius of the hole the
-                                             * chassis cut, in output px -
-                                             * the shader must match it     */
+    float tube_x, tube_y, tube_w, tube_h; /* output pixels */
+    float cx, cy, cw, ch;                 /* chassis rect  */
+    float aperture_r;                     /* corner radius of the hole the
+                                           * chassis cut, in output px -
+                                           * the shader must match it     */
     /* LED placeholders: drawn UNLIT in the baked chassis; all emission is
      * added live by the shader (SPEC §6.1 - live elements on top). */
-    float fdd_led[4];                       /* x,y,w,h, output px  */
+    float fdd_led[4]; /* x,y,w,h, output px  */
     float pwr_led[4];
-    float pwr_shelf;     /* y of the power cap's lower edge: the LED's light
+    float pwr_shelf; /* y of the power cap's lower edge: the LED's light
                             reaches the plastic below it, not the cap's face */
     /* The two rotary knobs, brightness then contrast: centre x, y and
      * radius in output px.  They are the one part of the case that moves. */

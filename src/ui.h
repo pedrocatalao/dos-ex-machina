@@ -9,13 +9,13 @@
 #include <stdint.h>
 #include "gpu.h"
 
-void        ui_init(gpu_knobs *k);        /* binds the panel to the knobs   */
-int         ui_visible(void);
-void        ui_toggle(void);
+void ui_init(gpu_knobs *k); /* binds the panel to the knobs   */
+int ui_visible(void);
+void ui_toggle(void);
 /* mouse in OUTPUT pixels; returns 1 if the panel consumed the event */
-int         ui_mouse(int x,int y,int down,int moving);
+int ui_mouse(int x, int y, int down, int moving);
 /* the panel bitmap, or NULL when hidden; w/h in output pixels */
-const uint8_t *ui_render(int out_w,int out_h,int *w,int *h);
-void        ui_load(const char *path);
-void        ui_save(const char *path);
+const uint8_t *ui_render(int out_w, int out_h, int *w, int *h);
+void ui_load(const char *path);
+void ui_save(const char *path);
 #endif

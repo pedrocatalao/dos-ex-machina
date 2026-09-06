@@ -11,18 +11,18 @@
 #include <stddef.h>
 
 typedef struct {
-    const char *name;        /* DOS 8.3, upper case */
-    int         is_dir;
-    long        size;
+    const char *name; /* DOS 8.3, upper case */
+    int is_dir;
+    long size;
     const char *date, *time; /* as DIR prints them */
 } disk_entry;
 
 /* the root's entries, in their classic order; GAMES last.  Returns the
  * count.  Entries point at static storage. */
-int  disk_list(disk_entry *out, int max);
+int disk_list(disk_entry *out, int max);
 /* read a root file by its DOS name (case-insensitive) as text.
  * 0 = ok, -1 = not found, 1 = a program (buf untouched). */
-int  disk_read(const char *dosname, char *buf, size_t n);
+int disk_read(const char *dosname, char *buf, size_t n);
 /* the ECHO lines of AUTOEXEC.BAT, in order, for the boot to print */
-int  disk_autoexec_echo(char (*lines)[80], int max);
+int disk_autoexec_echo(char (*lines)[80], int max);
 #endif
