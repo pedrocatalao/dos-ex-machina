@@ -1,146 +1,13 @@
-/* dos.c — boot theater, the prompt, and the command set (SPEC §7).
- * The prompt is the UI: there is no other way to reach anything. */
-#include "dos.h"
-#include "disk.h"
-/* the DOS is the machine: its version is the release's */
-#include "version.h"
+/* nc.c — NC.EXE, the dual-pane navigator (see the note below). */
+#include "internal.h"
 #include <SDL3/SDL.h>      /* SDL_TimeToDateTime, for the table's dates */
-#include "font.h"
 #include "library.h"
 #include "catalog.h"
 #include "install.h"
 #include "art.h"
 #include "dxm_core.h"
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
+#include "gen/road.h"
 #include <ctype.h>
-
-static char    scr[DOS_ROWS][DOS_COLS];
-/* One VGA attribute per cell: low nibble foreground, high nibble background.
- * The boot screen and the prompt never leave 0x07, but a text-mode UI is
- * mostly colour - drawing Norton Commander in one grey would be pointless. */
-static uint8_t att[DOS_ROWS][DOS_COLS];
-static uint8_t cur_att = 0x07;
-static int   cur_r, cur_c;
-static char  cmd[128]; static int cmd_n;    /* the command being typed */
-static dos_state st;
-static double t0, next_boot;
-static int    boot_step;
-static char   ax_lines[8][80]; static int ax_n, ax_i;   /* AUTOEXEC's ECHOes */
-static uint8_t fb[DOS_W*DOS_H*3];
-static void nc_art(void);
-static char   launch[32];
-static int    launch_pending;
-static double launch_at;      /* hold the launch until the drive is done */
-static int    beep_pending;        /* POST beep, fired after the RAM count */
-static double floppy_req;          /* seconds of drive activity wanted    */
-static double now_t;               /* last dos_update time, for the logo  */
-static int    mem_counting;        /* the memory test is spinning          */
-static double mem_next;            /* next number update                   */
-static long   mem_shown;           /* KB counted so far                    */
-static int    mem_row, mem_col;    /* where to overwrite the digits        */
-
-static void scroll(void){
-    memmove(scr[0],scr[1],(DOS_ROWS-1)*DOS_COLS);
-    memmove(att[0],att[1],(DOS_ROWS-1)*DOS_COLS);
-    memset(scr[DOS_ROWS-1],' ',DOS_COLS);
-    memset(att[DOS_ROWS-1],cur_att,DOS_COLS);
-    cur_r=DOS_ROWS-1;
-}
-static void put(char ch){
-    if(ch=='\n'){ cur_c=0; if(++cur_r>=DOS_ROWS) scroll(); return; }
-    if(cur_c>=DOS_COLS){ cur_c=0; if(++cur_r>=DOS_ROWS) scroll(); }
-    att[cur_r][cur_c]=cur_att;
-    scr[cur_r][cur_c++]=ch;
-}
-static void say(const char *s){ while(*s) put(*s++); }
-static void sayln(const char *s){ say(s); put('\n'); }
-
-/* MORE.  A command whose output is piped to it goes into a buffer instead
- * of the screen, and comes out a screenful at a time: 23 lines, then
- * "-- More --" and a wait for a key.  Any key continues, Esc or Q stops.
- * Exactly what DOS did, which is why it is the answer to a file longer
- * than the screen rather than a scrollback the machine never had. */
-static int  page_want, page_on;
-static char page_buf[16384]; static size_t page_len;
-static const char *page_pos;
-static void oline(const char *s){
-    if(!page_want){ sayln(s); return; }
-    size_t l=strlen(s);
-    if(page_len+l+1>=sizeof page_buf) return;
-    memcpy(page_buf+page_len,s,l); page_len+=l; page_buf[page_len++]='\n';
-    page_buf[page_len]=0;
-}
-static void prompt(void);
-static void page_show(void){
-    int rows=0;
-    while(*page_pos && rows<23){
-        const char *e=strchr(page_pos,'\n');
-        char ln[256]; size_t l=e?(size_t)(e-page_pos):strlen(page_pos);
-        if(l>=sizeof ln) l=sizeof ln-1;
-        memcpy(ln,page_pos,l); ln[l]=0; sayln(ln);
-        page_pos=e?e+1:page_pos+l; rows++;
-    }
-    if(*page_pos) say("-- More --");
-    else { page_on=0; prompt(); }
-}
-static void page_begin(void){
-    page_want=0;
-    if(!page_len){ return; }
-    page_pos=page_buf; page_on=1; page_show();
-}
-static void page_key(int ch){
-    if(ch==27||ch=='q'||ch=='Q'||ch==3){ page_on=0; put('\n'); prompt(); return; }
-    put('\n'); page_show();
-}
-/* The machine has one subdirectory that matters: games install into
- * C:\GAMES, and running one from the prompt means going there first, the
- * way it would have.  NC reaches them wherever you are - it is a program
- * that browses the disk, not a shortcut around it. */
-static int  in_games;             /* 0 = C:\, 1 = C:\GAMES */
-static int  prompt_len;           /* so backspace knows where the line starts */
-static void prompt(void){
-    const char *p = in_games ? "C:\\GAMES>" : "C:\\>";
-    prompt_len = (int)strlen(p);
-    say(p);
-}
-
-static const char *BOOT[] = {
-  "DXM BIOS v" DXM_VERSION " (C) 2026 DOS ex Machina",
-  "",
-  "Main Processor  : 80486DX2  66 MHz",
-  "Memory Test     : ",          /* counted live, see dos_update */
-  "",
-  "Fixed Disk 0    : WDC AC2540F  540 MB",
-  "Floppy Disk A   : 1.44 MB, 3.5 in.",
-  "",
-  "Starting DXM-DOS...",
-  "",
-  NULL
-};
-
-void dos_init(void){
-    memset(scr,' ',sizeof scr);
-    memset(att,0x07,sizeof att);
-    cur_att=0x07;
-    cur_r=cur_c=0; cmd_n=0; in_games=0; st=DOS_BOOT; boot_step=0; t0=-1; launch_pending=0;
-    beep_pending=0; mem_counting=0; mem_shown=0;
-    ax_n=disk_autoexec_echo(ax_lines,8); ax_i=0;
-}
-void dos_core_failed(void){
-    put('\n');
-    sayln("Cannot run that program.");
-    prompt(); st=DOS_PROMPT; cmd_n=0;
-}
-/* The game does not appear the instant you type its name: the drive spins
- * up and reads first, exactly as it would have.  dos_update() releases the
- * launch once that load has had time to run. */
-const char *dos_launch_request(void){
-    if(!launch_pending) return NULL;
-    launch_pending=0; return launch;
-}
 
 /* ---- NC.EXE: the dual-pane navigator --------------------------------
  * Norton Commander's shape, because it is the shape anyone who used one of
@@ -149,8 +16,6 @@ const char *dos_launch_request(void){
  * bar along the bottom.  Everything here draws straight into the character
  * grid and its attribute plane; the one exception is the artwork, which is
  * pixels and so is composited after the text in dos_render(). */
-#include "gen/road.h"
-
 /* CP437 line drawing, named so the layout below reads as a drawing */
 #define BX_H  0xC4
 #define BX_V  0xB3
@@ -272,13 +137,13 @@ static double nc_flash_until;
 /* the acknowledgement: the slot lights for a moment, and if the key had
  * nothing to do the panel says why - a press that changes nothing on
  * screen is a press the user cannot tell from a key that does not work */
-static void nc_flash_key(int slot){ nc_flash=slot; nc_flash_until=now_t+0.18; }
+static void nc_flash_key(int slot){ nc_flash=slot; nc_flash_until=machine.now+0.18; }
 static void nc_say(const char *l1,const char *l2){
     snprintf(nc_note[0],sizeof nc_note[0],"%s",l1);
     snprintf(nc_note[1],sizeof nc_note[1],"%s",l2?l2:"");
     nc_dlg=DLG_NOTE;
 }
-int dos_nc_open(void){ return nc_open; }
+int nc_is_open(void){ return nc_open; }
 
 /* panel geometry, in cells */
 #define NC_TOP    0
@@ -299,37 +164,27 @@ int dos_nc_open(void){ return nc_open; }
 #define NC_ART_B  12
 #define NC_DESC_T 14
 
-static void cell(int r,int c,int ch,uint8_t a){
-    if(r<0||r>=DOS_ROWS||c<0||c>=DOS_COLS) return;
-    scr[r][c]=(char)ch; att[r][c]=a;
-}
-static void nfill(int r,int c,int n,int ch,uint8_t a){
-    for(int k=0;k<n;k++) cell(r,c+k,ch,a);
-}
-static void nputs(int r,int c,const char *s,uint8_t a){
-    for(int k=0;s[k];k++) cell(r,c+k,(unsigned char)s[k],a);
-}
 /* a framed box, with its title inlaid in the top run */
 static void nbox(int x,int y,int w,int h,const char *title,int active){
-    cell(y,x,BX_TL,A_PANEL); cell(y,x+w-1,BX_TR,A_PANEL);
-    cell(y+h-1,x,BX_BL,A_PANEL); cell(y+h-1,x+w-1,BX_BR,A_PANEL);
-    nfill(y,x+1,w-2,BX_H,A_PANEL);
-    nfill(y+h-1,x+1,w-2,BX_H,A_PANEL);
+    term_cell(y,x,BX_TL,A_PANEL); term_cell(y,x+w-1,BX_TR,A_PANEL);
+    term_cell(y+h-1,x,BX_BL,A_PANEL); term_cell(y+h-1,x+w-1,BX_BR,A_PANEL);
+    term_fill_row(y,x+1,w-2,BX_H,A_PANEL);
+    term_fill_row(y+h-1,x+1,w-2,BX_H,A_PANEL);
     for(int r=y+1;r<y+h-1;r++){
-        cell(r,x,BX_V,A_PANEL); cell(r,x+w-1,BX_V,A_PANEL);
-        nfill(r,x+1,w-2,' ',A_PANEL);
+        term_cell(r,x,BX_V,A_PANEL); term_cell(r,x+w-1,BX_V,A_PANEL);
+        term_fill_row(r,x+1,w-2,' ',A_PANEL);
     }
     if(title){
         int n=(int)strlen(title);
         int tx=x+(w-n-2)/2;
-        cell(y,tx-1,' ',A_PANEL);
-        nputs(y,tx,title,active?A_SEL:A_HEAD);
-        cell(y,tx+n,' ',A_PANEL);
+        term_cell(y,tx-1,' ',A_PANEL);
+        term_puts(y,tx,title,active?A_SEL:A_HEAD);
+        term_cell(y,tx+n,' ',A_PANEL);
     }
 }
 static void nrule(int x,int y,int w){          /* a divider across a panel */
-    cell(y,x,BX_TE,A_PANEL); cell(y,x+w-1,BX_TW,A_PANEL);
-    nfill(y,x+1,w-2,BX_H,A_PANEL);
+    term_cell(y,x,BX_TE,A_PANEL); term_cell(y,x+w-1,BX_TW,A_PANEL);
+    term_fill_row(y,x+1,w-2,BX_H,A_PANEL);
 }
 
 /* DOS wrote its dates day-month-year with two-digit years, and so does
@@ -347,26 +202,25 @@ static void nc_dialog(const char *title,const char *const *lines,int n,
     int w=50, h=n+4, x=(DOS_COLS-w)/2, y=6;
     /* the shadow first, so the box paints over its inner edge */
     for(int r=y+1;r<y+h+1;r++) for(int c=x+2;c<x+w+2;c++)
-        if(r<DOS_ROWS&&c<DOS_COLS) att[r][c]=A_SHDW;
-    for(int r=y;r<y+h;r++) nfill(r,x,w,' ',A_DLG);
-    cell(y,x,BX_TL,A_DLG); cell(y,x+w-1,BX_TR,A_DLG);
-    cell(y+h-1,x,BX_BL,A_DLG); cell(y+h-1,x+w-1,BX_BR,A_DLG);
-    nfill(y,x+1,w-2,BX_H,A_DLG); nfill(y+h-1,x+1,w-2,BX_H,A_DLG);
-    for(int r=y+1;r<y+h-1;r++){ cell(r,x,BX_V,A_DLG); cell(r,x+w-1,BX_V,A_DLG); }
+        term_set_attr(r,c,A_SHDW);
+    for(int r=y;r<y+h;r++) term_fill_row(r,x,w,' ',A_DLG);
+    term_cell(y,x,BX_TL,A_DLG); term_cell(y,x+w-1,BX_TR,A_DLG);
+    term_cell(y+h-1,x,BX_BL,A_DLG); term_cell(y+h-1,x+w-1,BX_BR,A_DLG);
+    term_fill_row(y,x+1,w-2,BX_H,A_DLG); term_fill_row(y+h-1,x+1,w-2,BX_H,A_DLG);
+    for(int r=y+1;r<y+h-1;r++){ term_cell(r,x,BX_V,A_DLG); term_cell(r,x+w-1,BX_V,A_DLG); }
     if(title){ int tn=(int)strlen(title);
-               nputs(y,x+(w-tn-2)/2+1,title,A_DLG);
-               cell(y,x+(w-tn-2)/2,' ',A_DLG); cell(y,x+(w-tn-2)/2+1+tn,' ',A_DLG); }
+               term_puts(y,x+(w-tn-2)/2+1,title,A_DLG);
+               term_cell(y,x+(w-tn-2)/2,' ',A_DLG); term_cell(y,x+(w-tn-2)/2+1+tn,' ',A_DLG); }
     /* a table of keys reads left-aligned; a question reads centred */
     for(int k=0;k<n;k++){
         int ln=(int)strlen(lines[k]);
-        nputs(y+2+k,left?x+3:x+(w-ln)/2,lines[k],A_DLG);
+        term_puts(y+2+k,left?x+3:x+(w-ln)/2,lines[k],A_DLG);
     }
-    if(keys){ int kn=(int)strlen(keys); nputs(y+h-2,x+(w-kn)/2,keys,A_DLGK); }
+    if(keys){ int kn=(int)strlen(keys); term_puts(y+h-2,x+(w-kn)/2,keys,A_DLGK); }
 }
 
 static void nc_draw(void){
-    memset(scr,' ',sizeof scr);
-    memset(att,A_PANEL,sizeof att);
+    term_fill(' ',A_PANEL);
 
     /* ---- left panel: what you can run ---- */
     /* GAMES, not C:\GAMES - the panel is not a directory listing.  It shows
@@ -381,12 +235,12 @@ static void nc_draw(void){
       if(nc_sel<top) top=nc_sel;
       if(nc_sel>=top+rows) top=nc_sel-rows+1;
       if(top<0) top=0;
-      nputs(NC_LIST_T,NC_LX+NC_C_NAME+1,"Name",A_HEAD);
-      nputs(NC_LIST_T,NC_LX+NC_C_VER,"Version",A_HEAD);
-      nputs(NC_LIST_T,NC_LX+NC_C_PLAY,"Last played",A_HEAD);
+      term_puts(NC_LIST_T,NC_LX+NC_C_NAME+1,"Name",A_HEAD);
+      term_puts(NC_LIST_T,NC_LX+NC_C_VER,"Version",A_HEAD);
+      term_puts(NC_LIST_T,NC_LX+NC_C_PLAY,"Last played",A_HEAD);
       for(int r=NC_LIST_T;r<=NC_LIST_B;r++){
-        cell(r,NC_LX+NC_SEP1,BX_V,A_PANEL);
-        cell(r,NC_LX+NC_SEP2,BX_V,A_PANEL);
+        term_cell(r,NC_LX+NC_SEP1,BX_V,A_PANEL);
+        term_cell(r,NC_LX+NC_SEP2,BX_V,A_PANEL);
       }
       for(int k=0;k<rows;k++){
         int i=top+k; if(i>=nc_n) break;
@@ -395,8 +249,8 @@ static void nc_draw(void){
         /* the bar belongs to the focused panel: with the description
          * active the list keeps its place but shows no cursor */
         uint8_t a=(i==nc_sel&&nc_focus==0)?A_SEL:(e->installed?A_NAME:A_DIM);
-        nfill(y,NC_LX+1,NC_LW-2,' ',a);
-        cell(y,NC_LX+NC_SEP1,BX_V,a); cell(y,NC_LX+NC_SEP2,BX_V,a);
+        term_fill_row(y,NC_LX+1,NC_LW-2,' ',a);
+        term_cell(y,NC_LX+NC_SEP1,BX_V,a); term_cell(y,NC_LX+NC_SEP2,BX_V,a);
         /* What is NOT on the disk is marked after its name, where a
          * listing puts a file's attributes; its version is the one on
          * offer, and it has never been played here. */
@@ -405,41 +259,41 @@ static void nc_draw(void){
         { char up[16]; int u=0;
           for(;e->file[u] && u<15;u++) up[u]=(char)toupper((unsigned char)e->file[u]);
           up[u]=0;
-          nputs(y,NC_LX+NC_C_NAME+1,up,a); }
+          term_puts(y,NC_LX+NC_C_NAME+1,up,a); }
         if(e->version){
-            nputs(y,NC_LX+NC_C_VER,e->version,a);
+            term_puts(y,NC_LX+NC_C_VER,e->version,a);
             /* a newer release on offer: the mark points up, the way the
              * not-yet-fetched mark points down */
-            if(e->update) cell(y,NC_LX+NC_C_VER+(int)strlen(e->version)+1,0x18,a);
+            if(e->update) term_cell(y,NC_LX+NC_C_VER+(int)strlen(e->version)+1,0x18,a);
         }
         if(!e->installed){
             int ax=NC_LX+NC_C_NAME+1+(int)strlen(e->file)+1;
-            if(ax<NC_LX+NC_SEP1) cell(y,ax,0x19,a);
+            if(ax<NC_LX+NC_SEP1) term_cell(y,ax,0x19,a);
             continue;
         }
         char d[12];
         nc_date(e->played_ns,d,sizeof d);
-        nputs(y,NC_LX+NC_C_PLAY,e->played_ns>0?d:"never",a);
+        term_puts(y,NC_LX+NC_C_PLAY,e->played_ns>0?d:"never",a);
       }
     }
     nrule(NC_LX,NC_BOT-1,NC_LW);
     { char b[48];
       snprintf(b,sizeof b," %d file(s)",nc_n);
-      nputs(NC_BOT,NC_LX+2,b,A_PANEL); }
+      term_puts(NC_BOT,NC_LX+2,b,A_PANEL); }
 
     /* ---- right panel: the highlighted entry ---- */
     if(nc_n==0){
         nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,"NOTHING INSTALLED",nc_focus==1);
-        nputs(NC_DESC_T,  NC_RX+2,"No games on this machine.",A_TEXT);
-        nputs(NC_DESC_T+2,NC_RX+2,"Put a .dxm module and its",A_TEXT);
-        nputs(NC_DESC_T+3,NC_RX+2,"data under:",A_TEXT);
-        nputs(NC_DESC_T+5,NC_RX+2,"  games/<name>/",A_NAME);
+        term_puts(NC_DESC_T,  NC_RX+2,"No games on this machine.",A_TEXT);
+        term_puts(NC_DESC_T+2,NC_RX+2,"Put a .dxm module and its",A_TEXT);
+        term_puts(NC_DESC_T+3,NC_RX+2,"data under:",A_TEXT);
+        term_puts(NC_DESC_T+5,NC_RX+2,"  games/<name>/",A_NAME);
     } else {
     const nc_entry *e=&nc_rows[nc_sel];
     nbox(NC_RX,NC_TOP,NC_RW,NC_BOT-NC_TOP+1,e->title,nc_focus==1);
     /* the art well is painted black here; the pixels land on top of it in
      * dos_render(), which is the only place this program is not text */
-    for(int r=NC_ART_T;r<=NC_ART_B;r++) nfill(r,NC_RX+1,NC_RW-2,' ',0x00);
+    for(int r=NC_ART_T;r<=NC_ART_B;r++) term_fill_row(r,NC_RX+1,NC_RW-2,' ',0x00);
     nrule(NC_RX,NC_ART_B+1,NC_RW);
     /* The description, then one line saying what Enter does here.  An entry
      * with no account of itself is the worst case: it is on screen, so
@@ -487,11 +341,11 @@ static void nc_draw(void){
       if(nc_dtop>nl-avail) nc_dtop=nl-avail;
       if(nc_dtop<0) nc_dtop=0;
       for(int k=0;k<avail && nc_dtop+k<nl;k++)
-          nputs(NC_DESC_T+k,NC_RX+2,dl[nc_dtop+k],da[nc_dtop+k]);
+          term_puts(NC_DESC_T+k,NC_RX+2,dl[nc_dtop+k],da[nc_dtop+k]);
       /* what is out of view is said on the frame, where a scroll bar
        * would go, so the reader knows there is more */
-      if(nc_dtop>0)          cell(NC_DESC_T,        NC_RX+NC_RW-1,0x18,A_HEAD);
-      if(nc_dtop+avail<nl)   cell(NC_DESC_T+avail-1,NC_RX+NC_RW-1,0x19,A_HEAD);
+      if(nc_dtop>0)          term_cell(NC_DESC_T,        NC_RX+NC_RW-1,0x18,A_HEAD);
+      if(nc_dtop+avail<nl)   term_cell(NC_DESC_T+avail-1,NC_RX+NC_RW-1,0x19,A_HEAD);
     }
     { inst_status is; install_poll(&is);
       int busy = is.state==INST_RUNNING && !strcmp(is.id,e->file);
@@ -502,44 +356,44 @@ static void nc_draw(void){
           int on=(int)(is.frac*w+0.5); if(on>w)on=w; if(on<0)on=0;
           for(int k=0;k<w;k++) bar[k]=(char)(k<on?0xDB:0xB0);
           bar[w]=0;
-          nputs(NC_BOT-4,NC_RX+2,is.stage,A_HEAD);
-          nputs(NC_BOT-3,NC_RX+2,bar,A_NAME);
+          term_puts(NC_BOT-4,NC_RX+2,is.stage,A_HEAD);
+          term_puts(NC_BOT-3,NC_RX+2,bar,A_NAME);
           { char b[48];
             if(is.total>0) snprintf(b,sizeof b,"%.0f%%  %.1f of %.1f MB",
                                     is.frac*100.0,is.got/1048576.0,is.total/1048576.0);
             else           snprintf(b,sizeof b,"%.1f MB",is.got/1048576.0);
-            nputs(NC_BOT-2,NC_RX+2,b,A_TEXT); }
+            term_puts(NC_BOT-2,NC_RX+2,b,A_TEXT); }
       } else if(is.state==INST_FAILED && !strcmp(is.id,e->file)){
-          nputs(NC_BOT-3,NC_RX+2,"DOWNLOAD FAILED",A_HEAD);
-          nputs(NC_BOT-2,NC_RX+2,is.err,A_TEXT);
+          term_puts(NC_BOT-3,NC_RX+2,"DOWNLOAD FAILED",A_HEAD);
+          term_puts(NC_BOT-2,NC_RX+2,is.err,A_TEXT);
       } else if(e->installed){
           if(e->update){
               char b[48];
               double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
               snprintf(b,sizeof b,"F4 to update to %s  (%.1f MB)",e->offered,mb);
-              nputs(NC_BOT-3,NC_RX+2,b,A_HEAD);
+              term_puts(NC_BOT-3,NC_RX+2,b,A_HEAD);
           }
-          nputs(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
+          term_puts(NC_BOT-2,NC_RX+2,"ENTER to play",A_NAME);
       } else if(e->available){
           char b[48];
           double mb=(e->cat->module.size+e->cat->data.size)/1048576.0;
           snprintf(b,sizeof b,"ENTER to download  (%.1f MB)",mb);
-          nputs(NC_BOT-2,NC_RX+2,b,A_NAME);
+          term_puts(NC_BOT-2,NC_RX+2,b,A_NAME);
       }
     }
     nrule(NC_RX,NC_BOT-1,NC_RW);
     { char foot[64];
       if(e->year) snprintf(foot,sizeof foot,"%s, %d",e->by,e->year);
       else        snprintf(foot,sizeof foot,"%s",e->by);
-      nputs(NC_BOT,NC_RX+2,foot,A_PANEL); }
+      term_puts(NC_BOT,NC_RX+2,foot,A_PANEL); }
     }
 
     /* ---- the command line, and the key bar ---- */
-    nfill(22,0,DOS_COLS,' ',0x07);
+    term_fill_row(22,0,DOS_COLS,' ',0x07);
     /* the panel IS the games directory, so that is where the command
      * line sits - and where the prompt is left when the panel closes */
-    nputs(23,0,"C:\\GAMES>",0x07);
-    nfill(23,9,DOS_COLS-9,' ',0x07);
+    term_puts(23,0,"C:\\GAMES>",0x07);
+    term_fill_row(23,9,DOS_COLS-9,' ',0x07);
     /* Ten slots of eight cells - exactly the eighty columns.  The number
      * sits right-aligned in two cells so "10" takes no more room than "1",
      * and the label has six, which is what Norton's own bar gave it. */
@@ -549,8 +403,8 @@ static void nc_draw(void){
     for(int k=0;k<10;k++){
         char num[3]; snprintf(num,sizeof num,"%2d",k+1);
         int lit=(nc_flash==k+1);
-        nputs(24,k*8,num,lit?A_BAR:A_BARN);
-        nputs(24,k*8+2,KEYS[k],lit?A_NAME:A_BAR);
+        term_puts(24,k*8,num,lit?A_BAR:A_BARN);
+        term_puts(24,k*8+2,KEYS[k],lit?A_NAME:A_BAR);
     }
 
     /* ---- whatever is asking a question sits on top of it all ---- */
@@ -597,17 +451,17 @@ static void nc_draw(void){
 static void art_px(int dx,int dy,int r,int g,int b,float al){
     int cr=(dy-DOS_PAD_Y)/16, cc=(dx-DOS_PAD_X)/8;
     if(cr>=0&&cr<DOS_ROWS&&cc>=0&&cc<DOS_COLS){
-        uint8_t a=att[cr][cc];
+        uint8_t a=term_attr_at(cr,cc);
         if(a==A_DLG||a==A_DLGK) return;
         if(a==A_SHDW){ r=r*35/100; g=g*35/100; b=b*35/100; }
     }
-    uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
+    uint8_t *q=term_fb()+((size_t)dy*DOS_W+dx)*3;
     q[0]=(uint8_t)(q[0]*(1.0f-al)+r*al);
     q[1]=(uint8_t)(q[1]*(1.0f-al)+g*al);
     q[2]=(uint8_t)(q[2]*(1.0f-al)+b*al);
 }
 
-static void nc_art(void){
+void nc_draw_art(void){
     if(nc_n==0) return;
     const nc_entry *e=&nc_rows[nc_sel];
     const uint8_t *px=e->art; int aw=e->aw, ah=e->ah;
@@ -665,7 +519,7 @@ static void nc_art(void){
 }
 
 /* Up and down walk the table a row at a time; left and right a page. */
-static void nc_key(int ch,int sc){
+void nc_key(int ch,int sc){
     int rows=NC_LIST_B-NC_LIST_T;           /* a page of the table */
     if(nc_dlg){
         int yes=(sc==DXM_SC_ENTER || ch=='\r' || ch=='\n' || ch=='y' || ch=='Y');
@@ -683,7 +537,7 @@ static void nc_key(int ch,int sc){
             if(left){ snprintf(nc_note[0],sizeof nc_note[0],"Some files could not be removed.");
                       snprintf(nc_note[1],sizeof nc_note[1],"Try again after restarting DXM.");
                       nc_dlg=DLG_NOTE; }
-            floppy_req=0.8;                 /* the drive does the work */
+            machine.floppy_req=0.8;                 /* the drive does the work */
         }
         if(yes && was==DLG_UPDATE){
             const nc_entry *e=&nc_rows[nc_sel];
@@ -691,7 +545,7 @@ static void nc_key(int ch,int sc){
             if(g) lib_unload(g);            /* the download overwrites game.dxm */
             install_clear();
             install_start(e->cat);          /* the same path as a first install */
-            floppy_req=1.4;
+            machine.floppy_req=1.4;
         }
         if(yes && was==DLG_RESET){
             const nc_entry *e=&nc_rows[nc_sel];
@@ -717,7 +571,7 @@ static void nc_key(int ch,int sc){
                 nc_dlg=DLG_NOTE;
             }
             lib_scan(); nc_rows_build();
-            floppy_req=1.2;
+            machine.floppy_req=1.2;
         }
         nc_draw();
         return;
@@ -745,9 +599,8 @@ static void nc_key(int ch,int sc){
     /* F10 and Esc both leave the panel, back to the prompt */
     if(sc==DXM_SC_F10) nc_flash_key(10);
     if(sc==DXM_SC_ESC || ch==27 || sc==DXM_SC_F10){
-        nc_open=0; in_games=nc_from_games;      /* back where it was opened */
-        memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
-        cur_att=0x07; cur_r=cur_c=0; prompt();
+        nc_open=0; shell_set_dir(nc_from_games);   /* back where it was opened */
+        term_clear(); shell_prompt();
         return;
     }
     if(sc==SC_TAB){ if(nc_n) nc_focus=!nc_focus; nc_draw(); return; }
@@ -770,7 +623,7 @@ static void nc_key(int ch,int sc){
         if(!e->installed && e->available && is.state!=INST_RUNNING){
             install_clear();
             install_start(e->cat);
-            floppy_req=1.4;               /* the drive answers, as it would */
+            machine.floppy_req=1.4;               /* the drive answers, as it would */
             nc_draw();
             return;
         }
@@ -779,358 +632,58 @@ static void nc_key(int ch,int sc){
              * command appears as if typed, and the drive reads while the
              * screen waits - and the machine remembers to come back */
             nc_open=0; nc_launched=1;
-            memset(scr,' ',sizeof scr); memset(att,0x07,sizeof att);
-            cur_att=0x07; cur_r=cur_c=0;
-            prompt();
+            term_clear();
+            shell_prompt();
             { char up[16]; int k=0;
               for(;e->cmd[k] && k<15;k++) up[k]=(char)toupper((unsigned char)e->cmd[k]);
-              up[k]=0; sayln(up); }
-            snprintf(launch,sizeof launch,"%s",e->cmd);
-            floppy_req=2.6;
-            launch_at=-1.0;
-            st=DOS_RUNNING;
+              up[k]=0; term_sayln(up); }
+            dos_launch(e->cmd);
             return;
         }
     }
     nc_draw();
 }
 
-static void cmd_dir(void){
-    sayln(" Volume in drive C is DXM-DOS");
-    sayln(" Volume Serial Number is 1993-0C7E");
-    sayln(in_games ? " Directory of C:\\GAMES" : " Directory of C:\\");
-    put('\n');
-    if(!in_games){
-        disk_entry ent[64]; int n=disk_list(ent,64);
-        int files=0, dirs=0; long total=0;
-        for(int i=0;i<n;i++){
-            const disk_entry *e=&ent[i];
-            char nm[9]="        ", ex[4]="   ", sz[16], dt[10], tm[8], ln[80];
-            const char *dot=strchr(e->name,'.');
-            int nl=dot?(int)(dot-e->name):(int)strlen(e->name);
-            memcpy(nm,e->name,(size_t)(nl>8?8:nl));
-            if(dot) memcpy(ex,dot+1,strlen(dot+1)>3?3:strlen(dot+1));
-            if(e->is_dir){ sz[0]=0; dirs++; }
-            else { /* thousands separated, DOS style */
-                char raw[16]; snprintf(raw,sizeof raw,"%ld",e->size);
-                int rl=(int)strlen(raw), o=0;
-                for(int k=0;k<rl;k++){ if(k && (rl-k)%3==0) sz[o++]=','; sz[o++]=raw[k]; }
-                sz[o]=0; files++; total+=e->size; }
-            snprintf(dt,sizeof dt,"%s",e->date); snprintf(tm,sizeof tm,"%s",e->time);
-            if(e->is_dir) snprintf(ln,sizeof ln,"%s     <DIR>        %s  %s",nm,dt,tm);
-            else          snprintf(ln,sizeof ln,"%s %s %11s  %s  %s",nm,ex,sz,dt,tm);
-            sayln(ln);
-        }
-        put('\n');
-        { char ln[80];
-          char raw[16]; snprintf(raw,sizeof raw,"%ld",total);
-          char tot[24]; int rl=(int)strlen(raw), o=0;
-          for(int k=0;k<rl;k++){ if(k && (rl-k)%3==0) tot[o++]=','; tot[o++]=raw[k]; }
-          tot[o]=0;
-          snprintf(ln,sizeof ln,"%9d file(s) %14s bytes",files,tot); sayln(ln);
-          snprintf(ln,sizeof ln,"%9d dir(s)",dirs); sayln(ln); }
-    } else {
-        sayln(".            <DIR>           08-30-26  11:04a");
-        sayln("..           <DIR>           08-30-26  11:04a");
-        for(int i=0;i<lib_count();i++){
-            const lib_game *g=lib_at(i);
-            char nm[16], ln[80]; int k=0;
-            for(;g->id[k] && k<8;k++) nm[k]=(char)toupper((unsigned char)g->id[k]);
-            while(k<8) nm[k++]=' ';
-            nm[8]=0;
-            snprintf(ln,sizeof ln,"%s EXE        114,688  03-15-93   1:43a",nm);
-            sayln(ln);
-        }
-        put('\n');
-        { char ln[80];
-          snprintf(ln,sizeof ln,"        %d file(s)",lib_count());
-          sayln(ln); }
-    }
-    sayln("                      536,870,912 bytes free");
-}
-static void cmd_help(void){
-    oline("DXM-DOS command reference");
-    oline("");
-    oline("DIR        List the files on this machine.");
-    oline("CLS        Clear the screen.");
-    oline("VER        Show the DOS version.");
-    oline("TYPE file  Display a text file");
-    oline("CD dir     Change directory. The games are in C:\\GAMES.");
-    oline("NC         Browse the games in a dual-pane navigator.");
-    oline("EXIT       Switch the machine off.");
-}
-static void run(char *s){
-    while(*s==' ') s++;
-    for(char *p=s;*p;p++) if(*p>='a'&&*p<='z') *p-=32;
-    /* DOS took CD.. and CD\GAMES with no space, because CD did not need a
-     * delimiter before a path.  Put one in before the splitter runs, rather
-     * than teaching the splitter about one command. */
-    if(s[0]=='C'&&s[1]=='D'&&(s[2]=='.'||s[2]=='\\'||s[2]=='/')){
-        memmove(s+3,s+2,strlen(s+2)+1);
-        s[2]=' ';
-    }
-    /* "| MORE" at the end of anything: the output is paged */
-    page_want=0; page_len=0; page_buf[0]=0;
-    { char *bar=strchr(s,'|');
-      if(bar){ char *m=bar+1; while(*m==' ') m++;
-               if(!strncmp(m,"MORE",4)) page_want=1;
-               *bar=0; while(bar>s && bar[-1]==' ') *--bar=0; } }
-    /* MORE file, and MORE < file, are TYPE file */
-    if(!strncmp(s,"MORE",4) && (s[4]==' '||s[4]==0)){
-        memmove(s,"TYPE",4);
-        char *lt=strchr(s,'<'); if(lt) *lt=' ';
-    }
-    /* TYPE pages by itself when a file is longer than the screen: the
-     * pager only stops if there is more to show, so a short file simply
-     * prints */
-    if(!strncmp(s,"TYPE",4) && (s[4]==' '||s[4]==0)) page_want=1;
-    char *sp=strchr(s,' '); char *arg=NULL;
-    if(sp){ *sp=0; arg=sp+1; while(*arg==' ') arg++; }
-    size_t n=strlen(s);
-    if(n>4 && !strcmp(s+n-4,".EXE")) s[n-4]=0;
-    if(!*s) return;
-    if(!strcmp(s,"DIR")){      floppy_req=0.7; cmd_dir(); }
-    else if(!strcmp(s,"CLS")){ memset(scr,' ',sizeof scr);
-                               memset(att,0x07,sizeof att);
-                               cur_att=0x07; cur_r=cur_c=0; return; }
-    else if(!strcmp(s,"HELP")) cmd_help();
-    else if(!strcmp(s,"VER"))  sayln("DXM-DOS Version " DXM_VERSION " (C) 2026");
-    else if(!strcmp(s,"TYPE")){
-        static char buf[8192];
-        if(!arg||!*arg) sayln("Required parameter missing");
-        else {
-            /* a path prefix is tolerated; only the root has files to show */
-            int r=in_games?-1:disk_read(arg,buf,sizeof buf);
-            if(r<0){ say("File not found - "); sayln(arg); }
-            else if(r>0) sayln("This file cannot be displayed.");
-            else {
-                for(char *p=buf;*p;){
-                    char *e=strpbrk(p,"\r\n"); size_t len=e?(size_t)(e-p):strlen(p);
-                    char line[256]; if(len>=sizeof line) len=sizeof line-1;
-                    memcpy(line,p,len); line[len]=0; oline(line);
-                    p=e?e+1:p+len; if(e && *e=='\r' && *p=='\n') p++;
-                }
-            }
-        }
-    }
-    else if(!strcmp(s,"EXIT")) { st=DOS_OFF; return; }
-    else if(!strcmp(s,"NC")){ lib_scan(); nc_rows_build();
-                              nc_from_games=in_games; in_games=1;
-                              nc_open=1; nc_sel=0; nc_focus=0; nc_dtop=0;
-                              nc_draw(); return; }
-    else if(!strcmp(s,"CD")||!strcmp(s,"CHDIR")){
-        if(!arg||!*arg){ sayln(in_games?"C:\\GAMES":"C:\\"); }
-        else if(!strcmp(arg,"\\")||!strcmp(arg,"/")) in_games=0;
-        else if(!strcmp(arg,"..")){
-            if(in_games) in_games=0;
-            else sayln("Invalid directory");
-        }
-        else if(!strcmp(arg,".")) { /* stay put */ }
-        else if(!in_games && (!strcmp(arg,"GAMES")||!strcmp(arg,"\\GAMES")))
-            in_games=1;
-        else if(in_games && !strcmp(arg,"\\GAMES")) { /* already there */ }
-        else sayln("Invalid directory");
-    }
-    else if(!strcmp(s,"FORMAT"))
-        sayln("Nice try.");
-    else {
-        /* Anything else may be an installed game - but only from the
-         * directory the games are actually in.  DOS did not search the disk
-         * for you, and neither does this. */
-        const lib_game *g=in_games?lib_find(s):NULL;
-        if(!g && !in_games && lib_find(s))
-            sayln("Bad command or file name - try CD GAMES");
-        else if(!g)        sayln("Bad command or file name");
-        else if(!g->ready){ say("Cannot run "); say(g->title); sayln(":");
-                            sayln(g->note[0]?g->note:"not ready"); }
-        else { snprintf(launch,sizeof launch,"%s",g->id);
-               floppy_req=2.6;              /* the drive reads the game */
-               launch_at=-1.0;              /* armed; set on the next tick */
-               st=DOS_RUNNING; return; }
-    }
+/* The panel opens over the prompt: the library is rescanned, the rows
+ * rebuilt, the selection at the top, and the prompt's directory kept so
+ * leaving goes back to it. */
+void nc_open_panel(int from_games){
+    lib_scan(); nc_rows_build();
+    nc_from_games=from_games;
+    nc_open=1; nc_sel=0; nc_focus=0; nc_dtop=0;
+    nc_draw();
 }
 
-void dos_core_exited(void){
-    st=DOS_PROMPT; cmd_n=0;
-    if(nc_launched){
-        /* started from the navigator: back to the navigator, on the same
-         * entry, with whatever the game left on disk reflected */
-        nc_launched=0;
+/* Each frame while the panel is up. */
+void nc_update(double t){
+    if(nc_flash && t>=nc_flash_until){ nc_flash=0; nc_draw(); }
+    /* A fresh catalogue, or a finished install, changes what the panel
+     * should say - and a running one changes it every frame. */
+    /* The catalogue is fetched on a thread, so it arrives AFTER the panel
+     * has already been painted.  Rebuilding the rows is therefore only
+     * half of it: without the redraw the text screen keeps the empty list
+     * it was drawn with, and the catalogue appears only on the NEXT run,
+     * off the disk cache.  The other two rows_build sites already
+     * repaint - this one did not, which is why a first run on a machine
+     * with no cache showed an empty navigator until a key was pressed. */
+    if(cat_refresh_collect()>0){ nc_rows_build(); nc_draw(); }
+    inst_status is; install_poll(&is);
+    static inst_state was=INST_IDLE;
+    if(is.state==INST_DONE && was!=INST_DONE){
         lib_scan(); nc_rows_build();
-        if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0;
-        nc_open=1; nc_draw();
-        return;
+        machine.floppy_req=0.6;
     }
-    put('\n'); prompt();
+    if(is.state==INST_RUNNING || is.state!=was) nc_draw();
+    was=is.state;
 }
 
-void dos_key(int ch,int sc){
-    if(st!=DOS_PROMPT){ if(st==DOS_BOOT) next_boot=0; return; }
-    if(nc_open){ nc_key(ch,sc); return; }
-    if(page_on){ if(ch||sc==DXM_SC_ESC) page_key(sc==DXM_SC_ESC?27:ch); return; }
-    if(ch=='\r'||ch=='\n'){
-        put('\n'); cmd[cmd_n]=0;
-        char tmp[128]; memcpy(tmp,cmd,sizeof tmp);
-        cmd_n=0; run(tmp);
-        if(page_want) page_begin();
-        /* NC owns the whole screen once it opens, so the prompt must not be
-         * printed over it - the cursor is wherever the command line left it,
-         * and nc_draw does not move it.  Nor while MORE is waiting. */
-        if(st==DOS_PROMPT && !nc_open && !page_on) prompt();
-        return;
-    }
-    if(ch=='\b'){ if(cmd_n){ cmd_n--; if(cur_c>prompt_len) cur_c--; scr[cur_r][cur_c]=' '; } return; }
-    if(ch>=32 && ch<127 && cmd_n<(int)sizeof cmd-1){ cmd[cmd_n++]=(char)ch; put((char)ch); }
-    (void)sc;
-}
-
-/* The PC speaker POST beep: taken once, at power-on. */
-int dos_take_beep(void){ int b=beep_pending; beep_pending=0; return b; }
-double dos_take_floppy(void){ double f=floppy_req; floppy_req=0.0; return f; }
-
-/* The RAM count spins in place: the BIOS printed the running total and
- * overwrote it, so we hold the cursor at the digits and rewrite them. */
-#define MEM_TOTAL_KB 655360L
-#define MEM_STEP_KB  8192L          /* the count visibly steps, not smooth */
-
-static void mem_draw(long kb){
-    char buf[24];
-    snprintf(buf,sizeof buf,"%ld KB",kb);
-    int c=mem_col;
-    for(const char *p=buf;*p&&c<DOS_COLS;p++) scr[mem_row][c++]=*p;
-    while(c<DOS_COLS && c<mem_col+12) scr[mem_row][c++]=' ';
-}
-
-dos_state dos_update(double t){
-    now_t=t;
-    if(nc_open){
-        if(nc_flash && t>=nc_flash_until){ nc_flash=0; nc_draw(); }
-        /* A fresh catalogue, or a finished install, changes what the panel
-         * should say - and a running one changes it every frame. */
-        /* The catalogue is fetched on a thread, so it arrives AFTER the panel
-         * has already been painted.  Rebuilding the rows is therefore only
-         * half of it: without the redraw the text screen keeps the empty list
-         * it was drawn with, and the catalogue appears only on the NEXT run,
-         * off the disk cache.  The other two rows_build sites already
-         * repaint - this one did not, which is why a first run on a machine
-         * with no cache showed an empty navigator until a key was pressed. */
-        if(cat_refresh_collect()>0){ nc_rows_build(); nc_draw(); }
-        inst_status is; install_poll(&is);
-        static inst_state was=INST_IDLE;
-        if(is.state==INST_DONE && was!=INST_DONE){
-            lib_scan(); nc_rows_build();
-            floppy_req=0.6;
-        }
-        if(is.state==INST_RUNNING || is.state!=was) nc_draw();
-        was=is.state;
-    }
-    if(t0<0){ t0=t; next_boot=t+0.35; }
-
-    /* loading pause between the command and the game taking over */
-    if(st==DOS_RUNNING && !launch_pending && launch_at<0.0)
-        launch_at = t + 2.3;
-    if(st==DOS_RUNNING && launch_at>0.0 && t>=launch_at){
-        launch_pending=1; launch_at=0.0;
-    }
-
-    if(mem_counting){
-        if(t>=mem_next){
-            mem_shown+=MEM_STEP_KB;
-            if(mem_shown>=MEM_TOTAL_KB){
-                mem_shown=MEM_TOTAL_KB;
-                mem_draw(mem_shown);
-                { int c=mem_col+11; const char *ok=" OK";
-                  for(const char *p=ok;*p&&c<DOS_COLS;p++) scr[mem_row][c++]=*p; }
-                mem_counting=0;
-                cur_c=0; if(++cur_r>=DOS_ROWS) scroll();   /* close the line */
-                beep_pending=1;           /* POST beep AFTER the RAM check */
-                next_boot=t+0.45;
-            } else {
-                mem_draw(mem_shown);
-                mem_next=t+0.010;
-            }
-        }
-        return st;                        /* boot text pauses while counting */
-    }
-
-    if(st==DOS_BOOT && t>=next_boot){
-        if(BOOT[boot_step]){
-            const char *ln=BOOT[boot_step++];
-            say(ln);
-            if(strstr(ln,"Floppy Disk A")) floppy_req=1.1;  /* BIOS seeks A: */
-            if(strstr(ln,"Memory Test")){ /* start the live count here */
-                mem_row=cur_r; mem_col=cur_c;
-                mem_counting=1; mem_shown=0; mem_next=t;
-                return st;
-            }
-            put('\n');
-            next_boot=t+0.16;
-        }
-        else if(ax_i<ax_n){ sayln(ax_lines[ax_i++]); next_boot=t+0.16; }
-        else { st=DOS_PROMPT; prompt(); }
-    }
-    return st;
-}
-
-/* The DXM mark, shown top-right during POST the way a 486 showed its BIOS
- * or power-management badge.  Baked in by tools/mklogo.py with the white
- * background keyed to alpha so it composites onto the black screen. */
-#include "gen/logo.h"
-static void draw_badge(double t){
-    if(t0<0) return;
-    float a=(float)((t-t0-0.55)/1.2);            /* fade in */
-    if(a<=0.0f) return;
-    if(a>1.0f) a=1.0f;
-    int x0=DOS_W-DXM_LOGO_W-14, y0=10;
-    for(int y=0;y<DXM_LOGO_HT;y++){
-        int dy=y0+y; if(dy<0||dy>=DOS_H) continue;
-        for(int x=0;x<DXM_LOGO_W;x++){
-            int dx=x0+x; if(dx<0||dx>=DOS_W) continue;
-            const uint8_t *sp=dxm_logo+((size_t)y*DXM_LOGO_W+x)*4;
-            float al=sp[3]/255.0f*a;
-            if(al<=0.004f) continue;
-            uint8_t *q=fb+((size_t)dy*DOS_W+dx)*3;
-            for(int k=0;k<3;k++)
-                q[k]=(uint8_t)(q[k]*(1.0f-al)+sp[k]*al);
-        }
-    }
-}
-
-/* the 16 VGA text colours, as the DAC actually produced them */
-static const uint8_t VGA16[16][3]={
-  {0x00,0x00,0x00},{0x00,0x00,0xAA},{0x00,0xAA,0x00},{0x00,0xAA,0xAA},
-  {0xAA,0x00,0x00},{0xAA,0x00,0xAA},{0xAA,0x55,0x00},{0xAA,0xAA,0xAA},
-  {0x55,0x55,0x55},{0x55,0x55,0xFF},{0x55,0xFF,0x55},{0x55,0xFF,0xFF},
-  {0xFF,0x55,0x55},{0xFF,0x55,0xFF},{0xFF,0xFF,0x55},{0xFF,0xFF,0xFF}};
-
-const uint8_t *dos_render(void){
-    memset(fb,0,sizeof fb);
-    static double blink; blink+=1.0;
-    for(int r=0;r<DOS_ROWS;r++)
-      for(int c=0;c<DOS_COLS;c++){
-        const uint8_t *g=font_glyph((unsigned char)scr[r][c]);
-        const uint8_t *fg=VGA16[att[r][c]&0x0F];
-        const uint8_t *bg=VGA16[(att[r][c]>>4)&0x07];
-        for(int j=0;j<8;j++){
-            uint8_t bits=g[j];
-            for(int i=0;i<8;i++){
-                const uint8_t *col=(bits&(0x80>>i))?fg:bg;
-                for(int d=0;d<2;d++){          /* 8x8 rendered at 8x16 */
-                    int y=DOS_PAD_Y+r*16+j*2+d, x=DOS_PAD_X+c*8+i;
-                    uint8_t *p=fb+((size_t)y*DOS_W+x)*3;
-                    p[0]=col[0]; p[1]=col[1]; p[2]=col[2];
-                }
-            }
-        }
-      }
-    if(nc_open) nc_art();
-    if(st==DOS_BOOT) draw_badge(now_t);      /* POST only */
-    if(st==DOS_PROMPT && !nc_open && ((int)(blink/28)&1)){
-        for(int j=0;j<14;j++) for(int i=0;i<8;i++){
-            int y=DOS_PAD_Y+cur_r*16+j, x=DOS_PAD_X+cur_c*8+i;
-            if(y<DOS_H&&x<DOS_W){ uint8_t *p=fb+((size_t)y*DOS_W+x)*3;
-                                  p[0]=0xAA;p[1]=0xAA;p[2]=0xAA; }
-        }
-    }
-    return fb;
+/* A game started from the navigator has ended: come back to it, on the
+ * same entry, with whatever the game left on disk reflected. */
+int nc_resume_after_game(void){
+    if(!nc_launched) return 0;
+    nc_launched=0;
+    lib_scan(); nc_rows_build();
+    if(nc_sel>=nc_n) nc_sel=nc_n?nc_n-1:0;
+    nc_open=1; nc_draw();
+    return 1;
 }

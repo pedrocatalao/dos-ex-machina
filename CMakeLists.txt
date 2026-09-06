@@ -26,7 +26,8 @@ if(WIN32)
 endif()
 
 add_executable(dxm
-    src/main.c src/gpu.c src/font.c src/dos.c src/sound.c
+    src/main.c src/gpu.c src/font.c src/sound.c
+    src/dos/dos.c src/dos/term.c src/dos/shell.c src/dos/boot.c src/dos/nc.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
     src/corehost.c src/coreload.c src/library.c src/ui.c src/gen/splash.c

@@ -182,6 +182,13 @@ to find again. SPEC promised `chassis_params.h` for exactly this.
 **F14. `DXM_VERSION` fallback is duplicated** in `main.c` and `dos.c`.
 One `version.h`.
 
+**F15b. The floppy LED is not deterministic.** Its glow follows the drive
+sound's playback position on the audio thread, in real time, so under
+`--deterministic` a frame captured while the drive runs differs between
+runs in that one patch. Found while comparing navigator frames in step 5.
+The fix belongs in step 6: under the fixed-step clock, derive the level
+from the machine clock rather than from playback.
+
 **F15a. Paths are built by bounded `snprintf` and truncation is silent.**
 `library.c` joins the preferences directory, `games`, the id and a file
 name into 1024-byte buffers a dozen times. `snprintf` bounds the write,
@@ -300,7 +307,7 @@ ordered so that the safety net exists before anything is moved.
 | 2 | **Done.** Generated data under `src/gen/` (`splash`, `mark`, `logo`, `icon`, `road`, `sb_logo`, `corner_sticker`, `fdd_pcm`), the contract under `contract/` (`dxm_core.h`, `dxm_platform.c`, the name ports use); `tools/regen.sh` with `--check` in the Linux job; `src/gen/README.md` lists each file, its tool, its source and whether it reproduces; `screenshots/` removed. The badge asset was already correctly named; only the stale header comment said otherwise | S | build + golden |
 | 3 | **Done.** Eight GLSL files under `shaders/` (`quad.vert` and one `.frag` per pass), each carrying the comment that sat above its literal; `tools/embed.cmake` bakes them into `build/generated/shaders.h` at build time, so editing a shader recompiles `gpu.c` and the binary stays self-contained. `gpu.c` went from 767 to 462 lines | M | golden |
 | 4 | **Done.** `src/chassis/`: `chassis.c` (assembly, 240 lines), `canvas.c` (primitives), `surface.c` (the case body passes), `bezel.c`, `parts.c`, `marks.c`, `knobs.c` (with the knob state as one struct), `layout.c`, `params.h`, `internal.h`. `chassis_render` went from 658 lines to 30: it solves a `chassis_geom` once and calls the passes in order. Every body moved verbatim; the LED and knob globals became out-parameters and module state. Pixel-exact on all three golden frames | L | golden, pixel-exact |
-| 5 | Split `dos.c` into `dos/` per §4; one state struct per file | L | golden at prompt and NC frames; manual NC pass |
+| 5 | **Done.** `src/dos/`: `dos.c` (the façade and the shared `dos_machine` state, 81 lines), `term.c/.h` (the text screen behind an API; nothing else touches the cells), `shell.c` (prompt, commands, MORE), `boot.c` (POST and AUTOEXEC), `nc.c` (the navigator), `internal.h`. Verified pixel-exact against a build of the previous commit on the prompt, README, `DIR/VER/HELP` and navigator frames | L | golden at prompt and NC frames; manual NC pass |
 | 6 | Split `main.c` into `log`, `app`, `splash`, `theatre`, `input` | M | golden + `--selftest` |
 | 7 | Per-module state structs elsewhere (`sound`, `corehost`, `install`, `ui`) | S | build + `--selftest` |
 | 8 | `.clang-format`; one formatting commit; `clang-format --dry-run` in CI | S | golden (no semantic change) |
