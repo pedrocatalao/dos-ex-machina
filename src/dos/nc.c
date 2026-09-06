@@ -2,7 +2,7 @@
 #include "internal.h"
 #include <SDL3/SDL.h> /* SDL_TimeToDateTime, for the table's dates */
 #include "library.h"
-#include "catalog.h"
+#include "catalogue.h"
 #include "install.h"
 #include "art.h"
 #include "dxm_core.h"

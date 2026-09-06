@@ -1,4 +1,4 @@
-/* catalog.c — see catalog.h.
+/* catalogue.c — see catalogue.h.
  *
  * The JSON reader here is deliberately small and deliberately dumb: it walks
  * the text looking for the keys this one schema uses, at the nesting depth it
@@ -6,7 +6,7 @@
  * told the schema.  It is strict about what it accepts and silently ignores
  * what it does not recognise, which is the behaviour you want when a newer
  * catalogue adds a field an older DXM has never heard of. */
-#include "catalog.h"
+#include "catalogue.h"
 #include "net.h"
 #include "library.h"
 #include <stdio.h>

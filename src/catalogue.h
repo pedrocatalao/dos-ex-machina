@@ -1,4 +1,4 @@
-/* catalog.h — the list of games DXM knows how to install.
+/* catalogue.h — the list of games DXM knows how to install.
  *
  * Fetched at run time from the project repo and cached on disk, so adding a
  * game is an edit to catalogue.json rather than a new DXM release.  The

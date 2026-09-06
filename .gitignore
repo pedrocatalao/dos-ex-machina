@@ -4,3 +4,4 @@ build-*/
 *.bmp
 *.o
 *.a
+__pycache__/

@@ -4,6 +4,6 @@
 #ifndef DXM_ART_H
 #define DXM_ART_H
 #include <stdint.h>
-#include "catalog.h"
+#include "catalogue.h"
 const uint8_t *art_get(const cat_file *f, int *w, int *h);
 #endif

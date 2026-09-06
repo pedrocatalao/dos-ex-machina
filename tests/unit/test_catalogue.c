@@ -1,7 +1,7 @@
 /* catalogue: the parser, on the real catalogue.json and on what a server
  * might send instead - malformed, truncated, empty, oversized. */
 #include "check.h"
-#include "catalog.h"
+#include "catalogue.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -97,5 +97,5 @@ int main(void) {
         CHECK(cat_find("g31") != NULL);
         CHECK(cat_find("g32") == NULL);
     }
-    return check_done("catalog");
+    return check_done("catalogue");
 }

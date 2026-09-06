@@ -1,7 +1,7 @@
 /* install.h — see install.c.  One install at a time; NC polls the status. */
 #ifndef DXM_INSTALL_H
 #define DXM_INSTALL_H
-#include "catalog.h"
+#include "catalogue.h"
 
 typedef enum { INST_IDLE = 0, INST_RUNNING, INST_DONE, INST_FAILED } inst_state;
 

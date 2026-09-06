@@ -218,6 +218,9 @@ MIT — see [LICENSE](LICENSE). Three things worth stating alongside it:
 
 ## Design notes
 
+[ARCHITECTURE.md](ARCHITECTURE.md) is the map of the code: what is where,
+what each part owns, and how a frame is made.
+
 [SPEC.md](SPEC.md) covers the machine: how the layout is solved from the host
 resolution, the tube pipeline pass by pass, and why every decision that could
 differ between platforms is pinned down instead.

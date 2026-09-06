@@ -36,7 +36,7 @@ unit_test(font    SOURCES ${SRC}/font.c)
 unit_test(unzip   SOURCES ${SRC}/unzip.c ${SRC}/sha256.c LIBS ZLIB::ZLIB)
 unit_test(png     SOURCES ${SRC}/png.c ${SRC}/sha256.c   LIBS ZLIB::ZLIB)
 unit_test(disk    SOURCES ${SRC}/disk.c                  LIBS SDL3::SDL3)
-unit_test(catalog SOURCES ${SRC}/catalog.c ${SRC}/net.c ${SRC}/library.c
+unit_test(catalogue SOURCES ${SRC}/catalogue.c ${SRC}/net.c ${SRC}/library.c
                           ${SRC}/coreload.c ${SRC}/unzip.c
                   LIBS SDL3::SDL3 CURL::libcurl ZLIB::ZLIB ${CMAKE_DL_LIBS})
 

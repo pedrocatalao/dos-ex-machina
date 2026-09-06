@@ -11,7 +11,7 @@
 #include "corehost.h"
 #include "coreload.h"
 #include "library.h"
-#include "catalog.h"
+#include "catalogue.h"
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"

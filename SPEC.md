@@ -220,48 +220,9 @@ Small, behavior-neutral, done in the game repo:
 
 ## 5. Repo layout (this repo)
 
-```
-dos-ex-machina/
-├── SPEC.md                  (this file)
-├── CMakeLists.txt           FetchContent: skyroads-sdl @ pinned tag (SKY_CORE)
-├── src/
-│   ├── main.c               entry, SDL init, fullscreen appliance loop
-│   ├── gpu.c/.h             thin GPU layer: context, targets, shader load,
-│   │                        fullscreen-pass dispatch (the ONLY file that
-│   │                        knows which graphics API we chose — §12.1)
-│   ├── layout.c/.h          constraint solve: resolution -> variant
-│   │                        (Compact/Standard/Stereo) -> slots -> metrics
-│   ├── chassis.c/.h         procedural case modules: bevels, vents, grilles,
-│   │                        LEDs, floppy, slider, lettering (§6.1-6.2).
-│   │                        One draw fn per module; slots come from layout.
-│   ├── chassis_params.h     every dimension/colour of the machine, one place
-│   ├── tube.c/.h            fb -> texture; owns persistence/burn-in targets
-│   ├── fx.c/.h              pass graph & ordering (§6.4), pass constants
-│   ├── dos.c/.h             boot theater, prompt, command interpreter
-│   ├── font.c/.h            CP437 8x16 VGA font (public-domain bitmap font)
-│   ├── catalog.c/.h         game registry, install state, data verification
-│   ├── fetch.c/.h           https downloads (see §8) + sha256 verify
-│   ├── corehost.c/.h        thread mgmt, dxm_host implementation, mixing
-│   ├── platform_dxm.c       THE shared adapter: standard platform.h ->
-│   │                        dxm_host. Written once, reused by every port
-│   │                        (PORTING.md §1) — not per-game code.
-│   ├── knobs.c/.h           knob modules, hit-testing, detents, persistence
-│   └── dxm_core.h           the core contract (§4.2)
-├── shaders/                 one HLSL source per pass + the precompiled IR
-│                            (SPIR-V / DXIL / MSL) produced ONCE by
-│                            SDL_shadercross, baked into the binary as C byte
-│                            arrays. Never compiled per-platform, never loaded
-│                            from disk at runtime (§6.7).
-├── tests/golden/            reference frames + tolerances for §6.7 CI
-├── assets/                  sounds only (POST beep, key clicks, hum).
-│                            NO scene art — the machine is drawn (§6.1).
-├── make_mac.sh  make_linux.sh
-└── .github/workflows/       macos.yml linux.yml windows.yml (copy patterns
-                             from skyroads-sdl)
-```
-
-Local reference during development: skyroads-sdl checkout at
-`/Users/pedro/Git/skyroads-mac` (repo: `pedrocatalao/skyroads-sdl`).
+The layout as built is in [ARCHITECTURE.md](ARCHITECTURE.md), which is
+kept true; the sketch that used to sit here predated the code and had
+drifted from it.
 
 ## 6. The scene & tube
 

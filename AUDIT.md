@@ -313,7 +313,7 @@ ordered so that the safety net exists before anything is moved.
 | 8 | **Done.** `.clang-format` (spaced style, four spaces, 100 columns, K&R, one statement per line, comments never reflowed); `src/gen/.clang-format` disables it for generated data; `tools/format.sh` with `--check`; the Linux job installs the pinned clang-format 18.1.8 and checks. One formatting commit over every hand-written C file. Comments are reflowed by the tool, which re-aligned 136 continuation lines and exposed three comments the earlier tooling had joined, now mended by hand; `params.h` was rewritten with each comment above its constant and three unused constants dropped | S | golden (no semantic change) |
 | 9 | **Done.** `tests/unit/`: a twenty-line `check.h` and six tests, each built from the module's own sources with exactly the libraries it needs. sha256 against the FIPS vectors and the file helpers; unzip on stored, deflated and empty entries, a path-escaping archive and non-archives; png on fixtures covering every filter type in RGB and RGBA plus the real badge, compared by digest against a reference decoder, and the refusals; the catalogue parser on `catalogue.json`, truncations, malformed documents and an oversized list (`cat_parse` made public for it); the virtual disk; the font. All three CI jobs run `ctest -L unit` | M | ctest |
 | 10 | **Done.** `DXM_SANITIZE` option (ASan + UBSan, undefined behaviour non-recoverable) on the binary and the tests. Its own workflow, `sanitize.yml`, so it is not mistaken for a build: Debug build, unit tests, the library seeded with SkyRoads from the catalogue's own URLs with hashes checked, `--selftest` and the golden frames under Xvfb with llvmpipe; Linux references are captured and uploaded as an artifact until someone commits them. Verified locally on clang: unit tests, self-test and all three golden frames pass under the sanitizers, pixel-exact even at Debug | M | itself |
-| 11 | `ARCHITECTURE.md`; SPEC §5 replaced by a pointer; README build section; `catalog` → `catalogue` | S | docs |
+| 11 | **Done.** `ARCHITECTURE.md` (the tree with responsibilities, a frame in order, the contract, verification); SPEC §5 replaced by a pointer to it; README points at it; `catalog.c/.h` and the test renamed `catalogue`, the `cat_` prefix kept. The Linux golden references from the first Sanitizers run were reviewed and committed | S | docs |
 
 S is under an hour of focused work, M a few hours, L a day with review.
 Steps 4 to 6 are the ones worth a second reviewer; the others are
@@ -339,3 +339,28 @@ mechanical.
   would cost a great deal and buy nothing.
 - The tube pipeline and the chassis maths. This is a restructure, not a
   redesign; the golden frames exist to guarantee it.
+
+## 8. Where it ended up
+
+All eleven steps are done, each as one commit that built warning-free on
+clang and GCC and left the golden frames pixel-identical, except the two
+that changed them on purpose (the version banner never did; the floppy LED
+in step 6 did, and was re-blessed with its reason recorded).
+
+| | Before | After |
+|---|---:|---:|
+| Largest hand-written file | 2125 lines | 892 (`dos/nc.c`) |
+| Largest function | 658 lines | ~230 (`nc_draw`) |
+| File-scope loose statics across modules | 61 | one state struct per module, plus a handful of single flags (`log`, `net`, the clock) |
+| Formatting styles | 2 | 1, enforced |
+| Automated tests | 0 | 6 unit, 3 golden frames × 2 renderers, the self-test |
+| CI that runs the binary | none | the Sanitizers workflow |
+| Generated data reproducible from the repo | unknown | 2 of 8, stated; 6 frozen, stated |
+
+What a reviewer will still find, and should: `nc.c` is the one file above
+the target, because the navigator's draw and key handlers are long
+switch-shaped functions that read best whole; six generated images cannot
+be regenerated from what is in the repository; the arm64 builds are still
+unverified on hardware; and the catalogue has one game in it. None of
+those are structural.
+

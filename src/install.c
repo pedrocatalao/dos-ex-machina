@@ -10,7 +10,7 @@
  * once both are in place is the directory a game - up to that point it is a
  * half-finished install that the library will report as such. */
 #include "install.h"
-#include "catalog.h"
+#include "catalogue.h"
 #include "library.h"
 #include "net.h"
 #include "sha256.h"
