@@ -13,14 +13,14 @@
 <meta property="og:title" content="DOS ex Machina — a 1993 PC on your screen">
 <meta property="og:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation. macOS, Windows, Linux.">
 <meta property="og:url" content="https://dosexmachina.com/">
-<meta property="og:image" content="https://dosexmachina.com/screenshot-game.jpg">
+<meta property="og:image" content="https://dosexmachina.com/screenshot-tyrian.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="675">
-<meta property="og:image:alt" content="SkyRoads running inside the simulated CRT of DOS ex Machina">
+<meta property="og:image:alt" content="Tyrian running inside the simulated CRT of DOS ex Machina">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="DOS ex Machina — a 1993 PC on your screen">
 <meta name="twitter:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation.">
-<meta name="twitter:image" content="https://dosexmachina.com/screenshot-game.jpg">
+<meta name="twitter:image" content="https://dosexmachina.com/screenshot-tyrian.jpg">
 <link rel="icon" href="https://dosexmachina.com/logo-page.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,16 +35,17 @@
   "description": "A procedurally-drawn 1993 beige-box PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. The games are native C ports, not emulated.",
   "applicationCategory": "GameApplication",
   "operatingSystem": "macOS 11+, Windows 10+, Linux (glibc 2.35+)",
-  "softwareVersion": "0.4 Beta",
+  "softwareVersion": "1.0",
   "softwareRequirements": "OpenGL 3.3 core",
   "license": "https://opensource.org/licenses/MIT",
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "downloadUrl": "https://github.com/pedrocatalao/dos-ex-machina/releases/tag/0.4-beta",
+  "downloadUrl": "https://github.com/pedrocatalao/dos-ex-machina/releases/tag/1.0",
   "codeRepository": "https://github.com/pedrocatalao/dos-ex-machina",
   "screenshot": [
     "https://dosexmachina.com/screenshot-prompt.jpg",
-    "https://dosexmachina.com/screenshot-game.jpg",
+    "https://dosexmachina.com/screenshot-tyrian.jpg",
+    "https://dosexmachina.com/screenshot-skyroads.jpg",
     "https://dosexmachina.com/screenshot-nc.jpg"
   ],
   "author": { "@type": "Person", "name": "Pedro Catalão", "url": "https://github.com/pedrocatalao" }
@@ -60,7 +61,7 @@
     { "@type": "Question", "name": "Is DOS ex Machina an emulator?",
       "acceptedAnswer": { "@type": "Answer", "text": "No. The games are native C ports of the original programs, compiled for your computer and loaded as modules. Nothing is emulated; the DOS prompt is a fiction and the CRT is a rendering pipeline." } },
     { "@type": "Question", "name": "Which games can it run?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Games arrive as .dxm modules through a catalogue fetched at run time. As of 0.4 Beta the catalogue holds SkyRoads (BlueMoon Software, 1993). Any DOS game with a native port that follows the porting contract can be added." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Games arrive as .dxm modules through a catalogue fetched at run time. The catalogue holds SkyRoads (BlueMoon Software, 1993) and Tyrian (Eclipse Productions / Epic MegaGames, 1995). Any DOS game with a native port that follows the porting contract can be added, without a new release of DXM." } },
     { "@type": "Question", "name": "What does it need to run?",
       "acceptedAnswer": { "@type": "Answer", "text": "A graphics driver with OpenGL 3.3, which any computer of the last decade has. The downloads are self-contained: unpack and run, nothing to install." } },
     { "@type": "Question", "name": "Is it free?",
@@ -233,9 +234,9 @@
   <div class="wrap">
     <img src="https://dosexmachina.com/logo-page.png" alt="DOS ex Machina">
     <h1 class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></h1>
-    <div class="early">BETA — macOS, Windows and Linux; one game in the catalogue</div>
+    <div class="early">VERSION 1.0 — macOS, Windows and Linux; two games in the catalogue</div>
     <div class="cta">
-      <a class="btn" href="#download">Download 0.4 Beta</a>
+      <a class="btn" href="#download">Download 1.0</a>
       <a class="btn ghost" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
       <a class="btn ghost" href="#build">Build it</a>
     </div>
@@ -248,7 +249,7 @@
   <div class="wrap">
     <h2>Read me first</h2>
     <p class="lede">What the machine says about itself, on its own disk. This is <code>C:\README.1ST</code>, as <code>TYPE</code> prints it.</p>
-<pre class="screen" aria-label="The machine's screen: the BIOS, the prompt, and README.1ST"><span class="dim">DXM BIOS v0.4.0  (C) 2026 DOS ex Machina
+<pre class="screen" aria-label="The machine's screen: the BIOS, the prompt, and README.1ST"><span class="dim">DXM BIOS v1.0.0  (C) 2026 DOS ex Machina
 
 Main Processor  : 80486DX2  66 MHz
 Memory Test     : 655360 KB   OK
@@ -296,7 +297,7 @@ Switch it on.  Stay a while.
     right. DXM is the optional machine you can put it inside.</p>
     <div class="shots">
       <figure><img src="https://dosexmachina.com/screenshot-prompt.jpg" width="1200" height="675" alt="DOS ex Machina after boot: a procedurally drawn beige PC case with a CRT showing the DXM BIOS lines and a C:\ prompt"></figure>
-      <figure><img src="https://dosexmachina.com/screenshot-game.jpg" width="1200" height="675" alt="SkyRoads' title screen running inside the simulated CRT of DOS ex Machina"></figure>
+      <figure><img src="https://dosexmachina.com/screenshot-tyrian.jpg" width="1200" height="675" alt="Tyrian in play inside the simulated CRT of DOS ex Machina, the ship over a canyon with the status panel down the right"></figure>
     </div>
   </div>
 </section>
@@ -335,7 +336,7 @@ Switch it on.  Stay a while.
     <h2>Getting a game</h2>
     <p class="lede">Type NC. Press Enter. That is the whole of it.</p>
     <figure>
-      <img src="https://dosexmachina.com/screenshot-nc.jpg" width="1200" height="675" alt="The NC navigator inside the CRT: a table listing SkyRoads with its version and last-played date, and the game's artwork and description in the right pane" loading="lazy">
+      <img src="https://dosexmachina.com/screenshot-nc.jpg" width="1200" height="675" alt="The NC navigator inside the CRT: a table listing Tyrian and SkyRoads with their versions and last-played dates, and the highlighted game's artwork and description in the right pane" loading="lazy">
       <figcaption>The navigator — what is on the disk, what could be, and when you last played it</figcaption>
     </figure>
     <div class="keys">
@@ -351,17 +352,25 @@ Switch it on.  Stay a while.
     <p>An install fetches the game's module and its data, checks both against
     a SHA-256, and keeps them in your preferences directory. After that it
     runs with no network, forever. Game data is never mirrored: for freeware
-    titles the catalogue points at the publisher's own download. Each game
-    also ships as a standalone program in its own right —
-    <a href="https://github.com/pedrocatalao/skyroads-sdl">SkyRoads</a> runs
-    perfectly well on its own.</p>
+    titles the catalogue points at the publisher's own download.</p>
+    <p>Two games are in it today —
+    <a href="https://github.com/pedrocatalao/skyroads-sdl">SkyRoads</a>
+    (BlueMoon Software, 1993) and
+    <a href="https://github.com/pedrocatalao/tyrian-sdl">Tyrian</a>
+    (Eclipse Productions / Epic MegaGames, 1995) — and each also ships as a
+    standalone program in its own right, which runs perfectly well without
+    the machine around it.</p>
+    <figure>
+      <img src="https://dosexmachina.com/screenshot-skyroads.jpg" width="1200" height="675" alt="SkyRoads' title screen running inside the simulated CRT of DOS ex Machina" loading="lazy">
+      <figcaption>SkyRoads, 1993 — the same tube, the same glass</figcaption>
+    </figure>
   </div>
 </section>
 
 <section id="download">
   <div class="wrap">
     <h2>Download</h2>
-    <p class="lede">0.4 Beta — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
+    <p class="lede">1.0 — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
     <div class="disks">
 
       <div>
@@ -375,7 +384,7 @@ Switch it on.  Stay a while.
               <div class="title">DOS ex Machina · disk 1</div>
               <h3>macOS</h3>
               <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/0.4-beta/dxm-macos-universal.zip">DOS ex Machina.app</a><span class="arch">universal</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/1.0/dxm-macos-universal.zip">DOS ex Machina.app</a><span class="arch">universal</span></li>
               </ul>
             </div>
           </div>
@@ -396,8 +405,8 @@ Switch it on.  Stay a while.
               <div class="title">DOS ex Machina · disk 2</div>
               <h3>Linux</h3>
               <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/0.4-beta/dxm-linux-x86_64.tar.gz">Tarball</a><span class="arch">x86_64</span></li>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/0.4-beta/dxm-linux-arm64.tar.gz">Tarball</a><span class="arch">arm64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/1.0/dxm-linux-x86_64.tar.gz">Tarball</a><span class="arch">x86_64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/1.0/dxm-linux-arm64.tar.gz">Tarball</a><span class="arch">arm64</span></li>
               </ul>
             </div>
           </div>
@@ -419,8 +428,8 @@ Switch it on.  Stay a while.
               <div class="title">DOS ex Machina · disk 3</div>
               <h3>Windows</h3>
               <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/0.4-beta/dxm-windows-x86_64.zip">Zip</a><span class="arch">x86_64</span></li>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/0.4-beta/dxm-windows-arm64.zip">Zip</a><span class="arch">arm64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/1.0/dxm-windows-x86_64.zip">Zip</a><span class="arch">x86_64</span></li>
+                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/download/1.0/dxm-windows-arm64.zip">Zip</a><span class="arch">arm64</span></li>
               </ul>
             </div>
           </div>
@@ -432,8 +441,7 @@ Switch it on.  Stay a while.
     </div>
     <p style="margin-top:28px">Every build needs a graphics driver with
     <strong>OpenGL 3.3</strong>, which any computer of the last decade has.
-    All three platforms are verified on real hardware on x86_64; the arm64
-    builds compile and package but have not yet been watched drawing a frame.
+    Every build is verified on real hardware, on both x86_64 and arm64.
     Every run writes a <code>dxm.log</code> in the preferences directory that
     says how far it got and which GL driver it found. Release notes and older
     builds are on
@@ -483,10 +491,10 @@ cmake --build build -j8
     <dl class="glance">
       <dt>Name</dt><dd>DOS ex Machina (DXM)</dd>
       <dt>What</dt><dd>A procedurally drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games</dd>
-      <dt>Version</dt><dd>0.4 Beta</dd>
+      <dt>Version</dt><dd>1.0</dd>
       <dt>Platforms</dt><dd>macOS 11+ (universal), Windows 10+ (x86_64, arm64), Linux with glibc 2.35+ (x86_64, arm64)</dd>
       <dt>Requires</dt><dd>OpenGL 3.3 core</dd>
-      <dt>Games</dt><dd>SkyRoads (BlueMoon Software, 1993); more through the catalogue</dd>
+      <dt>Games</dt><dd>SkyRoads (BlueMoon Software, 1993), Tyrian (Eclipse Productions / Epic MegaGames, 1995); more through the catalogue</dd>
       <dt>Emulation</dt><dd>None — native C ports, loaded as modules</dd>
       <dt>License</dt><dd>MIT; no game code or data in the repository</dd>
       <dt>Source</dt><dd><a href="https://github.com/pedrocatalao/dos-ex-machina">github.com/pedrocatalao/dos-ex-machina</a></dd>
@@ -506,15 +514,16 @@ cmake --build build -j8
     <details>
       <summary>Which games can it run?</summary>
       <p>Games arrive as <code>.dxm</code> modules through a catalogue the
-      machine fetches at run time. As of 0.4 Beta the catalogue holds SkyRoads.
-      Any DOS game with a native port that follows PORTING.md can be added by
-      editing the catalogue, without a new release of DXM.</p>
+      machine fetches at run time. It holds SkyRoads and Tyrian today. Any DOS
+      game with a native port that follows PORTING.md can be added by editing
+      the catalogue, without a new release of DXM.</p>
     </details>
     <details>
       <summary>Why does my computer warn me the first time I run it?</summary>
-      <p>The downloads are not code-signed yet: macOS asks for right-click →
-      Open on the first launch, and Windows SmartScreen wants More info → Run
-      anyway. Nothing is installed; unpack the download and run it.</p>
+      <p>The downloads are not code-signed, which costs a yearly fee to each
+      platform's certificate authority: macOS asks for right-click → Open on
+      the first launch, and Windows SmartScreen wants More info → Run anyway.
+      Once, each. Nothing is installed; unpack the download and run it.</p>
     </details>
     <details>
       <summary>Where do the games and settings live?</summary>

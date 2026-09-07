@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dos_ex_machina VERSION 0.4.0 LANGUAGES C)
+project(dos_ex_machina VERSION 1.0.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 # Optimisation belongs to the build type, and a plain `cmake -S . -B build`
 # should not hand out an unoptimised chassis render by accident.

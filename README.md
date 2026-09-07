@@ -6,9 +6,10 @@ A 1993 beige-box PC on your screen — case, CRT and all — booting a simulated
 DOS prompt, from which you install and run **natively ported** DOS games. The
 games run in the same tube, behind the same glass, with the same phosphor.
 
-> **Beta.** It works end to end on macOS, Windows and Linux. The catalogue has
-> one game in it, and the downloads are unsigned, so each platform's
-> first-run warning applies. See Status.
+> **1.0.** macOS, Windows and Linux, on x86_64 and arm64, all verified on
+> real hardware. Two games in the catalogue. The downloads are not
+> code-signed, so each platform shows its first-run warning once; see
+> Installing for the way through it.
 
 Nothing here is a photograph. The machine is drawn procedurally at your
 display's resolution, from signed-distance geometry and a lighting model: the
@@ -20,15 +21,21 @@ the plastic around it.
 
 <p align="center">
   <img src="docs/screenshot-prompt.jpg" alt="The DOS prompt" width="49%">
-  <img src="docs/screenshot-game.jpg" alt="SkyRoads running in the tube" width="49%">
+  <img src="docs/screenshot-tyrian.jpg" alt="Tyrian running in the tube" width="49%">
 </p>
 
 The games are not emulated. Each is a native C port that also ships as a
-standalone game in its own right — [SkyRoads][sr] runs perfectly well on its
-own — and DXM is the optional machine you can put it inside.
-[PORTING.md](PORTING.md) is the contract a port satisfies to run here.
+standalone game in its own right — [SkyRoads][sr] and [Tyrian][ty] both run
+perfectly well on their own — and DXM is the optional machine you can put
+them inside. [PORTING.md](PORTING.md) is the contract a port satisfies to
+run here.
 
 [sr]: https://github.com/pedrocatalao/skyroads-sdl
+[ty]: https://github.com/pedrocatalao/tyrian-sdl
+
+<p align="center">
+  <img src="docs/screenshot-skyroads.jpg" alt="SkyRoads running in the tube" width="80%">
+</p>
 
 ## Getting a game
 
@@ -38,7 +45,7 @@ release and when you last played it. Enter plays the highlighted game, or
 downloads it if it's not on the disk yet.
 
 <p align="center">
-  <img src="docs/screenshot-nc.jpg" alt="The navigator on SkyRoads" width="80%">
+  <img src="docs/screenshot-nc.jpg" alt="The navigator listing Tyrian and SkyRoads" width="80%">
 </p>
 
 The navigator's keys are on its bottom row, as they were on the real thing:
@@ -166,11 +173,9 @@ shipped CRT defaults, so a given frame is the same picture on every run),
 
 ## Status
 
-**macOS**, **Windows** and **Linux** all do the whole thing on real hardware:
-boot → `C:\>` → `NC` → download a game → it runs in the tube → Esc → back →
-it relaunches. Windows and Linux are verified on x86_64; the arm64 builds
-compile and package on CI but have not yet been watched drawing a frame, and
-neither has the Intel half of the macOS universal binary. `--selftest` runs
+**macOS**, **Windows** and **Linux**, on **x86_64 and arm64**, all do the
+whole thing on real hardware: boot → `C:\>` → `NC` → download a game → it
+runs in the tube → Esc → back → it relaunches. `--selftest` runs
 the launch/unwind/relaunch sequence twice, and is what proves PORTING §3.1
 and §3.2 hold: the core unwinds on request, and the machine reloads it and
 runs it again.
@@ -195,13 +200,13 @@ screen, naming the driver and the functions that were missing.
 
 ## Known gaps
 
-- **The catalogue has one game in it.**
-- **Unsigned.** macOS and Windows each show a first-run warning; see
-  Installing for the way through it.
-- **arm64 Linux and Windows are unverified on hardware.** They build and
-  package; nobody has run them yet.
+- **The catalogue has two games in it.** Adding a third is an edit to
+  `catalogue.json`, not a release.
+- **Unsigned.** Code-signing certificates carry a yearly fee to each
+  platform's authority, so macOS and Windows each show a first-run warning;
+  see Installing for the way through it.
 - Games have no mouse: the host contract is keyboard only, which is what the
-  one game in the catalogue needs.
+  games in the catalogue need.
 
 ## License
 
