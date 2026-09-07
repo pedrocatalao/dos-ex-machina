@@ -7,7 +7,7 @@
 <meta name="description" content="DOS ex Machina draws a 1993 beige-box PC procedurally — case, CRT and all — boots a DOS prompt, and runs natively ported DOS games behind the glass. No emulation. Free, open source, for macOS, Windows and Linux.">
 <link rel="canonical" href="https://dosexmachina.com/">
 <meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="theme-color" content="#05070d">
+<meta name="theme-color" content="#0a0e15">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DOS ex Machina">
 <meta property="og:title" content="DOS ex Machina — a 1993 PC on your screen">
@@ -21,10 +21,15 @@
 <meta name="twitter:title" content="DOS ex Machina — a 1993 PC on your screen">
 <meta name="twitter:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation.">
 <meta name="twitter:image" content="https://dosexmachina.com/screenshot-tyrian.jpg">
-<link rel="icon" href="https://dosexmachina.com/logo-page.png">
+<!-- The machine's own icon, from assets/icon-src.png.  Relative, unlike
+     the images in the page: an icon has to resolve wherever the site is
+     served from - a local preview, a fork's pages, or the real domain. -->
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=VT323&display=swap" rel="stylesheet">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -70,112 +75,206 @@
 }
 </script>
 <style>
+  /* ---------------------------------------------------------------------
+     A dark room with a machine in it.
+
+     The page is the room: a deep grey-blue that lifts where the tube is
+     and falls away at the edges.  Everything the machine itself says sits
+     behind glass.  Its parts keep their real colours, taken from the code
+     that draws them - the beige of the case on the keys, the badge plate
+     and its four stripes on every heading, the cream of a diskette label.
+
+     Scanlines belong to glass the machine is quoting itself through, and
+     to nothing else: not to the page, and not to the hero, which glows
+     rather than being photographed.
+     --------------------------------------------------------------------- */
   :root{
-    --bg:#05070d;          /* the black inside the tube            */
-    --panel:#0b1020;
-    --blue:#1e9bf0;        /* the logo blue                        */
-    --deep:#2c3ea8;
-    --beige:#bfaf8a;       /* the case                             */
+    --bg:#0a0e15;          /* the room, at its darkest                    */
+    --bg-lift:#141d2e;     /* where the tube lights it                    */
+    --panel:#161e2c;       /* a surface standing off the wall             */
+    --panel-hi:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.09);
     --text:#c9d4e6;
-    --dim:#7c88a0;
-    --line:#1a2740;
-    --phosphor:#dce2d8;    /* lit text on the tube                 */
-    --stripe:linear-gradient(90deg,#d13b3b 0 16.6%,#e88a2a 16.6% 33.3%,#e5c435 33.3% 50%,#3ea24f 50% 66.6%,#2f93cc 66.6% 83.3%,#2b4fb5 83.3% 100%);
+    --dim:#8b98ae;
+    --blue:#3ba0e6;        /* the logo blue - links and emphasis          */
+    --case:#bfaf8a;        /* PLASTIC_R/G/B - the moulded case, on keys   */
+    --label:#22262f;       /* the badge plate                             */
+    --label-ink:#ece8dc;   /* "PC-486"                                    */
+    --label-dim:#a8b0c6;   /* "MULTIMEDIA"                                */
+    --screen:#07090d;      /* inside the tube                             */
+    --phosphor:#d9d4c6;
+    --s1:#2e4ca8; --s2:#2e8c50; --s3:#c89a28; --s4:#b83c34;   /* the badge's stripes */
+    /* Two voices: the machine speaks in a DOS terminal face, the page
+       speaks in a reading face.  Everything the machine would have put on
+       a screen, a label or a key is set in --dos. */
+    --dos:'VT323', ui-monospace, 'Courier New', monospace;
+    --stripes:linear-gradient(90deg,
+        var(--s1) 0 25%, var(--s2) 25% 50%, var(--s3) 50% 75%, var(--s4) 75% 100%);
   }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  @media(prefers-reduced-motion:reduce){ html{scroll-behavior:auto} .cursor{animation:none} }
+  *{margin:0; padding:0; box-sizing:border-box}
+  html{scroll-behavior:smooth; background:var(--bg)}
+  @media(prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
+
   body{
-    background:var(--bg); color:var(--text);
-    font-family:'VT323',ui-monospace,monospace; font-size:21px; line-height:1.5;
-    overflow-x:hidden;
-  }
-  /* the scanlines the whole project is about, very lightly */
-  body::after{
-    content:""; position:fixed; inset:0; z-index:9; pointer-events:none;
-    background:repeating-linear-gradient(to bottom,
-      transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
-  }
-  a{color:var(--blue); text-decoration:none}
-  a:hover{text-decoration:underline}
-  a:focus-visible{outline:2px solid var(--blue); outline-offset:3px}
-  .wrap{max-width:960px; margin:0 auto; padding:0 24px}
-
-  header{
-    text-align:center; padding:64px 0 40px;
+    color:var(--text);
     background:
-      radial-gradient(60% 90% at 50% 0%, rgba(30,155,240,.16), transparent 70%),
-      var(--bg);
-    border-bottom:1px solid var(--line);
+      /* the light the tube throws into the room */
+      radial-gradient(1100px 620px at 50% -80px, rgba(59,160,230,.13), transparent 70%),
+      radial-gradient(900px 700px at 15% 42%, rgba(46,76,168,.10), transparent 68%),
+      linear-gradient(180deg, #0c111a 0%, var(--bg-lift) 46%, var(--bg) 100%);
+    background-attachment:fixed;
+    font-family:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size:17px; line-height:1.65; overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
   }
-  header img{width:min(720px,88vw); height:auto; display:block; margin:0 auto}
-  .tag{margin-top:18px; font-size:26px; font-weight:normal; letter-spacing:0; color:var(--text)}
-  .tag b{color:var(--blue); font-weight:normal}
-  .early{
-    display:inline-block; margin-top:22px; padding:5px 14px;
-    border:1px solid #6b4b12; background:#1d1405; color:#e8a33a;
-    font-size:19px; letter-spacing:.5px;
+  .wrap{max-width:1180px; margin:0 auto; padding:0 32px}
+  @media(max-width:700px){ .wrap{padding:0 20px} }
+  a{color:var(--blue); text-decoration:none; border-bottom:1px solid rgba(59,160,230,.32)}
+  a:hover{border-bottom-color:var(--blue)}
+  a:focus-visible{outline:2px solid var(--blue); outline-offset:3px; border-bottom-color:transparent}
+  b,strong{font-weight:600; color:#e4ecf8}
+  code{font-family:var(--dos); font-size:1.18em; line-height:1; color:#a8d8ff;
+       background:rgba(59,160,230,.10); padding:0 5px; border-radius:2px}
+
+  /* A surface standing off the wall, lit from above. */
+  .plate{
+    background:linear-gradient(180deg, var(--panel), #121927);
+    border-radius:4px;
+    box-shadow:inset 0 1px 0 var(--panel-hi), 0 0 0 1px var(--line), 0 6px 18px rgba(0,0,0,.30);
   }
-  .cta{margin-top:30px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap}
+
+  /* ---- glass --------------------------------------------------------- */
+  .glass{
+    background:var(--screen); border-radius:5px; position:relative; overflow:hidden;
+    box-shadow:
+      inset 0 0 0 1px #000, inset 0 0 40px rgba(0,0,0,.85),
+      0 0 0 1px rgba(255,255,255,.07), 0 10px 34px rgba(0,0,0,.45);
+  }
+  .glass::after{                       /* scanlines: only on quoted glass */
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(180deg, transparent 0 2px, rgba(0,0,0,.20) 2px 3px);
+  }
+
+  /* ---- the head ------------------------------------------------------ */
+  header{padding:76px 0 12px}
+  /* No panel here.  The hero stands on the page, in the light the room
+     already has: a box around it read as a screenshot of a screenshot. */
+  .tube{text-align:center}
+  .tube img{width:min(660px,86%); height:auto; display:block; margin:0 auto}
+  /* A paragraph, so the page's reading width applies to it; without
+     these it centres inside that box rather than on the page. */
+  .tagline{
+    margin:28px auto 0; max-width:none; text-align:center; color:var(--phosphor);
+    font-family:var(--dos); font-size:clamp(20px,2.7vw,29px); letter-spacing:.01em;
+  }
+  .tagline b{color:#9fd0ff; font-weight:400}
+  .chip{
+    display:inline-block; margin-top:26px; padding:5px 15px;
+    font-family:var(--dos); font-size:18px; letter-spacing:.1em;
+    color:var(--label-dim); border:1px solid #2f3646; border-radius:2px; background:#11141c;
+  }
+  .cta{margin-top:34px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap}
+  /* The count comes from GitHub at run time; until it answers, the link
+     still says what it is, and if it never answers nothing is missing. */
+  .stars{margin:22px auto 0; max-width:none; text-align:center;
+         font-family:var(--dos); font-size:19px}
+  .stars a{color:var(--dim); border-bottom:0; letter-spacing:.04em}
+  .stars a:hover{color:var(--text)}
+  .stars .star{color:var(--s3); font-size:21px; vertical-align:-1px}
+
+  /* The keys are the machine's own plastic: the case, moulded. */
   .btn{
-    display:inline-block; padding:9px 22px; font-size:22px;
-    border:1px solid var(--blue); color:var(--blue); background:rgba(30,155,240,.07);
+    display:inline-block; padding:10px 24px; border-radius:3px; border-bottom:0;
+    font-family:var(--dos); font-size:20px; letter-spacing:.12em; text-transform:uppercase;
+    background:linear-gradient(180deg,#e8e0cd,#c3b795); color:#20242c;
+    box-shadow:inset 0 1px 0 #fff8e8, inset 0 -2px 0 rgba(0,0,0,.22), 0 3px 6px rgba(0,0,0,.5);
   }
-  .btn:hover{background:var(--blue); color:#04070e; text-decoration:none}
-  .btn.ghost{border-color:var(--line); color:var(--dim); background:transparent}
-  .btn.ghost:hover{border-color:var(--dim); color:var(--text); background:transparent}
-
-  section{padding:56px 0; border-bottom:1px solid var(--line)}
-  h2{
-    font-size:30px; font-weight:normal; color:#fff; margin-bottom:6px;
-    letter-spacing:1px;
+  .btn:hover{background:linear-gradient(180deg,#fff8ea,#d2c6a4)}
+  .btn:active{transform:translateY(1px); box-shadow:inset 0 1px 4px rgba(0,0,0,.4)}
+  .btn.ghost{
+    background:linear-gradient(180deg,#212a3a,#151b27); color:#b9c6da;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.09), 0 0 0 1px var(--line), 0 3px 6px rgba(0,0,0,.45);
   }
-  h2::before{content:"▎"; color:var(--blue); margin-right:8px}
-  h3{font-weight:normal}
-  .lede{color:var(--dim); margin-bottom:26px; max-width:70ch}
-  p{margin-bottom:14px}
-  section p{max-width:72ch}
-  figure{margin:26px 0}
-  figure img{width:100%; height:auto; display:block; border:1px solid var(--line)}
-  figcaption{color:var(--dim); font-size:18px; margin-top:8px; text-align:center}
-  .shots{display:grid; grid-template-columns:1fr 1fr; gap:18px}
-  @media(max-width:720px){ .shots{grid-template-columns:1fr} }
+  .btn.ghost:hover{color:#fff; background:linear-gradient(180deg,#28344a,#1a2130)}
 
-  /* The machine's own screen: what it prints, as it prints it.  A panel,
-     not a drawn monitor - the page already carries the scanlines. */
-  .screen{
-    background:#04070e; border:1px solid var(--line); padding:22px 26px;
-    color:var(--phosphor); font-size:21px; line-height:1.2; white-space:pre;
-    overflow-x:auto; margin:0; text-shadow:0 0 6px rgba(220,226,216,.28);
+  /* ---- sections ------------------------------------------------------ */
+  main{padding:0 0 10px}
+  section{padding:62px 0 56px}
+  section + section{border-top:1px solid rgba(255,255,255,.055)}
+
+  /* A section heading is the PC-486 badge: a dark plate, light ink, and
+     the four stripes under it. */
+  .badge{display:inline-block; margin-bottom:24px}
+  .badge .plate-in{
+    background:linear-gradient(180deg,#2a3040,var(--label)); border-radius:3px;
+    padding:8px 20px 7px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 3px 10px rgba(0,0,0,.45);
   }
-  .screen .dim{color:var(--dim)}
-  .screen .cmd{color:#fff}
-  .cursor{display:inline-block; width:.6em; height:1em; background:var(--phosphor); vertical-align:-.15em;
-          animation:blink 1.06s steps(1) infinite}
-  @keyframes blink{50%{opacity:0}}
-  @media(max-width:600px){ .screen{font-size:16px; padding:16px} }
+  .badge h2{
+    font-family:var(--dos); font-size:24px; font-weight:400;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--label-ink); line-height:1.05;
+  }
+  .badge .bars{height:4px; margin-top:7px; border-radius:0 0 2px 2px; background:var(--stripes)}
+  .story p{font-size:22px; line-height:1.6; max-width:60ch; margin-bottom:20px; color:#dbe4f2}
+  .story b{color:#fff; font-weight:600}
+  .story .sign{
+    font-family:var(--dos); font-size:27px; letter-spacing:.02em;
+    color:var(--phosphor); margin-top:26px; margin-bottom:34px;
+    text-shadow:0 0 10px rgba(200,215,255,.20);
+  }
+  @media(max-width:640px){ .story p{font-size:19px} .story .sign{font-size:23px} }
+  .lede{font-size:21px; line-height:1.5; color:#dde6f4; max-width:70ch; margin-bottom:22px}
+  p{margin-bottom:15px; max-width:76ch}
+  .dim{color:var(--dim)}
 
-  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:22px}
-  @media(max-width:860px){ .grid{grid-template-columns:1fr} }
-  .card{border:1px solid var(--line); background:var(--panel); padding:18px 20px}
-  .card h3{font-size:23px; color:var(--blue); margin-bottom:8px}
-  .card p{font-size:20px; color:var(--dim); margin:0}
+  figure{margin:28px 0}
+  figure img{width:100%; height:auto; display:block; border-radius:2px}
+  .framed{
+    padding:10px; border-radius:6px;
+    background:linear-gradient(180deg,#1b2331,#121825);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px rgba(0,0,0,.5),
+               0 10px 28px rgba(0,0,0,.42);
+  }
+  figcaption{color:var(--dim); font-size:15px; margin-top:10px}
+  .framed figcaption{margin:10px 4px 2px}
 
-  .keys{display:grid; grid-template-columns:auto 1fr; gap:4px 18px; margin:6px 0 18px; max-width:72ch}
-  .keys b{color:#fff; font-weight:normal; white-space:nowrap}
-  .keys span{color:var(--dim)}
+  /* ---- what the machine prints -------------------------------------- */
+  pre.code{
+    padding:22px 26px; margin:20px 0; overflow-x:auto; position:relative; z-index:1;
+    font-family:var(--dos); font-size:21px; line-height:1.35; color:#9fd0ff;
+  }
 
-  /* ---- the disks -----------------------------------------------------------
+  /* ---- panels -------------------------------------------------------- */
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:26px}
+  .grid.two{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:880px){ .grid, .grid.two{grid-template-columns:1fr} }
+  .card{padding:22px 24px}
+  .card h3{
+    font-family:var(--dos); font-size:19px; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--blue); font-weight:400; margin-bottom:8px;
+  }
+  .card p{font-size:16px; margin:0; color:var(--dim); max-width:none}
+
+  /* ---- the key bar, as the navigator draws it ------------------------ */
+  .keybar{
+    margin:26px 0 22px; display:grid; grid-template-columns:auto 1fr;
+    font-family:var(--dos); font-size:20px; border-radius:3px; overflow:hidden;
+    box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 6px 18px rgba(0,0,0,.35);
+  }
+  .keybar b{background:#0a0a8c; color:#fff; font-weight:400; padding:5px 13px; white-space:nowrap}
+  .keybar span{background:#00a8a8; color:#001616; padding:5px 15px}
+
+  /* ---- the disks ------------------------------------------------------
      A download is a 3.5" diskette, label side up, at its real proportions -
      90 wide by 94 tall: the metal shutter along the top with its head window
      right of centre, the moulded arrow at the top-left, the chamfered corner
      at the top-right, the write-protect hole at the bottom-left, and the
      label over the lower two thirds with its colour band and ruled lines. */
-  .disks{display:grid; grid-template-columns:repeat(3,1fr); gap:28px; margin-top:22px}
-  @media(max-width:860px){ .disks{grid-template-columns:1fr; max-width:340px} }
+  .disks{display:grid; grid-template-columns:repeat(3,1fr); gap:32px; margin-top:28px}
+  @media(max-width:880px){ .disks{grid-template-columns:1fr; max-width:340px} }
   .disk{aspect-ratio:90/94; position:relative; background:#2a2e38; border-radius:5px;
         clip-path:polygon(0 0, 95% 0, 100% 5%, 100% 100%, 0 100%);
-        box-shadow:inset 0 1px 0 #454a57, inset 0 0 0 1px #12151c}
+        box-shadow:inset 0 1px 0 #454a57, inset 0 0 0 1px #12151c, 0 8px 22px rgba(0,0,0,.45)}
   .disk .arrow{position:absolute; left:6%; top:5%; width:0; height:0;
         border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:11px solid #454a57}
   .disk .shutter{position:absolute; left:23%; top:0; width:62%; height:31%;
@@ -185,60 +284,80 @@
         background:#2a2e38; border-radius:2px; box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
   .disk .shutter::after{content:""; position:absolute; left:4%; top:38%; width:40%; height:2px;
         background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 3px,transparent 3px 6px)}
-  .disk .wp{position:absolute; left:4%; bottom:3.5%; width:5.5%; height:5.5%; background:var(--bg); border-radius:1px;
-        box-shadow:inset 0 0 0 1px #000}
+  .disk .wp{position:absolute; left:4%; bottom:3.5%; width:5.5%; height:5.5%; background:#05070c;
+        border-radius:1px; box-shadow:inset 0 0 0 1px #000}
   /* the label reaches almost to the bottom edge, a hair of shell showing
      below it, and stays clear of the write-protect hole */
   .disk .label{position:absolute; left:13%; right:13%; top:40%; bottom:2px; background:#f6f3ea;
         color:#232220; border-radius:2px; overflow:hidden;
-        background-image:repeating-linear-gradient(180deg,transparent 0 27px,#d9d5c7 27px 28px);
-        background-position:0 34px; box-shadow:0 0 0 1px rgba(0,0,0,.25)}
-  .disk .band{height:9%; background:var(--stripe)}
-  .disk .body{padding:8px 12px 0}
-  .disk .title{font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:#6a675c; line-height:20px}
-  .disk h3{font-size:28px; line-height:28px; margin:0; color:#232220}
+        background-image:repeating-linear-gradient(180deg,transparent 0 25px,#ddd8c9 25px 26px);
+        background-position:0 32px; box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  .disk .band{height:9%; background:var(--stripes)}
+  .disk .body{padding:7px 12px 0}
+  .disk .title{font-family:var(--dos); font-size:13px; letter-spacing:.1em;
+        text-transform:uppercase; color:#6a675c; line-height:17px}
+  .disk h3{font-family:var(--dos); font-size:27px; line-height:26px; margin:0 0 2px;
+        color:#232220; font-weight:400}
   .disk ul{list-style:none; margin:0}
-  .disk li{font-size:19px; line-height:28px; white-space:nowrap}
-  .disk li a{color:#1f3f9a}
-  .disk li .arch{color:#7a776b; font-size:16px; margin-left:8px}
-  .disk-note{font-size:18px; color:var(--dim); margin-top:12px; line-height:1.4}
-  .disk-note b{color:var(--text); font-weight:normal}
+  .disk li{font-family:var(--dos); font-size:19px; line-height:26px; white-space:nowrap}
+  .disk li a{color:#1f3f9a; border-bottom-color:rgba(31,63,154,.35)}
+  .disk li .arch{color:#7a776b; font-size:16px; margin-left:7px}
+  .disk-note{font-size:15px; color:var(--dim); margin-top:15px; line-height:1.55; max-width:34ch}
+  .disk-note b{color:var(--text); font-weight:500}
 
-  pre{
-    background:#04070e; border:1px solid var(--line); padding:16px 18px;
-    overflow-x:auto; font-size:19px; color:#9fd4ff; margin:16px 0;
+  /* ---- the plate of specifications ----------------------------------- */
+  dl.glance{
+    display:grid; grid-template-columns:max-content 1fr; margin-top:26px;
+    border-radius:4px; overflow:hidden; font-size:16px;
+    box-shadow:0 0 0 1px var(--line), 0 6px 18px rgba(0,0,0,.30);
   }
-  code,pre{font-family:inherit}          /* the page's face, not the browser's monospace */
-  code{color:#9fd4ff}
-  ul{margin:0 0 14px 22px; max-width:72ch}
-  li{margin-bottom:6px}
+  dl.glance dt{
+    font-family:var(--dos); font-size:18px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--dim); padding:9px 20px; background:rgba(255,255,255,.035); white-space:nowrap;
+  }
+  dl.glance dd{padding:9px 20px; margin:0; background:rgba(255,255,255,.015)}
+  @media(max-width:640px){
+    dl.glance{grid-template-columns:1fr; box-shadow:none}
+    dl.glance dt{padding:8px 0 0; background:transparent}
+    dl.glance dd{padding:0 0 8px; background:transparent}
+  }
 
-  dl.glance{display:grid; grid-template-columns:max-content 1fr; gap:4px 22px; max-width:72ch}
-  dl.glance dt{color:var(--dim)}
-  dl.glance dd{margin:0}
-  .faq details{border-top:1px solid var(--line); padding:12px 0}
-  .faq details:last-child{border-bottom:1px solid var(--line)}
-  .faq summary{color:#fff; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:16px}
+  /* ---- questions ------------------------------------------------------ */
+  .faq details{border-bottom:1px solid var(--line)}
+  .faq details:first-of-type{border-top:1px solid var(--line)}
+  .faq summary{
+    cursor:pointer; list-style:none; display:flex; justify-content:space-between;
+    gap:18px; padding:16px 2px; font-weight:600; color:#e4ecf8;
+  }
   .faq summary::-webkit-details-marker{display:none}
-  .faq summary::after{content:"+"; color:var(--blue)}
+  .faq summary::after{content:"+"; color:var(--blue); font-family:var(--dos); font-size:22px}
   .faq details[open] summary::after{content:"-"}
-  .faq details p{margin:8px 0 0; color:var(--dim); max-width:72ch}
+  .faq details p{margin:0 0 18px; color:var(--dim); max-width:76ch}
 
-  footer{padding:40px 0 60px; color:var(--dim); font-size:19px; text-align:center}
-  footer a{color:var(--dim)}
+  footer{padding:44px 0 64px; color:var(--dim); font-size:15px}
+  footer p{max-width:76ch; margin-bottom:8px}
+  footer .rule{height:4px; margin-bottom:28px; border-radius:2px; background:var(--stripes); opacity:.9}
 </style>
 </head>
 <body>
 
 <header>
   <div class="wrap">
-    <img src="https://dosexmachina.com/logo-page.png" alt="DOS ex Machina">
-    <h1 class="tag">A 1993 PC on your screen. <b>Case, CRT and all.</b></h1>
-    <div class="early">VERSION 1.0 — macOS, Windows and Linux; two games in the catalogue</div>
-    <div class="cta">
-      <a class="btn" href="#download">Download 1.0</a>
-      <a class="btn ghost" href="https://github.com/pedrocatalao/dos-ex-machina">View on GitHub</a>
-      <a class="btn ghost" href="#build">Build it</a>
+    <div class="tube">
+      <img src="https://dosexmachina.com/logo-page.png" alt="DOS ex Machina">
+      <p class="tagline">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
+      <div class="chip">Version 1.0 · macOS, Windows, Linux · Two games so far (more soon)</div>
+      <div class="cta">
+        <a class="btn" href="#download">Download</a>
+        <a class="btn ghost" href="https://github.com/pedrocatalao/dos-ex-machina">Source</a>
+        <a class="btn ghost" href="#build">Build it</a>
+      </div>
+      <p class="stars">
+        <a href="https://github.com/pedrocatalao/dos-ex-machina/stargazers">
+          <span class="star" aria-hidden="true">&#9733;</span>
+          <span id="starcount">Star it on GitHub</span>
+        </a>
+      </p>
     </div>
   </div>
 </header>
@@ -247,44 +366,25 @@
 
 <section>
   <div class="wrap">
-    <h2>Read me first</h2>
-    <p class="lede">What the machine says about itself, on its own disk. This is <code>C:\README.1ST</code>, as <code>TYPE</code> prints it.</p>
-<pre class="screen" aria-label="The machine's screen: the BIOS, the prompt, and README.1ST"><span class="dim">DXM BIOS v1.0.0  (C) 2026 DOS ex Machina
-
-Main Processor  : 80486DX2  66 MHz
-Memory Test     : 655360 KB   OK
-
-Fixed Disk 0    : WDC AC2540F  540 MB
-Floppy Disk A   : 1.44 MB, 3.5 in.
-
-Starting DXM-DOS...
-</span>
-<span class="cmd">C:\&gt;TYPE README.1ST</span>
-
-You remember this machine.  Maybe not this one exactly, but
-one like it: beige, warm, a little too loud, in a room that
-was yours or a friend's or a parent's.  You remember the fan
-starting, the drive grinding, the prompt coming up, and the
-moment when a game filled the screen and nothing else in the
-world mattered for an hour.
-
-This is about that. Not the hardware. The feeling.
-
-So the games here are the real ones, running as they ran,
-behind glass that curves and glows the way it did.  The case
-has its scuffs. The fan runs. The drive seeks.
-It was built with care, by someone who was there, for anyone who
-was too, and for anyone who wasn't, and wonders how it was.
-
-Switch it on.  Stay a while.
-
-<span class="cmd">C:\&gt;</span><span class="cursor" aria-hidden="true"></span></pre>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>What it is</h2>
+    <div class="badge"><div class="plate-in"><h2>What it is</h2></div><div class="bars"></div></div>
+    <div class="story">
+      <p>You remember this machine. Maybe not this one exactly, but one like
+      it: beige, warm, a little too loud, in a room that was yours or a
+      friend's or a parent's. You remember the fan starting, the drive
+      grinding, the prompt coming up, and the moment when a game filled the
+      screen and nothing else in the world mattered for an hour.</p>
+      <p>This is about that. Not the hardware. <b>The feeling.</b></p>
+      <p>So the games here are the real ones, running as they ran, behind
+      glass that curves and glows the way it did. The case has its scuffs.
+      The fan runs. The drive seeks. It was built with care, by someone who
+      was there, for anyone who was too, and for anyone who wasn't, and
+      wonders how it was.</p>
+      <p class="sign">Switch it on. Stay a while.</p>
+    </div>
+    <figure class="framed">
+      <img src="https://dosexmachina.com/screenshot-prompt.jpg" width="1200" height="675" alt="DOS ex Machina after boot: a procedurally drawn beige PC case with a CRT showing the DXM BIOS lines and a C:\ prompt">
+      <figcaption>POST, memory count, AUTOEXEC.BAT, and the prompt waiting</figcaption>
+    </figure>
     <p class="lede">A beige box that boots a DOS prompt, and runs real games behind the glass.</p>
     <p>DOS ex Machina draws a 1993 PC — the case, the moulding, the speaker
     grilles, thirty years of wear — and puts a working CRT in the middle of
@@ -295,33 +395,29 @@ Switch it on.  Stay a while.
     <p>The games are <strong>not emulated</strong>. Each one is a native C
     port of the original, which also ships as a standalone game in its own
     right. DXM is the optional machine you can put it inside.</p>
-    <div class="shots">
-      <figure><img src="https://dosexmachina.com/screenshot-prompt.jpg" width="1200" height="675" alt="DOS ex Machina after boot: a procedurally drawn beige PC case with a CRT showing the DXM BIOS lines and a C:\ prompt"></figure>
-      <figure><img src="https://dosexmachina.com/screenshot-tyrian.jpg" width="1200" height="675" alt="Tyrian in play inside the simulated CRT of DOS ex Machina, the ship over a canyon with the status panel down the right"></figure>
-    </div>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <h2>Nothing here is a photograph</h2>
+    <div class="badge"><div class="plate-in"><h2>Nothing here is a photograph</h2></div><div class="bars"></div></div>
     <p class="lede">The machine is solved, not painted.</p>
     <div class="grid">
-      <div class="card">
+      <div class="card plate">
         <h3>The case</h3>
         <p>Drawn procedurally at your display's resolution from signed-distance
         geometry and a lighting model. Moulding partings, speaker pods, vent
         cuts, ejector-pin marks, scuffs and yellowing — all computed. A wider
         screen gets more machine, never black bars.</p>
       </div>
-      <div class="card">
+      <div class="card plate">
         <h3>The tube</h3>
         <p>Phosphor persistence, barrel curvature, footprint-integrated
         scanlines, an aperture-grille mask, bloom, and coloured light spilling
         from the picture onto the plastic around it. Two real knobs under the
         right speaker set brightness and contrast — grab one and turn it.</p>
       </div>
-      <div class="card">
+      <div class="card plate">
         <h3>The sound</h3>
         <p>Fan, hum and drive spindle synthesised at run time from measured
         spectra. The mains switch, the degauss thump, the POST beep. Only the
@@ -333,17 +429,16 @@ Switch it on.  Stay a while.
 
 <section id="games">
   <div class="wrap">
-    <h2>Getting a game</h2>
-    <p class="lede">Type NC. Press Enter. That is the whole of it.</p>
-    <figure>
+    <div class="badge"><div class="plate-in"><h2>Getting a game</h2></div><div class="bars"></div></div>
+    <p class="lede">Type NC. See the catalogue, download a game and <b>play</b> it. That is the whole of it.</p>
+    <figure class="framed">
       <img src="https://dosexmachina.com/screenshot-nc.jpg" width="1200" height="675" alt="The NC navigator inside the CRT: a table listing Tyrian and SkyRoads with their versions and last-played dates, and the highlighted game's artwork and description in the right pane" loading="lazy">
-      <figcaption>The navigator — what is on the disk, what could be, and when you last played it</figcaption>
     </figure>
-    <div class="keys">
-      <b>ENTER</b><span>play the game, or download it if it isn't on the disk yet</span>
-      <b>F2 · F3 · F4</b><span>delete it, reset it, update it when a newer release is on offer</span>
-      <b>TAB</b><span>move to the description and scroll it</span>
-      <b>Ctrl+F10</b><span>give the mouse to your desktop, or take it back</span>
+    <div class="keybar">
+      <b>Enter</b><span>play the game, or download it if it isn't on the disk yet</span>
+      <b>F2 F3 F4</b><span>delete it, reset it, update it when a newer release is on offer</span>
+      <b>Tab</b><span>move to the description and scroll it</span>
+      <b>Ctrl+F10</b><span>take the mouse from DXM, or give it back</span>
     </div>
     <p>DXM ships with no games and links none. The catalogue is fetched at run
     time and cached, so adding a title is an edit to a JSON file rather than a
@@ -360,17 +455,17 @@ Switch it on.  Stay a while.
     (Eclipse Productions / Epic MegaGames, 1995) — and each also ships as a
     standalone program in its own right, which runs perfectly well without
     the machine around it.</p>
-    <figure>
-      <img src="https://dosexmachina.com/screenshot-skyroads.jpg" width="1200" height="675" alt="SkyRoads' title screen running inside the simulated CRT of DOS ex Machina" loading="lazy">
-      <figcaption>SkyRoads, 1993 — the same tube, the same glass</figcaption>
+    <figure class="framed">
+      <img src="https://dosexmachina.com/screenshot-tyrian.jpg" width="1200" height="675" alt="Tyrian in play inside the simulated CRT of DOS ex Machina, the ship over a canyon with the status panel down the right" loading="lazy">
+      <figcaption>Tyrian, 1995 — behind the same glass, on the same phosphor</figcaption>
     </figure>
   </div>
 </section>
 
 <section id="download">
   <div class="wrap">
-    <h2>Download</h2>
-    <p class="lede">1.0 — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
+    <div class="badge"><div class="plate-in"><h2>Download</h2></div><div class="bars"></div></div>
+    <p class="lede">Version 1.0 — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
     <div class="disks">
 
       <div>
@@ -439,7 +534,7 @@ Switch it on.  Stay a while.
       </div>
 
     </div>
-    <p style="margin-top:28px">Every build needs a graphics driver with
+    <p style="margin-top:30px">Every build needs a graphics driver with
     <strong>OpenGL 3.3</strong>, which any computer of the last decade has.
     Every build is verified on real hardware, on both x86_64 and arm64.
     Every run writes a <code>dxm.log</code> in the preferences directory that
@@ -451,34 +546,36 @@ Switch it on.  Stay a while.
 
 <section id="build">
   <div class="wrap">
-    <h2>Build it</h2>
+    <div class="badge"><div class="plate-in"><h2>Build it</h2></div><div class="bars"></div></div>
     <p class="lede">Needs SDL3, libcurl and zlib. No game checkout required.</p>
-<pre>git clone https://github.com/pedrocatalao/dos-ex-machina
+    <div class="glass">
+<pre class="code">git clone https://github.com/pedrocatalao/dos-ex-machina
 cd dos-ex-machina
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ./build/dxm</pre>
-    <p>Then <code>NC</code> at the prompt, and Enter on a game. macOS, Linux
-    and Windows, on x86_64 and arm64, all built by CI.</p>
+    </div>
+    <p style="margin-top:18px">Then <code>NC</code> at the prompt, and Enter on
+    a game. macOS, Linux and Windows, on x86_64 and arm64, all built by CI.</p>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <h2>Porting a game</h2>
+    <div class="badge"><div class="plate-in"><h2>Porting a game</h2></div><div class="bars"></div></div>
     <p class="lede">Three exported symbols, and no dependencies of its own.</p>
     <p>A game is a <code>.dxm</code> module opened at run time. It exports
     <code>dxm_core_get_info</code>, <code>dxm_core_main</code> and
     <code>dxm_core_audio</code>, hides everything else, and links no SDL and
     no threading library — which is what makes it loadable everywhere DXM
     runs. Its ABI version is checked before anything starts.</p>
-    <ul>
-      <li>No <code>exit()</code> — the machine has to survive the game</li>
-      <li>Restartable state, so it can be run twice in one process</li>
-      <li>Declared video modes, so the tube knows what it is showing</li>
-      <li>Audio pulled, not pushed</li>
-    </ul>
-    <p><a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/PORTING.md">PORTING.md</a>
+    <div class="grid two">
+      <div class="card plate"><h3>No exit()</h3><p>The machine has to survive the game.</p></div>
+      <div class="card plate"><h3>Unwinds on request</h3><p>So it can be started again in the same process.</p></div>
+      <div class="card plate"><h3>Declares its video modes</h3><p>So the tube knows what it is showing.</p></div>
+      <div class="card plate"><h3>Audio pulled, not pushed</h3><p>The machine asks for samples when it needs them.</p></div>
+    </div>
+    <p style="margin-top:22px"><a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/PORTING.md">PORTING.md</a>
     is the normative contract;
     <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/SPEC.md">SPEC.md</a>
     covers the machine itself.</p>
@@ -487,7 +584,7 @@ cmake --build build -j8
 
 <section id="glance">
   <div class="wrap">
-    <h2>At a glance</h2>
+    <div class="badge"><div class="plate-in"><h2>At a glance</h2></div><div class="bars"></div></div>
     <dl class="glance">
       <dt>Name</dt><dd>DOS ex Machina (DXM)</dd>
       <dt>What</dt><dd>A procedurally drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games</dd>
@@ -504,7 +601,7 @@ cmake --build build -j8
 
 <section id="faq" class="faq">
   <div class="wrap">
-    <h2>Questions</h2>
+    <div class="badge"><div class="plate-in"><h2>Questions</h2></div><div class="bars"></div></div>
     <details>
       <summary>Is DOS ex Machina an emulator?</summary>
       <p>No. The games are native C ports of the original programs, compiled
@@ -540,6 +637,7 @@ cmake --build build -j8
 
 <footer>
   <div class="wrap">
+    <div class="rule"></div>
     <p>MIT licensed. No game code or data lives in the repository.</p>
     <p>The Sound Blaster wordmark on the modelled case is a trademark of
     Creative Technology Ltd, shown as a period detail.</p>
@@ -548,6 +646,21 @@ cmake --build build -j8
     </p>
   </div>
 </footer>
+
+<script>
+  /* The star count, straight from GitHub.  Progressive: the link already
+     says what it is, so a rate limit or an offline reader loses nothing. */
+  fetch('https://api.github.com/repos/pedrocatalao/dos-ex-machina')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || typeof d.stargazers_count !== 'number') return;
+      var n = d.stargazers_count;
+      document.getElementById('starcount').textContent =
+        n.toLocaleString() + (n === 1 ? ' star on GitHub \u2014 add yours'
+                                      : ' stars on GitHub \u2014 add yours');
+    })
+    .catch(function () {});
+</script>
 
 </body>
 </html>
