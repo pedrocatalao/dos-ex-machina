@@ -20,8 +20,7 @@ aperture-grille mask, bloom, and coloured light spilling from the picture onto
 the plastic around it.
 
 <p align="center">
-  <img src="docs/screenshot-prompt.jpg" alt="The DOS prompt" width="49%">
-  <img src="docs/screenshot-tyrian.jpg" alt="Tyrian running in the tube" width="49%">
+  <img src="docs/screenshot-prompt.jpg" alt="The DOS prompt" width="80%">
 </p>
 
 The games are not emulated. Each is a native C port that also ships as a
@@ -34,7 +33,7 @@ run here.
 [ty]: https://github.com/pedrocatalao/tyrian-sdl
 
 <p align="center">
-  <img src="docs/screenshot-skyroads.jpg" alt="SkyRoads running in the tube" width="80%">
+  <img src="docs/screenshot-tyrian.jpg" alt="Tyrian running in the tube" width="80%">
 </p>
 
 ## Getting a game
@@ -84,6 +83,22 @@ which side needs updating.
 ## Installing
 
 Every release is self-contained: unpack it and run it.
+
+| Platform | Download |
+|---|---|
+| **macOS** | [universal][dl-mac] — Intel and Apple silicon in one bundle |
+| **Windows** | [x86_64][dl-win-x64] · [arm64][dl-win-arm] |
+| **Linux** | [x86_64][dl-lin-x64] · [arm64][dl-lin-arm] |
+
+Those links always point at the newest release; [the releases
+page](https://github.com/pedrocatalao/dos-ex-machina/releases) has the notes
+and the older ones.
+
+[dl-mac]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-macos-universal.zip
+[dl-win-x64]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-x86_64.zip
+[dl-win-arm]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-arm64.zip
+[dl-lin-x64]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-x86_64.tar.gz
+[dl-lin-arm]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-arm64.tar.gz
 
 On macOS the release is a `DOS ex Machina.app` bundle. It is ad-hoc signed
 rather than notarised, so the first launch needs **right-click → Open** —
