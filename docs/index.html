@@ -228,7 +228,8 @@
   .dim{color:var(--dim)}
 
   figure{margin:28px 0}
-  figure img{width:100%; height:auto; display:block; border-radius:2px}
+  figure img, figure video{width:100%; height:auto; display:block; border-radius:2px}
+  figure video{background:#000}
   .framed{
     padding:10px; border-radius:6px;
     background:linear-gradient(180deg,#1b2331,#121825);
@@ -382,8 +383,19 @@
       <p class="sign">Switch it on. Stay a while.</p>
     </div>
     <figure class="framed">
-      <img src="https://dosexmachina.com/screenshot-prompt.jpg" width="1200" height="675" alt="DOS ex Machina after boot: a procedurally drawn beige PC case with a CRT showing the DXM BIOS lines and a C:\ prompt">
-      <figcaption>POST, memory count, AUTOEXEC.BAT, and the prompt waiting</figcaption>
+      <!-- The trailer, served from this repository: no third-party player,
+           nothing to consent to, nothing that outlives the page.  It does
+           not autoplay - twenty megabytes and a soundtrack are not something
+           to spend on a visitor's behalf - so the poster is the still it
+           replaced and the page reads the same at rest. -->
+      <video controls playsinline preload="none" width="1200" height="675"
+             poster="https://dosexmachina.com/screenshot-prompt.jpg">
+        <source src="https://dosexmachina.com/dxm-trailer-web.mp4" type="video/mp4">
+        <p>Your browser will not play this here.
+        <a href="https://dosexmachina.com/dxm-trailer-web.mp4">Download the trailer</a>
+        (MP4, 35 seconds).</p>
+      </video>
+      <figcaption>Thirty-five seconds of it. Sound on.</figcaption>
     </figure>
     <p class="lede">A beige box that boots a DOS prompt, and runs real games behind the glass.</p>
     <p>DOS ex Machina draws a 1993 PC — the case, the moulding, the speaker
