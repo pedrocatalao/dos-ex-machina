@@ -78,9 +78,9 @@ per module; a subdirectory once a module has more than three files.
 
 1. **Events** go to `input_event()`. Keys reach the running game as XT
    scancodes through `corehost_push_key()`, or the prompt through
-   `dos_key()`. The mouse belongs to the machine (confined to the glass,
-   unseen) or to the operating system (the arrow, the knobs); Ctrl+F10
-   switches.
+   `dos_key()`. The mouse belongs to the machine (locked to the window in
+   SDL's relative mode, so no arrow is ever drawn over the glass) or to the
+   operating system (the arrow, the knobs); Ctrl+F10 switches.
 2. **Time** is `app_now_ns()`: the wall clock, or under `--deterministic`
    a counter advancing one sixtieth of a second per frame.
 3. **The core's lifecycle.** A launch the DOS asked for (`dos_launch_request`)

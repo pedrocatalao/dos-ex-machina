@@ -83,23 +83,22 @@ static int knob_at(const dxm_layout *L, float x, float y) {
     return -1;
 }
 
-void input_capture(input_state *in, app *a, const dxm_layout *L, int on) {
-    bool ok;
+/* Give the mouse to the machine, or hand it back to the operating system.
+ * The machine holds it in SDL's relative mode: the pointer is taken off
+ * the desktop entirely - no arrow drawn over the glass and nothing warped
+ * into the middle of the tube - and SDL reports motion as deltas.  A game
+ * that wants a pointer draws its own, on the tube, where it belongs.
+ * Letting go puts the arrow back where the hand left it. */
+void input_capture(input_state *in, app *a, int on) {
     in->captured = on;
-    if (on) {
-        SDL_Rect r = {(int)(L->tube_x * a->win_wf / a->W), (int)(L->tube_y * a->win_hf / a->H),
-                      (int)(L->tube_w * a->win_wf / a->W), (int)(L->tube_h * a->win_hf / a->H)};
-        ok = SDL_SetWindowMouseRect(a->win, &r);
-    } else
-        ok = SDL_SetWindowMouseRect(a->win, NULL);
-    dxm_log("mouse %s%s%s", on ? "captured (confined to the glass)" : "released to the machine",
-            ok ? "" : " - but SDL could not confine it: ", ok ? "" : SDL_GetError());
+    input_mouse_sync(in, a);
 }
 
-void input_init(input_state *in, app *a, const dxm_layout *L) {
+void input_init(input_state *in, app *a) {
     in->knob_drag = -1;
     in->knob_y0 = in->knob_v0 = 0.0f;
-    input_capture(in, a, L, 1);
+    in->holding = -1; /* nothing asked of SDL yet */
+    input_capture(in, a, 1);
 }
 
 /* the knobs' travel: a third of the screen's height is a whole turn, so a
@@ -139,7 +138,7 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
     }
 #endif
     if (toggle) {
-        input_capture(in, a, L, !in->captured);
+        input_capture(in, a, !in->captured);
         in->knob_drag = -1;
     } else if (corehost_running()) {
         int ch = 0;
@@ -234,9 +233,21 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     return INPUT_HANDLED;
 }
 
-void input_cursor(const input_state *in) {
-    if (in->captured && !ui_visible())
+void input_mouse_sync(input_state *in, app *a) {
+    /* The panel is worked with the arrow, so it borrows the mouse back for
+     * as long as it is up. */
+    int want = in->captured && !ui_visible();
+    if (want == in->holding)
+        return;
+    in->holding = want;
+    if (!SDL_SetWindowRelativeMouseMode(a->win, want ? true : false))
+        dxm_log("mouse: SDL would not %s relative mode: %s", want ? "take" : "release",
+                SDL_GetError());
+    /* Relative mode hides the pointer itself; this covers a platform where
+     * it does not, and costs nothing where it does. */
+    if (want)
         SDL_HideCursor();
     else
         SDL_ShowCursor();
+    dxm_log("mouse %s", want ? "held by the machine" : "released to the desktop");
 }

@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
      * place, so a pointer into it would not survive a rescan */
     char core_id[32] = "";
     input_state in;
-    input_init(&in, &a, &L);
+    input_init(&in, &a);
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
     const char *autocmd = o.autocmd;
     while (!quit) {
@@ -179,8 +179,6 @@ int main(int argc, char **argv) {
                 chas = chassis_render(&L, a.W, a.H);
                 gpu_set_chassis(a.gpu, chas, a.W, a.H);
                 last_b = last_c = -1.0f;
-                if (in.captured)
-                    input_capture(&in, &a, &L, 1);
             }
         }
         double t = (app_now_ns() - t_start) / 1e9;
@@ -217,7 +215,7 @@ int main(int argc, char **argv) {
                     core_started = 1;
                     snprintf(core_id, sizeof core_id, "%s", lg->id);
                     lib_touch_played(lg);
-                    input_capture(&in, &a, &L, 1);
+                    input_capture(&in, &a, 1);
                 }
             }
             if (!core_started)
@@ -274,7 +272,7 @@ int main(int argc, char **argv) {
             }
         }
         theatre_room(&th, a.gpu, t);
-        input_cursor(&in);
+        input_mouse_sync(&in, &a);
         SDL_GL_SwapWindow(a.win);
         frame++;
         app_frame_done();
