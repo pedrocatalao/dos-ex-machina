@@ -119,7 +119,7 @@ shaders are the GLSL files under `shaders/`, baked into the binary at build
 time; nothing is read from disk at run time.
 
 `-DDXM_SANITIZE=ON` builds with AddressSanitizer and UndefinedBehaviorSanitizer;
-CI runs the whole test set that way on Linux under Mesa's software renderer.
+CI runs the whole test set that way, headless, against a software GL driver.
 The C is formatted with the project's `.clang-format`; `tools/format.sh`
 applies it and CI checks it with the same pinned release of clang-format.
 `ctest --test-dir build` runs the tests: unit tests for the modules that

@@ -1,15 +1,34 @@
 # Golden reference frames
 
-One directory per platform (`macos/`, `linux/`, `windows/`), each holding
-the frames `run.py` captured there. A frame is only comparable with a frame
-from the same GPU and driver: the tube pipeline is float maths on whatever
-hardware is present, and two drivers do not round alike.
+One directory per **renderer**, each holding the frames `run.py` captured
+with it. A frame is only comparable with a frame from the same GPU and
+driver: the tube pipeline is float maths on whatever hardware is present,
+and two drivers do not round alike. The operating system is beside the
+point; the driver is not.
 
-The macOS references are from the development machine (Apple GPU). The
-Linux sanitizer job draws with Mesa's llvmpipe under Xvfb: while
-`linux/` is empty it captures the frames and uploads them as the
-`golden-linux-llvmpipe` artifact; once someone has looked at them and
-committed them here, the job compares against them.
+| Set | Drawn by | Where |
+|---|---|---|
+| `apple-gpu/` | an Apple GPU | the machine the project is developed on |
+| `llvmpipe/` | Mesa's software renderer | the Sanitizers workflow, headless |
+
+`run.py --refs NAME` picks the set; without it the script guesses from the
+platform, which is right on the two machines that have a set here and
+wrong anywhere else. A third machine passes its own `--refs`.
+
+`apple-gpu` is updated from a developer's machine:
+
+    python3 tests/golden/run.py build/dxm --update
+
+`llvmpipe` is drawn on a runner nobody has locally, so it is updated from
+there: run the Sanitizers workflow by hand with **update_references**
+ticked and it re-captures the frames and commits them. Look at the failing
+run's diff images first — that switch blesses whatever the machine now
+draws.
+
+Nothing updates a set on its own. Every push and every pull request
+compares, and a set that is missing fails the job rather than quietly
+capturing one: a run that passes while checking nothing is worse than a
+run that fails.
 
 ## When references change
 

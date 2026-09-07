@@ -1,12 +1,22 @@
-# Not a build: a test run.  The three platform workflows produce the
-# release binaries and never execute them.  This one builds the machine
-# with AddressSanitizer and UndefinedBehaviorSanitizer and actually RUNS
-# it - the unit tests, the launch/unwind/relaunch self-test against a real
-# game, and the golden frames - headless, under Xvfb with Mesa's llvmpipe.
+# Not a build: a test run, and not a test OF a platform.  The three
+# platform workflows produce the release binaries and never execute them.
+# This one builds the machine with AddressSanitizer and
+# UndefinedBehaviorSanitizer and actually RUNS it - the unit tests, the
+# launch/unwind/relaunch self-test against a real game, and the golden
+# frames.
 #
-# It exists because of the signed overflow that hung Linux and Windows on
-# the splash for a week while every CI job was green: they had compiled
-# it, nobody had run it.  UBSan aborts on that overflow at the line.
+# What it checks is the C, which is the same code everywhere: a buffer
+# overrun or an undefined operation found here is one on every platform.
+# The eight preprocessor branches that differ per platform are the only
+# thing outside its reach.  It happens to run on a Linux runner because
+# that is the only one where the machine can be driven headless - Xvfb for
+# a display, Mesa's llvmpipe for an OpenGL 3.3 driver in software - and
+# because the sanitizers are best supported there.  That is a detail of
+# where it runs, not of what it covers.
+#
+# It exists because of the signed overflow that hung two platforms on the
+# splash for a week while every CI job was green: they had compiled it,
+# nobody had run it.  UBSan aborts on that overflow at the line.
 name: Sanitizers
 
 on:
@@ -14,10 +24,23 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      update_references:
+        description: >-
+          Re-capture this runner's golden frames instead of comparing them,
+          and commit them. For a deliberate visual change: look at the frames
+          in the run's diff before you do this, because it blesses whatever
+          the machine now draws.
+        type: boolean
+        default: false
+
+# The button below commits the frames it captures.
+permissions:
+  contents: write
 
 jobs:
   sanitize:
-    name: Linux (sanitizers, llvmpipe)
+    name: ASan + UBSan, headless
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -99,31 +122,64 @@ jobs:
           xvfb-run -a -s "-screen 0 1920x1080x24" build/dxm --selftest 2>&1 | tee selftest.log
           grep -q "SELFTEST PASS" selftest.log
 
-      # Golden frames.  References are per renderer, and llvmpipe is not the
-      # Apple GPU the macOS set was drawn on, so this job compares against
-      # tests/golden/references/linux/ when that exists, and otherwise
-      # captures the frames and uploads them for someone to look at and
-      # commit as the Linux references.
+      # Golden frames.  A reference set belongs to the renderer that drew
+      # it - llvmpipe here, a real GPU on a developer's machine - which is
+      # why they live in one directory per runner.  Compare when this
+      # runner's set exists; otherwise capture it and upload it for review.
+      # Compare, unless there is nothing to compare against or the run was
+      # started with update_references, which re-captures instead.
       - name: Golden frames
         env:
           ASAN_OPTIONS: detect_leaks=0
           LIBGL_ALWAYS_SOFTWARE: 1
           SDL_VIDEODRIVER: x11
+          UPDATE: ${{ inputs.update_references }}
         run: |
-          if ls tests/golden/references/linux/*.png >/dev/null 2>&1; then
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              python3 tests/golden/run.py build/dxm --out build/golden
-          else
-            echo "no Linux references yet: capturing them for review"
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              python3 tests/golden/run.py build/dxm --update --out build/golden
+          mode=--compare
+          if [ "$UPDATE" = "true" ]; then
+            echo "update_references: re-capturing this runner's frames"
+            mode=--update
+          elif ! ls tests/golden/references/llvmpipe/*.png >/dev/null 2>&1; then
+            # Never bless frames on its own.  A missing set means the test
+            # has nothing to check, and a job that passes while checking
+            # nothing is worse than one that fails.
+            echo "no references for this runner: nothing to compare against." >&2
+            echo "Run this workflow by hand with update_references ticked" >&2
+            echo "to capture them, after looking at what it draws." >&2
+            exit 1
           fi
+          if [ "$mode" = "--update" ]; then
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              python3 tests/golden/run.py build/dxm --refs llvmpipe --update --out build/golden
+          else
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              python3 tests/golden/run.py build/dxm --refs llvmpipe --out build/golden
+          fi
+
+      # The point of the button: the new frames land on the branch, so every
+      # run after this one compares against them.  A run that changed nothing
+      # commits nothing.  GitHub does not start workflows for a push made
+      # with GITHUB_TOKEN, so this commit lands quietly and the next ordinary
+      # push is what re-runs the comparison.
+      - name: Commit the re-captured references
+        if: inputs.update_references
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/golden/references/llvmpipe
+          if git diff --cached --quiet; then
+            echo "the frames are unchanged: nothing to commit"
+            exit 0
+          fi
+          git commit -m "test: re-capture the llvmpipe golden references" \
+                     -m "Captured by the Sanitizers workflow on ${GITHUB_SHA::7}."
+          git push origin HEAD:${GITHUB_REF_NAME}
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: golden-linux-llvmpipe
+          name: golden-llvmpipe
           path: |
-            tests/golden/references/linux/
+            tests/golden/references/llvmpipe/
             build/golden/
           if-no-files-found: ignore

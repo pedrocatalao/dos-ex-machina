@@ -124,6 +124,8 @@ again in the same process.
   on purpose.
 - `--selftest` launches, unwinds and relaunches a game.
 - The Sanitizers workflow does all three under AddressSanitizer and
-  UndefinedBehaviorSanitizer on Linux, headless.
+  UndefinedBehaviorSanitizer, headless, with a software GL driver. It
+  checks the C, which is the same everywhere; the runner it happens to use
+  is not the point.
 - `tools/regen.sh --check` proves the committed generated data is what
   the tools produce; `tools/format.sh --check` that the formatting holds.

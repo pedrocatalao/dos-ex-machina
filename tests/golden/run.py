@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Golden-frame test for DOS ex Machina.
 
-    run.py <dxm binary> [--update] [--out DIR] [--tolerance N] [--only NAME]
+    run.py <dxm binary> [--update] [--refs NAME] [--out DIR]
+                        [--tolerance N] [--only NAME]
 
 Runs the machine under --deterministic for each case below, captures the
 frame the case names, and compares it pixel for pixel with the reference
@@ -12,10 +13,11 @@ the captured frame and a difference image in --out for inspection.
 only after looking at the frames: a golden test is only as good as the
 frame that was blessed.
 
-References are specific to the GPU and driver that drew them.  The ones in
-git are from the macOS machine the project is developed on; another
-platform captures its own with --update and keeps them under its own name
-(see references/README.md).
+A reference set belongs to the renderer that drew it, not to an operating
+system: two GL drivers do not round alike.  --refs names the set, and
+defaults to a guess from the platform.  The sets in git are `apple-gpu`,
+from the machine the project is developed on, and `llvmpipe`, from Mesa's
+software renderer in CI (see references/README.md).
 
 No dependencies beyond Python 3.  PNGs are written with zlib from the
 standard library.
@@ -37,10 +39,11 @@ CASES = [
 ]
 
 
-def platform_tag():
+def default_refs():
+    """A guess at which renderer this machine draws with.  Right for the
+    machines that have a set in git; anywhere else, pass --refs."""
     import platform
-    return {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}.get(
-        platform.system(), platform.system().lower())
+    return {"Darwin": "apple-gpu"}.get(platform.system(), platform.system().lower())
 
 
 def read_bmp(path):
@@ -135,7 +138,7 @@ def main():
     if not args:
         raise SystemExit(__doc__)
     binary = args.pop(0)
-    update, only, tolerance = False, None, 0
+    update, only, tolerance, refs = False, None, 0, default_refs()
     out = os.path.join(os.getcwd(), "golden")
     while args:
         a = args.pop(0)
@@ -147,10 +150,12 @@ def main():
             tolerance = int(args.pop(0))
         elif a == "--only":
             only = args.pop(0)
+        elif a == "--refs":
+            refs = args.pop(0)
         else:
             raise SystemExit(f"unknown argument {a}\n{__doc__}")
     os.makedirs(out, exist_ok=True)
-    refdir = os.path.join(HERE, "references", platform_tag())
+    refdir = os.path.join(HERE, "references", refs)
     os.makedirs(refdir, exist_ok=True)
 
     failed = 0
