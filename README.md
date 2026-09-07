@@ -20,7 +20,7 @@ aperture-grille mask, bloom, and coloured light spilling from the picture onto
 the plastic around it.
 
 <p align="center">
-  <img src="docs/screenshot-prompt.jpg" alt="The DOS prompt" width="80%">
+  <img src="docs/dxm-trailer.gif" alt="The DOS ex Machina trailer: the title card, a DIR of C:\ and NC typed at the prompt, a game running in the tube, the phosphor mask up close, and the logo" width="80%">
 </p>
 
 The games are not emulated. Each is a native C port that also ships as a
