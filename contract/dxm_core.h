@@ -105,10 +105,25 @@ enum {
     DXM_SC_F10 = 0x44,
 };
 
-/* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c. */
-#include <setjmp.h>
+/* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c.
+ *
+ * Do not use raw setjmp/longjmp for the core-owned exit boundary. MinGW
+ * GCC's CRT implementation uses Windows SEH and has been observed to abort
+ * the host with STATUS_BAD_STACK when a DXM module unwinds. Keep the jump
+ * point in dxm_core_main, but use these paired contract macros so the Windows
+ * GCC build uses the compiler builtins while other toolchains retain libc. */
+#if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
+typedef intptr_t dxm_exit_buf[5];
+#    define DXM_EXIT_SETJMP(target_ptr) __builtin_setjmp(*(target_ptr))
+#    define DXM_EXIT_LONGJMP(target) __builtin_longjmp((target), 1)
+#else
+#    include <setjmp.h>
+typedef jmp_buf dxm_exit_buf;
+#    define DXM_EXIT_SETJMP(target_ptr) setjmp(*(target_ptr))
+#    define DXM_EXIT_LONGJMP(target) longjmp((target), 1)
+#endif
 void dxm_adapter_bind(const dxm_host *h);
-jmp_buf *dxm_adapter_exit_target(void);
+dxm_exit_buf *dxm_adapter_exit_target(void);
 
 /* Every core exports exactly these three, under exactly these names - see
  * DXM_SYM_* above.  They are the only symbols a module makes visible. */

@@ -6,14 +6,13 @@
 #include "compat.h"
 #include "dxm_core.h"
 #include <string.h>
-#include <setjmp.h>
 
 volatile duint Time;
 void (*plat_f9_hook)(void);
 
 static const dxm_host *H;
 static double tick_origin;
-static jmp_buf exit_jmp;
+static dxm_exit_buf exit_jmp;
 static int exit_armed;
 #define TICK_HZ (DXM_PIT_HZ / 0x19e4 / 5.0)
 
@@ -24,7 +23,7 @@ void dxm_adapter_bind(const dxm_host *h) {
     H = h;
     tick_origin = h->now();
 }
-jmp_buf *dxm_adapter_exit_target(void) {
+dxm_exit_buf *dxm_adapter_exit_target(void) {
     exit_armed = 1;
     return &exit_jmp;
 }
@@ -129,5 +128,5 @@ const char *plat_base_path(void) {
 void plat_exit(int code) {
     (void)code;
     if (exit_armed)
-        longjmp(exit_jmp, 1);
+        DXM_EXIT_LONGJMP(exit_jmp);
 }

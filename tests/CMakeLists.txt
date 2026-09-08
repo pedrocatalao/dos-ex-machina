@@ -40,6 +40,26 @@ unit_test(catalogue SOURCES ${SRC}/catalogue.c ${SRC}/net.c ${SRC}/library.c
                           ${SRC}/coreload.c ${SRC}/unzip.c
                   LIBS SDL3::SDL3 CURL::libcurl ZLIB::ZLIB ${CMAKE_DL_LIBS})
 
+# A real loadable module exercising PORTING 3.1/3.2. This is intentionally
+# not just a compile check: Windows must survive the non-local unwind, unload
+# the module, reopen it, and run the same path again.
+add_library(test_unwind_module MODULE unit/unwind_module.c)
+target_include_directories(test_unwind_module PRIVATE ${CMAKE_SOURCE_DIR}/contract)
+target_compile_options(test_unwind_module PRIVATE ${DXM_WARNINGS})
+set_target_properties(test_unwind_module PROPERTIES
+    PREFIX ""
+    SUFFIX ".dxm"
+    C_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES)
+
+add_executable(test_unwind unit/test_unwind.c ${SRC}/coreload.c)
+target_include_directories(test_unwind PRIVATE ${CMAKE_SOURCE_DIR}/src
+                           ${CMAKE_SOURCE_DIR}/contract ${CMAKE_CURRENT_SOURCE_DIR}/unit)
+target_compile_options(test_unwind PRIVATE ${DXM_WARNINGS})
+target_link_libraries(test_unwind PRIVATE ${CMAKE_DL_LIBS})
+add_test(NAME unwind COMMAND test_unwind $<TARGET_FILE:test_unwind_module>)
+set_tests_properties(unwind PROPERTIES LABELS unit TIMEOUT 60)
+
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME golden
