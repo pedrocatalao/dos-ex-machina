@@ -187,21 +187,23 @@ off, with no shutdown theater and no chance to save.
 > (`if (!plat_pump()) exit(0);`), and `assets.c:43` (`exit(1)` on OOM).
 
 **Instead:** call `plat_exit(int code)`. In the standalone build it is
-literally `exit()`. In the core build the adapter `longjmp`s back to the core
-entry point, unwinding the game's blocking loops without touching their
-structure.
+literally `exit()`. In the core build the shared adapter transfers control
+back to the core entry point through the DXM exit-unwind contract, unwinding
+the game's blocking loops without touching their structure.
 
-`setjmp`/`longjmp` is the right tool here specifically because it demands *no*
-restructuring of game control flow. The alternative — threading return codes
-up through every call site — is the kind of surgery on faithful code that
-SPEC §4.1 exists to avoid. The cost is that resources are not released on the
-jump, which is why the host reloads the module between runs (§3.2).
+The contract uses a non-local control transfer because it demands *no*
+restructuring of game control flow. A core must use the paired
+`DXM_EXIT_SETJMP()` / `DXM_EXIT_LONGJMP()` macros rather than raw
+`setjmp` / `longjmp` at this boundary. On Windows MinGW GCC the contract
+uses the compiler builtins to avoid the CRT/SEH `STATUS_BAD_STACK` failure;
+other toolchains retain libc. The cost is that resources are not released on
+the jump, which is why the host reloads the module between runs (§3.2).
 
 ### 3.2 MUST unwind on request; the host reloads the module for each run
 
 The user types `SKYROADS`, plays, quits to `C:\>`, and types `SKYROADS` again.
-That must work, and it must work after a `plat_exit()` longjmp left the
-previous run's state arbitrary.
+That must work, and it must work after a `plat_exit()` contract unwind left
+the previous run's state arbitrary.
 
 The host does not ask the core to put itself back together. When a run
 ends, the host unloads the module and opens a fresh copy for the next one,
@@ -279,21 +281,30 @@ Enforced by `nm` in CI.
 
 ```c
 #include "dxm_core.h"
-static const dxm_mode MODE_13H = { 320, 200, DXM_FB_INDEX8, 6, 5, 400 };
+
+static const dxm_mode MODE_13H = { 320, 200, DXM_FB_INDEX8, 5, 6, 400 };
 
 static const dxm_core_info INFO = {
+    .abi = DXM_ABI,
     .id = "skyroads", .exe_name = "SKYROADS.EXE", .title = "SkyRoads",
     .publisher = "BlueMoon Software", .year = 1993,
     .modes = &MODE_13H, .n_modes = 1,
     .data_probe = "roads.lzs",
 };
-const dxm_core_info *sky_core_info(void) { return &INFO; }
 
-int sky_core_main(const dxm_host *host, const char *data_dir) {
+DXM_EXPORT const dxm_core_info *dxm_core_get_info(void) { return &INFO; }
+
+DXM_EXPORT int dxm_core_main(const dxm_host *host, const char *data_dir) {
+    dxm_adapter_bind(host);
+    set_data_dir(data_dir);
     sky_reset_state();                    /* optional since the host reloads (§3.2) */
-    if (setjmp(*plat_exit_target())) return 0;   /* §3.1 */
-    sky_run();                            /* the game's own top-level flow */
-    return 0;
+    if (DXM_EXIT_SETJMP(dxm_adapter_exit_target()))
+        return 0;                         /* plat_exit() lands here (§3.1) */
+    return sky_run();
+}
+
+DXM_EXPORT void dxm_core_audio(int16_t *out, int frames) {
+    sky_audio_render(out, frames);
 }
 ```
 

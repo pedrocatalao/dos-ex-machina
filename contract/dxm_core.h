@@ -26,7 +26,7 @@ typedef enum { DXM_FB_INDEX8 = 0, DXM_FB_RGB888 = 1 } dxm_fb_format;
 typedef struct dxm_mode {
     int w, h; /* framebuffer dimensions                    */
     dxm_fb_format format;
-    int par_num, par_den; /* PIXEL aspect: 320x200 is 6:5         */
+    int par_num, par_den; /* PIXEL aspect: 320x200 is 5:6         */
     int crt_lines;        /* PHYSICAL scanlines this mode drove.  13h  */
                           /* is line-doubled: 400, not 200 (§2.2).     */
 } dxm_mode;
