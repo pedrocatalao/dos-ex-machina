@@ -248,8 +248,23 @@ int main(int argc, char **argv) {
          * re-blessed when this became one call. */
         dos_state st = dos_update(t);
         /* --type takes a ';'-separated list, typed one per return to the
-         * prompt - so a sequence like "CD GAMES;DIR" can be driven. */
-        if (autocmd && *autocmd && st == DOS_PROMPT) {
+         * prompt - so a sequence like "CD GAMES;DIR" can be driven.  A real
+         * DOS has no prompt state to wait on, so there each command goes
+         * in a second after the last. */
+        static double type_at = -1.0;
+        if (autocmd && dosbox_shown()) {
+            if (type_at < 0.0)
+                type_at = t + 1.0;
+            if (t >= type_at) {
+                const char *semi = strchr(autocmd, ';');
+                const char *end = semi ? semi : autocmd + strlen(autocmd);
+                char line[256];
+                snprintf(line, sizeof line, "%.*s\r", (int)(end - autocmd), autocmd);
+                dosbox_type(line);
+                autocmd = semi ? semi + 1 : NULL;
+                type_at = t + 1.0;
+            }
+        } else if (autocmd && *autocmd && st == DOS_PROMPT) {
             const char *semi = strchr(autocmd, ';');
             const char *end = semi ? semi : autocmd + strlen(autocmd);
             for (const char *q = autocmd; q < end; q++)
@@ -270,19 +285,9 @@ int main(int argc, char **argv) {
 
         /* pick the tube source: DOSBox once it has the tube, else the
          * running core, else the DOS text screen */
-        int cw, ch, cl, held = 0, text = 0;
+        int cw, ch, cl, held = 0;
         const uint8_t *src = NULL;
-        static uint8_t cells[DOS_ROWS * DOS_COLS * 2];
-        int cur_col, cur_row, cur_on;
-        if (dosbox_shown() && dosbox_text(cells, &cur_col, &cur_row, &cur_on)) {
-            /* a text mode: the machine draws the cells with its own font,
-             * so DOS's prompt and the machine's are the same thing */
-            src = dos_render_text(cells, cur_col, cur_row, cur_on);
-            cw = DOS_W;
-            ch = DOS_H;
-            cl = DOS_H;
-            text = 1;
-        } else if (dosbox_shown())
+        if (dosbox_shown())
             held = (src = dosbox_frame(&cw, &ch, &cl)) != NULL;
         else if (corehost_running())
             src = corehost_frame(&cw, &ch, &cl);
@@ -291,7 +296,7 @@ int main(int argc, char **argv) {
             k.crt_lines = cl;
             k.crt_cols = cw;
             /* game art: hard pixels; a real DOS's text, even strokes */
-            k.sharp_text = (text || (held && dosbox_text_mode())) ? 1.0f : 0.0f;
+            k.sharp_text = (held && dosbox_text_mode()) ? 1.0f : 0.0f;
         }
         else {
             gpu_set_tube(a.gpu, dos_render(), DOS_W, DOS_H);

@@ -107,32 +107,15 @@ dos_state dos_update(double t) {
     return machine.state;
 }
 
-/* the cursor's blink: on for 28 frames, off for 28, from power-on */
-static int cursor_lit(void) {
+const uint8_t *dos_render(void) {
     static double blink;
     blink += 1.0;
-    return (int)(blink / 28) & 1;
-}
-
-const uint8_t *dos_render(void) {
-    int lit = cursor_lit();
     term_render();
     if (nc_is_open())
         nc_draw_art();
     if (machine.state == DOS_BOOT)
         boot_badge(machine.now); /* POST only */
-    if (machine.state == DOS_PROMPT && !nc_is_open() && lit)
+    if (machine.state == DOS_PROMPT && !nc_is_open() && ((int)(blink / 28) & 1))
         term_draw_cursor();
-    return term_fb();
-}
-
-const uint8_t *dos_render_text(const uint8_t *cells, int cur_col, int cur_row, int cur_on) {
-    int lit = cursor_lit();
-    term_load(cells);
-    term_render();
-    if (cur_on && lit) {
-        term_set_cursor(cur_row, cur_col);
-        term_draw_cursor();
-    }
     return term_fb();
 }

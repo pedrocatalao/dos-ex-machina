@@ -16,9 +16,6 @@ void term_fill_row(int r, int c, int n, int ch, uint8_t a);
 void term_puts(int r, int c, const char *s, uint8_t a);
 void term_poke(int r, int c, char ch); /* the character only; the attribute stays */
 void term_set_attr(int r, int c, uint8_t a);
-/* the whole screen at once: DOS_ROWS x DOS_COLS (character, attribute)
- * pairs, the way the card kept them */
-void term_load(const uint8_t *cells);
 uint8_t term_attr_at(int r, int c);
 int term_row(void);
 int term_col(void);

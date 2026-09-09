@@ -21,10 +21,6 @@ void dos_key(int ch, int scancode);
 int dos_nc_open(void); /* the navigator owns the keys */
 dos_state dos_update(double t);
 const uint8_t *dos_render(void);      /* DOS_W x DOS_H RGB8 */
-/* A text screen that is not this simulation's - a real DOS's cells -
- * drawn with the machine's own font and cursor, so the two are the
- * same thing on the glass. */
-const uint8_t *dos_render_text(const uint8_t *cells, int cur_col, int cur_row, int cur_on);
 const char *dos_launch_request(void); /* non-NULL once, when a game starts */
 void dos_core_exited(void);
 /* the launch could not start at all - say so and give the prompt back */

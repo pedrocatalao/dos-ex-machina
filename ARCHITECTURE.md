@@ -124,17 +124,13 @@ own AUTOEXEC.BAT prints, so the prompt arrives as it always did.  `EXIT`
 in that DOS powers the machine off.  Everything downstream of the tube
 source - persistence, mask, bloom, the light on the case - is untouched.
 
-In a text mode the tube does not show the core's pixels at all.  The fork
-carries one patch beyond the libretro API - `dbp_dxm_text_screen`, a
-snapshot of the 80x25 cells and the cursor taken at the end of every
-emulated frame - and `main.c` hands those cells to `dos_render_text()`,
-the machine's own renderer: same font, same cursor, same border as the
-prompt it booted with, so DOSBox's text and the machine's are one thing
-on the glass and the handover is invisible by construction.  Graphics
-modes, and text geometries the machine does not draw (80x50, 40 columns),
-go to the tube as pixels, wearing the text screen's overscan border.
-`libretro.h` is vendored as it ships and is the one file under `src/` not
-written here.
+The core's picture is the tube's source in every mode, text included - a
+VGA card's text mode is pixels, and so is this one.  What makes the
+handover invisible is the font: the machine's own text screen draws with
+the VGA 8x16 character set (`src/gen/font16.h`, from FreeBSD, glyph for
+glyph the one DOSBox draws with), so the BIOS lines, the prompt and a real
+DOS's `C:\>` are the same shapes on the same glass.  `libretro.h` is
+vendored as it ships and is the one file under `src/` not written here.
 
 Bringing a real DOS in also found a fault in the tube that only 320x200
 and 640x400 had been hiding: the persistence and burn-in targets were a
