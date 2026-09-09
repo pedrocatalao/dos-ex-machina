@@ -19,6 +19,8 @@ uniform float crt_lines, crt_cols, vgrid;
 uniform vec2  texsize, texelpx;   // tube texture, and one output pixel
 uniform float u_sharp;            // 1 on the DOS screen, 0 in a game
 uniform float u_overscan;         // picture overflow, in OUTPUT pixels
+uniform float u_shoulder, u_shoulder_r, u_shoulder_warp; // the bezel's shoulder (crt.h)
+uniform float u_dish_rin, u_dish_warp, u_fillet;         // the dish, and where it rolls off
 
 // A sin() hash breaks down once its argument gets large: the range
 // reduction inside sin() loses precision, and what comes out is not
@@ -49,12 +51,36 @@ vec2 tap(vec2 c){
   return (i + clamp(d/w, -1.0, 1.0)*0.5) / texsize;
 }
 
-vec2 barrel(vec2 p){
+vec2 barrel_k(vec2 p, float k){
   vec2 c = p*2.0-1.0;
   float r2 = dot(c,c);
-  c *= 1.0 + warp*0.30*r2;      // DXM_WARP_K  (crt.h)
-  c /= 1.0 + warp*0.32;         // DXM_WARP_NORM (crt.h) - keep in sync
+  c *= 1.0 + k*0.30*r2;         // DXM_WARP_K  (crt.h)
+  c /= 1.0 + k*0.32;            // DXM_WARP_NORM (crt.h) - keep in sync
   return c*0.5+0.5;
+}
+vec2 barrel(vec2 p){ return barrel_k(p, warp); }
+// Signed distance to the bezel's shoulder, in output pixels, built exactly
+// as the chassis builds it (bezel.c shoulder_sd): the band's outer curve
+// with its own corner radius, following the barrel only partly.  The
+// chassis is drawn once with the default curvature, so this uses that too,
+// not the knob.
+float warped_rr_px(vec2 t, float r, float grow, float k){
+  vec2 b = barrel_k(t, k);
+  vec2 halfpx = rect.zw*outsize*0.5 + grow;
+  vec2 apx = abs(b*2.0-1.0)*rect.zw*outsize*0.5;
+  vec2 qq = apx - (halfpx - r);
+  return (qq.x>0.0 && qq.y>0.0) ? length(qq)-r : max(apx.x-halfpx.x, apx.y-halfpx.y);
+}
+// How far past the dish's visible edge a point is, in output pixels: 0 on
+// the dish, growing beyond.  The chassis rolls the last stretch of the
+// dish into the shoulder from u_fillet of the way across, and that roll is
+// the edge the eye sees, so the light drops from there, not from the
+// shoulder curve itself.
+float past_dish_px(vec2 t){
+  float th = rect.w*outsize.y;
+  float din  = warped_rr_px(t, u_dish_rin*th, 0.0, u_dish_warp);          // the aperture
+  float dout = warped_rr_px(t, u_shoulder_r*th, u_shoulder*th, u_shoulder_warp); // the shoulder
+  return max(din - u_fillet*(din - dout), 0.0);
 }
 // beam profile INTEGRATED over the pixel footprint, so scanlines do not
 // alias when tube height is not a multiple of crt_lines (SPEC 6.4).
@@ -192,7 +218,14 @@ void main(){
   vec2 outv = max(max(rect.xy-uv, uv-(rect.xy+rect.zw)), vec2(0.0));
   outv.x *= outsize.x/outsize.y;   // uv.x and uv.y are not the same distance
   float d = length(outv)/max(rect.w,1e-4);      // in tube-heights
-  float fall = exp(-d*5.0);      // reaches further across the moulding
+  // The picture's light on the case: the dish faces the glass and takes it
+  // in full, then from the shoulder outward it drops away sharply - past
+  // the rim the moulding turns from the tube and the picture is a small
+  // source seen at a grazing angle.
+  // The shoulder is where the chassis put it, not a fixed distance from
+  // the picture.
+  float past = past_dish_px((uv - rect.xy)/rect.zw)/max(rect.w*outsize.y,1.0);
+  float fall = exp(-past*36.0);
   // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear
   // factors toward 1, so a linear ramp here looks nearly flat.
   float amb = pow(0.16 + 0.98*ambient, 2.2);

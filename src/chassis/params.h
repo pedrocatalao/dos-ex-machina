@@ -4,6 +4,7 @@
  * looks, and the golden frames will say so. */
 #ifndef DXM_CHASSIS_PARAMS_H
 #define DXM_CHASSIS_PARAMS_H
+#include "crt.h"
 
 /* embossed grain depth */
 #define RELIEF 2.0f
@@ -18,20 +19,20 @@
 #define PLASTIC_B 0x8A
 
 /* The bezel, as fractions of the tube's height. */
-#define BEZEL_BAND 0.076f    /* dished part, next to the glass */
+#define BEZEL_BAND DXM_BEZEL_BAND /* dished part, next to the glass */
 #define BEZEL_HOUSING 0.095f /* full surround depth beyond the picture */
 /* shoulder corner radius: the moulding face's OWN radius, not R_IN + BAND,
  * which forced a huge curve */
-#define BEZEL_R_MID 0.042f
+#define BEZEL_R_MID DXM_BEZEL_R_MID
 /* aperture corner ON TOP of the barrel: the curvature already rounds the
  * corners, so this only adds the moulding's own radius - a large value here
  * compounds and gives a blobby, over-rounded opening */
-#define BEZEL_R_IN 0.018f
+#define BEZEL_R_IN DXM_BEZEL_R_IN
 /* where the shoulder roll begins, as a fraction across the dish */
-#define FILLET_START 0.915f
+#define FILLET_START DXM_FILLET_START
 /* the shoulder follows the tube's curvature only PARTLY - the moulding
  * flattens as it moves out from the glass, but it does not go straight */
-#define BEZEL_R_MID_WARP 0.45f
+#define BEZEL_R_MID_WARP DXM_BEZEL_R_MID_WARP
 /* mm: the front face's top corners, where it curves off into the set-back
  * sides */
 #define FACE_R_TOP 0.0f

@@ -6,6 +6,7 @@
  * Passes 2..7 are fused into one output-resolution shader; persistence and
  * bloom are separate because they need their own targets. */
 #include "gpu.h"
+#include "crt.h"
 /* The GLSL lives in the shaders directory, one file per pass; the build
  * bakes each into a string in this header (tools/embed.cmake).  Nothing is
  * loaded from disk at run time, so a release is still one binary. */
@@ -489,6 +490,12 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
                 (float)g->tube_h / fmaxf(th * (float)g->out_h, 1.0f));
     glUniform1f(glGetUniformLocation(p, "u_sharp"), k->sharp_text);
     glUniform1f(glGetUniformLocation(p, "u_overscan"), k->overscan);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder"), DXM_BEZEL_BAND);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder_r"), DXM_BEZEL_R_MID);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder_warp"), DXM_WARP * DXM_BEZEL_R_MID_WARP);
+    glUniform1f(glGetUniformLocation(p, "u_dish_rin"), DXM_BEZEL_R_IN);
+    glUniform1f(glGetUniformLocation(p, "u_dish_warp"), DXM_WARP);
+    glUniform1f(glGetUniformLocation(p, "u_fillet"), DXM_FILLET_START);
     glUniform1f(glGetUniformLocation(p, "vgrid"), k->vgrid);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, g->tex_burn[g->burn_cur]);
