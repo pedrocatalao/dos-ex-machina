@@ -194,10 +194,17 @@ the game's blocking loops without touching their structure.
 The contract uses a non-local control transfer because it demands *no*
 restructuring of game control flow. A core must use the paired
 `DXM_EXIT_SETJMP()` / `DXM_EXIT_LONGJMP()` macros rather than raw
-`setjmp` / `longjmp` at this boundary. On Windows MinGW GCC the contract
-uses the compiler builtins to avoid the CRT/SEH `STATUS_BAD_STACK` failure;
-other toolchains retain libc. The cost is that resources are not released on
-the jump, which is why the host reloads the module between runs (§3.2).
+`setjmp` / `longjmp` at this boundary. On the tested Windows MinGW GCC
+configuration, the CRT path has been observed to terminate the host with
+`STATUS_BAD_STACK` when a DXM module unwinds. The contract uses the compiler
+builtins on Windows GCC while other toolchains retain libc. The cost is that
+resources are not released on the jump, which is why the host reloads the
+module between runs (§3.2).
+
+The contract header and shared adapter are vendored into each game repository
+and compiled into its `.dxm` module. Existing modules built against an older
+copy therefore must update the vendored contract and be rebuilt; updating the
+DXM shell alone cannot replace unwind code already compiled into a module.
 
 ### 3.2 MUST unwind on request; the host reloads the module for each run
 

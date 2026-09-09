@@ -107,11 +107,15 @@ enum {
 
 /* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c.
  *
- * Do not use raw setjmp/longjmp for the core-owned exit boundary. MinGW
- * GCC's CRT implementation uses Windows SEH and has been observed to abort
- * the host with STATUS_BAD_STACK when a DXM module unwinds. Keep the jump
- * point in dxm_core_main, but use these paired contract macros so the Windows
- * GCC build uses the compiler builtins while other toolchains retain libc. */
+ * Do not use raw setjmp/longjmp for the core-owned exit boundary. On the
+ * tested Windows MinGW GCC configuration, the CRT path has been observed to
+ * terminate the host with STATUS_BAD_STACK when a DXM module unwinds. Keep
+ * the jump point in dxm_core_main, but use these paired contract macros so
+ * Windows GCC uses the compiler builtins while other toolchains retain libc.
+ *
+ * This header and dxm_platform.c are compiled into each core. Existing .dxm
+ * modules built with an older vendored copy must update that copy and be
+ * rebuilt; updating the DXM shell alone cannot retrofit the unwind code. */
 #if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
 typedef intptr_t dxm_exit_buf[5];
 #    define DXM_EXIT_SETJMP(target_ptr) __builtin_setjmp(*(target_ptr))
