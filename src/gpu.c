@@ -106,6 +106,13 @@ static int gl_load(void) {
 #    define glVertexAttribPointer p_glVertexAttribPointer
 #endif
 
+/* The persistence and burn-in targets take the SOURCE's own size - they are
+ * a memory of the picture, texel for texel, and the composite reads the
+ * picture from them.  They start at this size and follow the tube texture
+ * from the first frame on.  A fixed 640x400 here was wrong for everything
+ * that was not 320x200 or 640x400: the 680-column text screen resampled
+ * to 640 and then read back as if it were 680, a beat every seventeen
+ * columns; a 640x480 picture lost eighty rows. */
 #define PERSIST_W 640
 #define PERSIST_H 400
 #define BLOOM_W 160
@@ -128,6 +135,7 @@ struct gpu {
     int tube_w, tube_h, chassis_w, chassis_h;
     GLuint fbo_persist[2], tex_persist[2];
     int persist_cur;
+    int persist_w, persist_h; /* the targets' size: the tube texture's */
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_spill, tex_spill;
     GLuint fbo_room, tex_room;
@@ -252,6 +260,8 @@ gpu *gpu_create(int w, int h) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    g->persist_w = PERSIST_W;
+    g->persist_h = PERSIST_H;
     mktarget(&g->fbo_persist[0], &g->tex_persist[0], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_persist[1], &g->tex_persist[1], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_bloom, &g->tex_bloom, BLOOM_W, BLOOM_H);
@@ -334,7 +344,27 @@ void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba) 
                     rgba + ((size_t)sy * (size_t)stride + (size_t)sx) * 4);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
+/* Give an existing target new storage at a new size, cleared: the
+ * framebuffer keeps its attachment, only the texels change. */
+static void retarget(GLuint fbo, GLuint tex, int w, int h) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h) {
+    if (w != g->persist_w || h != g->persist_h) {
+        /* a mode change: the phosphor's memory restarts at this size, black,
+         * as the picture did on a real tube while the monitor re-synced */
+        for (int i = 0; i < 2; i++) {
+            retarget(g->fbo_persist[i], g->tex_persist[i], w, h);
+            retarget(g->fbo_burn[i], g->tex_burn[i], w, h);
+        }
+        g->persist_w = w;
+        g->persist_h = h;
+    }
     g->tube_w = w;
     g->tube_h = h;
     glBindTexture(GL_TEXTURE_2D, g->tex_tube);
@@ -365,7 +395,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1i(glGetUniformLocation(g->prog_persist, "prev"), 1);
     glUniform1f(glGetUniformLocation(g->prog_persist, "dt"), dt);
     glUniform1f(glGetUniformLocation(g->prog_persist, "persist"), k->persistence);
-    pass(g, g->prog_persist, g->fbo_persist[cur], PERSIST_W, PERSIST_H);
+    pass(g, g->prog_persist, g->fbo_persist[cur], g->persist_w, g->persist_h);
     g->persist_cur = cur;
     /* burn-in: a much slower average of the same signal */
     {
@@ -379,7 +409,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
         glUniform1i(glGetUniformLocation(g->prog_burn, "prev"), 1);
         glUniform1f(glGetUniformLocation(g->prog_burn, "dt"), dt);
         glUniform1f(glGetUniformLocation(g->prog_burn, "rate"), 28.0f);
-        pass(g, g->prog_burn, g->fbo_burn[bc], PERSIST_W, PERSIST_H);
+        pass(g, g->prog_burn, g->fbo_burn[bc], g->persist_w, g->persist_h);
         g->burn_cur = bc;
     }
     /* pass 4a: bloom downsample+blur (fixed internal res, SPEC §6.7) */

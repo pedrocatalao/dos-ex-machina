@@ -34,6 +34,11 @@ const uint8_t *dosbox_frame(int *w, int *h, int *crt_lines);
 void dosbox_frame_done(void);
 /* the frame being shown is a text mode, as far as its geometry says */
 int dosbox_text_mode(void);
+/* The text screen as cells, when the card is in an 80x25 text mode and
+ * the core can say so: DOS_ROWS x DOS_COLS (character, attribute) pairs
+ * into `cells`, and where the cursor is.  0 in a graphics mode, in any
+ * other text geometry, or with a core that lacks the call. */
+int dosbox_text(uint8_t *cells, int *cur_col, int *cur_row, int *cur_on);
 
 /* Input, straight from the SDL event: the SDL scancode, relative mouse
  * motion, and SDL's button numbering. */

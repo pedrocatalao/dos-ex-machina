@@ -124,10 +124,23 @@ own AUTOEXEC.BAT prints, so the prompt arrives as it always did.  `EXIT`
 in that DOS powers the machine off.  Everything downstream of the tube
 source - persistence, mask, bloom, the light on the case - is untouched.
 
-The core's frames wear the same overscan border as the text screen, so a
-640x400 text mode lands on the canvas the BIOS drew on and nothing moves
-at the handover.  `libretro.h` is vendored as it ships and is the one file
-under `src/` not written here.
+In a text mode the tube does not show the core's pixels at all.  The fork
+carries one patch beyond the libretro API - `dbp_dxm_text_screen`, a
+snapshot of the 80x25 cells and the cursor taken at the end of every
+emulated frame - and `main.c` hands those cells to `dos_render_text()`,
+the machine's own renderer: same font, same cursor, same border as the
+prompt it booted with, so DOSBox's text and the machine's are one thing
+on the glass and the handover is invisible by construction.  Graphics
+modes, and text geometries the machine does not draw (80x50, 40 columns),
+go to the tube as pixels, wearing the text screen's overscan border.
+`libretro.h` is vendored as it ships and is the one file under `src/` not
+written here.
+
+Bringing a real DOS in also found a fault in the tube that only 320x200
+and 640x400 had been hiding: the persistence and burn-in targets were a
+fixed 640x400, so every other picture was resampled to that grid and then
+read back as if it were its own size.  They follow the source's size now
+(`gpu_set_tube`), which is what let 640x480 keep all its rows.
 
 ## The contract with a game
 

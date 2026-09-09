@@ -18,7 +18,7 @@
 #pragma GCC diagnostic pop
 #include "log.h"
 #include "disk.h"
-#include "dos.h" /* the overscan border the text screen wears */
+#include "dos.h" /* the overscan border the text screen wears, and the cell grid */
 #include <SDL3/SDL.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -104,6 +104,12 @@ static struct {
     volatile int running, quit_req, exited, shown;
     char c_drive[1024], sys_dir[1024], save_dir[1024];
     retro_keyboard_event_t key_cb;
+    /* beyond libretro: the text screen as cells, from a core that has
+     * the patch; NULL from one that does not, and the frame does */
+    int (*text_screen)(unsigned char *, unsigned, int *, int *, int *, int *, int *);
+    uint8_t cells[2][DOS_ROWS * DOS_COLS * 2];
+    int cell_cur_col[2], cell_cur_row[2], cell_cur_on[2];
+    volatile int cells_front; /* -1: the card is not in 80x25 text */
     double fps; /* what the core says the picture refreshes at */
 
     uint8_t *fb[NFRAMES];
@@ -357,6 +363,23 @@ static void deliver_keys(void) {
     }
 }
 
+/* After a frame: the text screen, if the card is in the one text mode
+ * the machine's own renderer draws, 80x25.  Anything else - a graphics
+ * mode, 80x50, 40 columns - goes to the tube as pixels. */
+static void take_text(void) {
+    if (!db.text_screen)
+        return;
+    int b = db.cells_front == 0 ? 1 : 0, cols, rows, cc, cr, on;
+    int ok = db.text_screen(db.cells[b], DOS_ROWS * DOS_COLS, &cols, &rows, &cc, &cr, &on) &&
+             cols == DOS_COLS && rows == DOS_ROWS;
+    db.cell_cur_col[b] = cc;
+    db.cell_cur_row[b] = cr;
+    db.cell_cur_on[b] = on;
+    SDL_LockMutex(db.mu);
+    db.cells_front = ok ? b : -1;
+    SDL_UnlockMutex(db.mu);
+}
+
 static int SDLCALL thread_main(void *ud) {
     (void)ud;
     db.fn.retro_set_environment(env_cb);
@@ -386,6 +409,7 @@ static int SDLCALL thread_main(void *ud) {
     while (!db.quit_req) {
         deliver_keys();
         db.fn.retro_run();
+        take_text();
         next += (Uint64)(1e9 / (db.fps > 1.0 ? db.fps : 60.0));
         Uint64 now = SDL_GetTicksNS();
         if (next > now)
@@ -481,6 +505,8 @@ int dosbox_start(const char *core_path, const char *c_drive, const char *pref_di
     }
     CORE_SYMS(X)
 #undef X
+    db.text_screen = (int (*)(unsigned char *, unsigned, int *, int *, int *, int *, int *))LIB_SYM(
+        db.lib, "dbp_dxm_text_screen");
     unsigned api = db.fn.retro_api_version();
     if (api != RETRO_API_VERSION) {
         dxm_log("dosbox: core speaks libretro API %u, this build speaks %u", api,
@@ -510,12 +536,13 @@ int dosbox_start(const char *core_path, const char *c_drive, const char *pref_di
     if (!db.amu)
         db.amu = SDL_CreateMutex();
     db.front = db.reading = -1;
+    db.cells_front = -1;
     db.kq_r = db.kq_w = 0;
     db.ring_r = db.ring_w = 0;
     db.quit_req = db.exited = db.shown = 0;
     db.fps = 0.0;
     db.running = 1;
-    dxm_log("dosbox: core %s", core_path);
+    dxm_log("dosbox: core %s%s", core_path, db.text_screen ? " (text cells)" : "");
     db.th = SDL_CreateThread(thread_main, "dosbox", NULL);
     if (!db.th) {
         db.running = 0;
@@ -586,6 +613,20 @@ int dosbox_text_mode(void) {
         return 0;
     int w = db.sw[f], h = db.sh[f];
     return (w == 640 || w == 720) && (h == 400 || h == 350);
+}
+int dosbox_text(uint8_t *cells, int *cur_col, int *cur_row, int *cur_on) {
+    if (!db.mu)
+        return 0;
+    SDL_LockMutex(db.mu);
+    int f = db.cells_front;
+    if (f >= 0) {
+        memcpy(cells, db.cells[f], sizeof db.cells[f]);
+        *cur_col = db.cell_cur_col[f];
+        *cur_row = db.cell_cur_row[f];
+        *cur_on = db.cell_cur_on[f];
+    }
+    SDL_UnlockMutex(db.mu);
+    return f >= 0;
 }
 void dosbox_frame_done(void) {
     if (!db.mu)

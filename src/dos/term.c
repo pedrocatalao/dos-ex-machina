@@ -79,6 +79,13 @@ void term_poke(int r, int c, char ch) {
         return;
     scr[r][c] = ch;
 }
+void term_load(const uint8_t *cells) {
+    for (int r = 0; r < DOS_ROWS; r++)
+        for (int c = 0; c < DOS_COLS; c++) {
+            scr[r][c] = (char)cells[(r * DOS_COLS + c) * 2];
+            att[r][c] = cells[(r * DOS_COLS + c) * 2 + 1];
+        }
+}
 void term_set_attr(int r, int c, uint8_t a) {
     if (r < 0 || r >= DOS_ROWS || c < 0 || c >= DOS_COLS)
         return;
