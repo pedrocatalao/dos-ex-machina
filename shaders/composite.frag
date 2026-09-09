@@ -76,11 +76,14 @@ float warped_rr_px(vec2 t, float r, float grow, float k){
 // dish into the shoulder from u_fillet of the way across, and that roll is
 // the edge the eye sees, so the light drops from there, not from the
 // shoulder curve itself.
-float past_dish_px(vec2 t){
+// .x: how far past the dish's visible edge, in output pixels, 0 on the dish.
+// .y: how far across the dish, 0 at the glass, 1 at the roll.
+vec2 dish(vec2 t){
   float th = rect.w*outsize.y;
   float din  = warped_rr_px(t, u_dish_rin*th, 0.0, u_dish_warp);          // the aperture
   float dout = warped_rr_px(t, u_shoulder_r*th, u_shoulder*th, u_shoulder_warp); // the shoulder
-  return max(din - u_fillet*(din - dout), 0.0);
+  float edge = u_fillet*(din - dout);
+  return vec2(max(din - edge, 0.0), clamp(din/max(edge, 1e-3), 0.0, 1.0));
 }
 // beam profile INTEGRATED over the pixel footprint, so scanlines do not
 // alias when tube height is not a multiple of crt_lines (SPEC 6.4).
@@ -224,8 +227,12 @@ void main(){
   // source seen at a grazing angle.
   // The shoulder is where the chassis put it, not a fixed distance from
   // the picture.
-  float past = past_dish_px((uv - rect.xy)/rect.zw)/max(rect.w*outsize.y,1.0);
-  float fall = exp(-past*36.0);
+  // Across the dish the light eases away from the glass - the plastic is
+  // lit by a source it is moving away from, a haze rather than a strip -
+  // and at the roll it drops.
+  vec2 dsh = dish((uv - rect.xy)/rect.zw);
+  float across = 1.0 - 0.55*smoothstep(0.0, 1.0, dsh.y);
+  float fall = across * exp(-dsh.x/max(rect.w*outsize.y,1.0)*36.0);
   // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear
   // factors toward 1, so a linear ramp here looks nearly flat.
   float amb = pow(0.16 + 0.98*ambient, 2.2);
