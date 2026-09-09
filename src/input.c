@@ -3,6 +3,7 @@
 #include "log.h"
 #include "dos.h"
 #include "corehost.h"
+#include "dosbox.h"
 #include "ui.h"
 #include "dxm_core.h"
 
@@ -137,9 +138,18 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
             gui_alone = 0;
     }
 #endif
+    /* Shift+F1 for the panel, from anywhere - a game, DOSBox, the prompt -
+     * and never a bare F1, which belongs to whatever is running.  Not
+     * Ctrl+F1: macOS binds that to keyboard-access and eats it before
+     * the window hears it.  Ctrl is still accepted where it gets through. */
+    int panel = down && e->key.key == SDLK_F1 && (e->key.mod & (SDL_KMOD_SHIFT | SDL_KMOD_CTRL));
     if (toggle) {
         input_capture(in, a, !in->captured);
         in->knob_drag = -1;
+    } else if (panel) {
+        ui_toggle();
+    } else if (dosbox_shown()) {
+        dosbox_key(e->key.scancode, down);
     } else if (corehost_running()) {
         int ch = 0;
         if (sc == DXM_SC_ESC)
@@ -155,9 +165,7 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
         /* dev-only room-light adjust while at the prompt: F5 darker, F6
          * brighter (the real fiction control is a chassis knob, SPEC 6.8 -
          * this is for tuning taste) */
-        if (e->key.key == SDLK_F1 && !dos_nc_open()) {
-            ui_toggle();
-        } else if (e->key.key == SDLK_F5 || e->key.key == SDLK_F6) {
+        if (e->key.key == SDLK_F5 || e->key.key == SDLK_F6) {
             k->ambient += (e->key.key == SDLK_F6) ? 0.05f : -0.05f;
             if (k->ambient < 0)
                 k->ambient = 0;
@@ -183,7 +191,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     case SDL_EVENT_MOUSE_BUTTON_DOWN: {
         float mx = e->button.x * a->W / a->win_wf, my = e->button.y * a->H / a->win_hf;
         int kn = (!in->captured && !ui_visible()) ? knob_at(L, mx, my) : -1;
-        if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {
+        if (in->captured && dosbox_shown())
+            dosbox_mouse_button(e->button.button, 1);
+        else if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             /* grab: remember where the hand and the knob started */
             in->knob_drag = kn;
             in->knob_y0 = my;
@@ -193,7 +203,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP:
-        if (in->knob_drag >= 0)
+        if (in->captured && dosbox_shown())
+            dosbox_mouse_button(e->button.button, 0);
+        else if (in->knob_drag >= 0)
             in->knob_drag = -1;
         else
             ui_mouse((int)(e->button.x * a->W / a->win_wf), (int)(e->button.y * a->H / a->win_hf),
@@ -201,7 +213,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         break;
     case SDL_EVENT_MOUSE_MOTION: {
         float mx = e->motion.x * a->W / a->win_wf, my = e->motion.y * a->H / a->win_hf;
-        if (in->knob_drag >= 0)
+        if (in->captured && dosbox_shown())
+            dosbox_mouse_move((int)e->motion.xrel, (int)e->motion.yrel);
+        else if (in->knob_drag >= 0)
             knob_turn(in, a, k, my);
         else
             ui_mouse((int)mx, (int)my, (e->motion.state & SDL_BUTTON_LMASK) ? 1 : 0, 1);
@@ -218,7 +232,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     case SDL_EVENT_TEXT_INPUT:
         /* what the layout produced: ASCII for now, one char at a time; the
          * prompt has no use for anything the font's lower half cannot show */
-        if (!corehost_running())
+        if (!corehost_running() && !dosbox_shown())
             for (const char *p = e->text.text; *p; p++)
                 if ((unsigned char)*p >= 32 && (unsigned char)*p < 127)
                     dos_key(*p, 0);

@@ -19,6 +19,7 @@ typedef struct {
     char launch[32];    /* the game about to start */
     int launch_pending; /* main takes it once, when the drive is done */
     double launch_at;   /* when the hold ends; <0 armed, 0 idle */
+    int handover;       /* the boot ends by giving the tube to a real DOS */
 } dos_machine;
 extern dos_machine machine;
 

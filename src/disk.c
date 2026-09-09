@@ -56,8 +56,8 @@ static const char README1ST[] =
     "\r\n"
     "Type HELP for the command reference.\r\n"
     "\r\n"
-    "The knobs under the right speaker adjust the picture.  F1 at the\r\n"
-    "prompt opens the rest of the controls.  EXIT switches off.\r\n";
+    "The knobs under the right speaker adjust the picture.  Shift+F1\r\n"
+    "opens the rest of the controls.  EXIT switches off.\r\n";
 
 /* `ours`: rewritten at every start, because it is DXM's text and should
  * say what the current build says.  The others are the user's once they

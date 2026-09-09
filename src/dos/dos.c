@@ -14,6 +14,10 @@ void dos_init(void) {
     boot_init();
 }
 
+void dos_handover_mode(void) {
+    machine.handover = 1;
+}
+
 void dos_launch(const char *id) {
     snprintf(machine.launch, sizeof machine.launch, "%s", id);
     machine.floppy_req = 2.6; /* the drive reads the game */
@@ -91,8 +95,14 @@ dos_state dos_update(double t) {
     }
 
     if (machine.state == DOS_BOOT && boot_update(t)) {
-        machine.state = DOS_PROMPT;
-        shell_prompt();
+        if (machine.handover) {
+            /* the BIOS screen goes; the DOS that takes over draws the next thing */
+            term_clear();
+            machine.state = DOS_HANDOVER;
+        } else {
+            machine.state = DOS_PROMPT;
+            shell_prompt();
+        }
     }
     return machine.state;
 }

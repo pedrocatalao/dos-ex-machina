@@ -167,8 +167,8 @@ const uint8_t *ui_render(int out_w, int out_h, int *w, int *h) {
     box(panel.x, panel.y, panel.w, ph, 10, 12, 14, 214);             /* panel */
     box(panel.x, panel.y, panel.w, (int)(2 * s), 90, 220, 110, 200); /* top rule */
     label(panel.x + panel.pad, panel.y + panel.pad, "CRT ADJUST", tsc, 120, 235, 140, 255);
-    label(panel.x + panel.w - panel.pad - (int)(8 * tsc * 4), panel.y + panel.pad, "F1", tsc, 90,
-          110, 95, 255);
+    label(panel.x + panel.w - panel.pad - (int)(8 * tsc * 8), panel.y + panel.pad, "SHIFT+F1", tsc,
+          90, 110, 95, 255);
 
     int y0 = panel.y + panel.pad + (int)(panel.row_h * 1.6f);
     for (int i = 0; i < panel.n; i++) {

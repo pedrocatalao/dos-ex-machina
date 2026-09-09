@@ -9,6 +9,7 @@
 #include "dos.h"
 #include "chassis.h"
 #include "corehost.h"
+#include "dosbox.h"
 #include "coreload.h"
 #include "library.h"
 #include "catalogue.h"
@@ -26,10 +27,15 @@ typedef struct {
     int shot_frames;     /* ...after this many frames (60 if unset) */
     const char *autocmd; /* --type: commands, ';'-separated, one per prompt */
     float ambient;       /* room light: 0 dark room .. 1 bright */
+    /* --dosbox DIR: a real DOS.  DOSBox Pure boots behind the POST with
+     * DIR as C: and takes the tube at the prompt.  --dosbox-core names
+     * the core library; unset, it is looked for beside the program. */
+    const char *dosbox, *dosbox_core;
 } options;
 
 static options parse(int argc, char **argv) {
-    options o = {{0, 1600, 900, 0, NULL}, 0, NULL, 0, NULL, 0.5f};
+    options o = {{0, 1600, 900, 0, NULL}, 0, NULL, 0, NULL, 0.5f, getenv("DXM_DOSBOX"),
+                 getenv("DXM_DOSBOX_CORE")};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump-audio") && i + 1 < argc)
             o.app.audio_dump = argv[++i];
@@ -48,6 +54,10 @@ static options parse(int argc, char **argv) {
             o.app.deterministic = 1;
         else if (!strcmp(argv[i], "--size") && i + 1 < argc)
             sscanf(argv[++i], "%dx%d", &o.app.win_w, &o.app.win_h);
+        else if (!strcmp(argv[i], "--dosbox") && i + 1 < argc)
+            o.dosbox = argv[++i];
+        else if (!strcmp(argv[i], "--dosbox-core") && i + 1 < argc)
+            o.dosbox_core = argv[++i];
         else if (!strcmp(argv[i], "--ambient") && i + 1 < argc) {
             o.ambient = (float)atof(argv[++i]);
             if (o.ambient < 0)
@@ -154,6 +164,10 @@ int main(int argc, char **argv) {
         ui_load(cfgpath);
     scan_library();
     dos_init();
+    /* The real DOS boots now, unseen, so it is at its prompt long before
+     * the POST is done.  If it cannot, the machine's own DOS carries on. */
+    if (o.dosbox && dosbox_start(o.dosbox_core, o.dosbox, a.pref) == 0)
+        dos_handover_mode();
     dxm_log("dos ready, entering the frame loop");
 
     Uint64 t_start = app_now_ns();
@@ -228,9 +242,14 @@ int main(int argc, char **argv) {
             if (f > 0.0)
                 theatre_drive(&th, f, t);
         }
+        /* Once per frame.  It used to be twice while a --type command was
+         * pending, which took the first step of the memory count a frame
+         * early in exactly those runs; the readme golden frame was
+         * re-blessed when this became one call. */
+        dos_state st = dos_update(t);
         /* --type takes a ';'-separated list, typed one per return to the
          * prompt - so a sequence like "CD GAMES;DIR" can be driven. */
-        if (autocmd && *autocmd && dos_update(t) == DOS_PROMPT) {
+        if (autocmd && *autocmd && st == DOS_PROMPT) {
             const char *semi = strchr(autocmd, ';');
             const char *end = semi ? semi : autocmd + strlen(autocmd);
             for (const char *q = autocmd; q < end; q++)
@@ -238,23 +257,38 @@ int main(int argc, char **argv) {
             dos_key('\r', 0);
             autocmd = semi ? semi + 1 : NULL;
         }
-        if (dos_update(t) == DOS_OFF && th.off_t0 < 0.0)
+        /* The handover: the BIOS screen has cleared and DOSBox, at its
+         * prompt since before the memory count, takes the tube. */
+        if (st == DOS_HANDOVER && dosbox_running() && !dosbox_shown()) {
+            dosbox_show();
+            dxm_log("dosbox: has the tube");
+        }
+        if ((st == DOS_OFF || dosbox_exited()) && th.off_t0 < 0.0)
             theatre_power_off(&th, t);
         if (theatre_frame(&th, a.gpu, &L, a.W, a.H, t))
             quit = 1;
 
-        /* pick the tube source: the running core, or the DOS text screen */
-        int cw, ch, cl;
-        const uint8_t *src = corehost_running() ? corehost_frame(&cw, &ch, &cl) : NULL;
+        /* pick the tube source: DOSBox once it has the tube, else the
+         * running core, else the DOS text screen */
+        int cw, ch, cl, held = 0;
+        const uint8_t *src = NULL;
+        if (dosbox_shown())
+            held = (src = dosbox_frame(&cw, &ch, &cl)) != NULL;
+        else if (corehost_running())
+            src = corehost_frame(&cw, &ch, &cl);
         if (src) {
             gpu_set_tube(a.gpu, src, cw, ch);
             k.crt_lines = cl;
             k.crt_cols = cw;
-            k.sharp_text = 0.0f;
-        } /* game art: hard pixels */
+            /* game art: hard pixels; a real DOS's text, even strokes */
+            k.sharp_text = (held && dosbox_text_mode()) ? 1.0f : 0.0f;
+        }
         else {
             gpu_set_tube(a.gpu, dos_render(), DOS_W, DOS_H);
-            k.crt_lines = 400;
+            /* one scanline per texture row, border included - the beam
+             * swept the overscan at the same pitch as the 400 lines of
+             * text inside it */
+            k.crt_lines = DOS_H;
             k.crt_cols = DOS_W;
             k.sharp_text = 1.0f;
         } /* text: even stroke weights */
@@ -263,6 +297,8 @@ int main(int argc, char **argv) {
         k.aperture_r = L.aperture_r; /* match the chassis hole */
         gpu_draw(a.gpu, L.tube_x / a.W, 1.0f - (L.tube_y + L.tube_h) / a.H, L.tube_w / a.W,
                  L.tube_h / a.H, &k, t);
+        if (held)
+            dosbox_frame_done();
         {
             int ow, oh;
             const uint8_t *ov = ui_render(a.W, a.H, &ow, &oh);
@@ -285,6 +321,7 @@ int main(int argc, char **argv) {
     }
     if (!a.deterministic)
         ui_save(cfgpath);
+    dosbox_stop();
     app_shutdown(&a);
     return 0;
 }

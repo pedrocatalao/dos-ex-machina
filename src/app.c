@@ -3,6 +3,7 @@
 #include "log.h"
 #include "sound.h"
 #include "corehost.h"
+#include "dosbox.h"
 #include "version.h"
 #include "gen/splash.h"
 #include "gen/icon.h"
@@ -36,7 +37,10 @@ static void SDLCALL audio_cb(void *ud, SDL_AudioStream *st, int add, int total) 
     int frames = add / 4;
     if (frames > 2048)
         frames = 2048;
-    corehost_audio(buf, frames);
+    if (dosbox_running())
+        dosbox_audio(buf, frames);
+    else
+        corehost_audio(buf, frames);
     snd_mix(buf, frames);
     if (g_audio_dump) {
         fwrite(buf, 4, (size_t)frames, g_audio_dump);

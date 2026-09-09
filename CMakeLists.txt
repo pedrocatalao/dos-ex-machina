@@ -41,6 +41,7 @@ add_executable(dxm
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
     src/corehost.c src/coreload.c src/library.c src/ui.c src/gen/splash.c
+    src/dosbox/dosbox.c src/dosbox/keys.c
     src/sha256.c src/net.c src/catalogue.c src/unzip.c src/install.c
     src/png.c src/art.c src/disk.c ${DXM_WIN_RC})
 # contract/ is what a port vendors: dxm_core.h, the interface both sides

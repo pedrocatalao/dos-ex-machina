@@ -39,6 +39,12 @@ dos-ex-machina/
 │   │   ├── boot.c          POST, the RAM count, AUTOEXEC's echoes, the badge
 │   │   ├── nc.c            NC.EXE, the navigator
 │   │   └── internal.h
+│   ├── dosbox.h            the public face of src/dosbox/
+│   ├── dosbox/             a real DOS behind the glass: DOSBox Pure as a libretro core
+│   │   ├── dosbox.c        opens the core, runs it on its own thread, frames, keys, audio
+│   │   ├── keys.c          SDL scancodes to libretro keys
+│   │   ├── libretro.h      the libretro API, vendored verbatim from libretro-common (MIT)
+│   │   └── internal.h
 │   ├── disk.c/.h           the virtual C:\ - in memory, read-only
 │   ├── font.c/.h           the CP437 8x8 glyphs
 │   ├── sound.c/.h          the machine's own sounds: fans, spindle, relay, drive, beep
@@ -103,6 +109,25 @@ per module; a subdirectory once a module has more than three files.
 The chassis is drawn once, on a worker thread behind the splash, into an
 RGBA8 image whose alpha channel says how much each pixel faces the tube.
 After that it is one texture, patched only when a knob turns.
+
+## A real DOS (the `dosbox` branch)
+
+`--dosbox DIR` boots DOSBox Pure - opened at run time as a libretro core,
+`dosbox_pure_libretro.<dylib|so|dll>` beside the program or in the
+preferences directory - with DIR mounted as `C:`.  It boots on its own
+thread while the machine's POST plays, and the boot ends on a cleared
+screen (`DOS_HANDOVER`) instead of at the simulated prompt; from then on
+the tube's source is the core's framebuffer, keys and relative mouse
+motion go to it, and the audio device pulls from its ring.  A
+`DOSBOX.BAT` the machine writes into the root prints what the machine's
+own AUTOEXEC.BAT prints, so the prompt arrives as it always did.  `EXIT`
+in that DOS powers the machine off.  Everything downstream of the tube
+source - persistence, mask, bloom, the light on the case - is untouched.
+
+The core's frames wear the same overscan border as the text screen, so a
+640x400 text mode lands on the canvas the BIOS drew on and nothing moves
+at the handover.  `libretro.h` is vendored as it ships and is the one file
+under `src/` not written here.
 
 ## The contract with a game
 

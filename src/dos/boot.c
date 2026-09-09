@@ -99,7 +99,7 @@ int boot_update(double t) {
             }
             term_put('\n');
             next_boot = t + 0.16;
-        } else if (ax_i < ax_n) {
+        } else if (ax_i < ax_n && !machine.handover) {
             term_sayln(ax_lines[ax_i++]);
             next_boot = t + 0.16;
         } else

@@ -169,7 +169,7 @@ not search the disk for you. `NC` reaches them from anywhere, and a game
 started from the navigator returns to it.
 
 **The two knobs** under the right speaker are brightness and contrast: grab
-one with the mouse and drag up or down. **F1** opens a panel over the tube
+one with the mouse and drag up or down. **Shift+F1** opens a panel over the tube
 with the rest of the CRT — bloom, burn-in, static, jitter, glow line, ambient
 light, flicker, h-sync, RGB shift, chassis glow, persistence, scanlines, pixel
 grid, curvature. Everything saves to `crt.cfg` in the preferences directory.

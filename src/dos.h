@@ -10,8 +10,13 @@
 #define DOS_PAD_Y 14
 #define DOS_W (DOS_COLS * 8 + DOS_PAD_X * 2)
 #define DOS_H (DOS_ROWS * 16 + DOS_PAD_Y * 2)
-typedef enum { DOS_BOOT, DOS_PROMPT, DOS_RUNNING, DOS_OFF } dos_state;
+/* DOS_HANDOVER: the boot is done and a real DOS owns the tube from here;
+ * this simulation has nothing more to show. */
+typedef enum { DOS_BOOT, DOS_PROMPT, DOS_RUNNING, DOS_OFF, DOS_HANDOVER } dos_state;
 void dos_init(void);
+/* The boot ends on a cleared screen instead of at this prompt: a real DOS
+ * (DOSBox) prints its own AUTOEXEC and takes over.  Call after dos_init. */
+void dos_handover_mode(void);
 void dos_key(int ch, int scancode);
 int dos_nc_open(void); /* the navigator owns the keys */
 dos_state dos_update(double t);
