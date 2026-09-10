@@ -65,6 +65,7 @@ void surface_monitor_recess(canvas *c, int W, int H, const chassis_geom *G);
 void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G);
 void surface_top_roll(canvas *c, int W, const chassis_geom *G);
 void surface_wear(canvas *c, int W, int H);
+void surface_side_louvres(canvas *c, int W, int H, const chassis_geom *G);
 
 /* bezel.c */
 void bezel_cut(canvas *c, dxm_layout *L, const chassis_geom *G);

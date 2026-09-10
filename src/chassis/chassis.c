@@ -254,6 +254,7 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     bezel_cut(c, L, &G);
     speaker_columns(c, L, W, H, &G, &knobs_placed);
     bottom_band(c, L, W, H, &G, &knobs_placed);
+    surface_side_louvres(c, W, H, &G);
     surface_moulding_traces(c, W, H, &G);
     surface_wear(c, W, H);
     surface_finish(c, W, H);

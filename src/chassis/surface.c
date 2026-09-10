@@ -400,3 +400,24 @@ void surface_finish(canvas *c, int W, int H) {
         }
     }
 }
+
+/* The louvres down the monitor's sides: a single column of thin horizontal
+ * vent slots on each set-back side strip, the length of the monitor
+ * between the two partings, the way a monitor shell breathed through its
+ * flanks.  Cut with the same slot the foot vents use, so the trough and
+ * the lips light the same way. */
+void surface_side_louvres(canvas *c, int W, int H, const chassis_geom *G) {
+    (void)H;
+    float mm = G->mm, edge = G->edge;
+    float y0 = G->gap_hi + G->gap_d + 5.0f * mm, y1 = G->gap_lo - 5.0f * mm;
+    float sh = fmaxf(1.5f, 0.9f * mm), pitch = 2.4f * mm, sw = edge * 0.58f;
+    if (y1 - y0 < pitch * 3.0f || sw < 3.0f)
+        return;
+    int n = (int)((y1 - y0 - sh) / pitch) + 1;
+    float ys = y0 + (y1 - y0 - ((n - 1) * pitch + sh)) * 0.5f;
+    for (int side = 0; side < 2; side++) {
+        float x = side ? (float)W - edge + (edge - sw) * 0.5f : (edge - sw) * 0.5f;
+        for (int k = 0; k < n; k++)
+            vent_slot(c, x, ys + k * pitch, sw, sh);
+    }
+}
