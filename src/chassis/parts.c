@@ -144,9 +144,16 @@ static void power_symbol(canvas *c, float cx, float cy, float size) {
  * tall slot gets the same short overhang shadow at its top that a wide one
  * gets, instead of having its whole upper half in shade. */
 void vent_slot(canvas *c, float x, float y, float w, float h) {
+    vent_slot_r(c, x, y, w, h, fminf(w, h) * 0.46f, 1.0f, 1.0f); /* the ends are rounded */
+}
+
+/* The same slot with its own corner radius (0 is a square-ended cut), how
+ * deep it reads (1 = the foot vent's black trough, less = a shallower cut
+ * whose floor takes light) and how strongly its rims are modelled. */
+void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float deep,
+                 float rim) {
     float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float th = fminf(w, h); /* the narrow dimension */
-    float rad = th * 0.46f; /* the ends are rounded */
     float lip = fmaxf(1.2f, th * 0.70f);
     for (int j2 = (int)(y - lip - 1); j2 <= (int)(y + h + lip + 1); j2++)
         for (int i2 = (int)(x - lip - 1); i2 <= (int)(x + w + lip + 1); i2++) {
@@ -162,6 +169,7 @@ void vent_slot(canvas *c, float x, float y, float w, float h) {
                 float db = ((y + h) - ((float)j2 + 0.5f)) / fmaxf(th * 1.8f, 1.0f);
                 if (db < 1.0f)
                     v += 0.15f * (1.0f - db);
+                v = 1.0f + (v - 1.0f) * deep;
                 px_shade(c, i2, j2, 1.0f + (v - 1.0f) * cov, 0.0f);
             } else if (sd < lip) {
                 /* Which rim catches the light is a question about the NORMAL,
@@ -177,7 +185,51 @@ void vent_slot(canvas *c, float x, float y, float w, float h) {
                 float lam = (gx * LIGHT_X + gy * LIGHT_Y) / gl; /* outward . light */
                 float e = 1.0f - sd / lip;
                 e *= e;
-                px_shade(c, i2, j2, 1.0f - lam * 0.17f * e, fmaxf(-lam, 0.0f) * e * 0.05f);
+                px_shade(c, i2, j2, 1.0f - lam * 0.17f * rim * e,
+                         fmaxf(-lam, 0.0f) * e * 0.05f * rim);
+            }
+        }
+}
+
+/* A louvre: a horizontal slot in the shell with a slat behind it.  What
+ * reads as the OPENING is the black under the upper edge, where the
+ * overhang shadows the hole; below that the slat's top face shows through,
+ * angled at the light and brightening toward the lower lip until it is
+ * lighter than the case around it.  The rims are modelled from the
+ * distance field's normal, as the vent's are, only harder. */
+void louvre_slot(canvas *c, float x, float y, float w, float h, float rad) {
+    float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
+    float lip = fmaxf(1.5f, h * 0.75f);
+    for (int j2 = (int)(y - lip - 1); j2 <= (int)(y + h + lip + 1); j2++)
+        for (int i2 = (int)(x - lip - 1); i2 <= (int)(x + w + lip + 1); i2++) {
+            float sd = rr_sd((float)i2, (float)j2, cx, cy, hw, hh, rad);
+            if (sd <= 0.5f) {
+                float cov = fminf(1.0f, 0.5f - sd);
+                float t = ((float)j2 + 0.5f - y) / h; /* 0 top .. 1 bottom */
+                float v;
+                if (t < 0.50f)
+                    v = 0.10f + 0.14f * (t / 0.50f); /* the hole, in the overhang's shadow */
+                else {
+                    float u = (t - 0.50f) / 0.50f;   /* the slat's face, lit */
+                    v = 0.34f + 0.90f * u * u;
+                }
+                /* the end wall inside the cut, turned from the light */
+                float de = fminf((float)i2 + 0.5f - x, x + w - ((float)i2 + 0.5f)) / fmaxf(h, 1.0f);
+                if (de < 0.8f)
+                    v *= 0.55f + 0.45f * (de / 0.8f);
+                px_shade(c, i2, j2, 1.0f + (v - 1.0f) * cov, 0.0f);
+            } else if (sd < lip) {
+                float gx = rr_sd((float)i2 + 1, (float)j2, cx, cy, hw, hh, rad) -
+                           rr_sd((float)i2 - 1, (float)j2, cx, cy, hw, hh, rad);
+                float gy = rr_sd((float)i2, (float)j2 + 1, cx, cy, hw, hh, rad) -
+                           rr_sd((float)i2, (float)j2 - 1, cx, cy, hw, hh, rad);
+                float gl = sqrtf(gx * gx + gy * gy);
+                if (gl < 1e-4f)
+                    continue;
+                float lam = (gx * LIGHT_X + gy * LIGHT_Y) / gl;
+                float e = 1.0f - sd / lip;
+                e *= e;
+                px_shade(c, i2, j2, 1.0f - lam * 0.30f * e, fmaxf(-lam, 0.0f) * e * 0.09f);
             }
         }
 }
@@ -255,13 +307,13 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     /* the drive is a separate moulding: darker and greyer than the case */
     int pr = (int)(PLASTIC_R * 0.74f), pg = (int)(PLASTIC_G * 0.72f), pb = (int)(PLASTIC_B * 0.76f);
     /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
-    rrect(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 2.2f * mm,
+    rrect(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
           (int)(PLASTIC_R * 0.38f), (int)(PLASTIC_G * 0.38f), (int)(PLASTIC_B * 0.38f), 0.92f,
           1.04f);
-    chamfer_ring(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 2.2f * mm,
+    chamfer_ring(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
                  0.5f * mm);
-    rrect(c, x, y, fw, h, 2.0f * mm, pr, pg, pb, 0.97f, 1.01f);
-    housing_edge(c, x, y, fw, h, 2.0f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
+    rrect(c, x, y, fw, h, 1.3f * mm, pr, pg, pb, 0.97f, 1.01f);
+    housing_edge(c, x, y, fw, h, 1.3f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
 
     float sly = y + 8.6f * mm, slh = 4.8f * mm;
     float slx = x + 5.0f * mm, slw = fw - 10.0f * mm;

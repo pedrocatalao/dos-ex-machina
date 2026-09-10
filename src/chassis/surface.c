@@ -409,15 +409,19 @@ void surface_finish(canvas *c, int W, int H) {
 void surface_side_louvres(canvas *c, int W, int H, const chassis_geom *G) {
     (void)H;
     float mm = G->mm, edge = G->edge;
-    float y0 = G->gap_hi + G->gap_d + 5.0f * mm, y1 = G->gap_lo - 5.0f * mm;
-    float sh = fmaxf(1.5f, 0.9f * mm), pitch = 2.4f * mm, sw = edge * 0.58f;
-    if (y1 - y0 < pitch * 3.0f || sw < 3.0f)
+    float y0 = G->gap_hi + G->gap_d + 3.0f * mm, y1 = G->gap_lo - 7.0f * mm;
+    /* Each slot runs from a little inside the wall right out through the
+     * edge of the picture - the cut goes round the corner of the shell,
+     * so its outer end is never seen - with near-square ends. */
+    float sh = fmaxf(2.0f, 1.6f * mm), pitch = 4.0f * mm;
+    float in = edge * 0.62f, over = 3.0f * mm, sw = in + over;
+    if (y1 - y0 < pitch * 3.0f || in < 3.0f)
         return;
     int n = (int)((y1 - y0 - sh) / pitch) + 1;
     float ys = y0 + (y1 - y0 - ((n - 1) * pitch + sh)) * 0.5f;
     for (int side = 0; side < 2; side++) {
-        float x = side ? (float)W - edge + (edge - sw) * 0.5f : (edge - sw) * 0.5f;
+        float x = side ? (float)W - in : -over;
         for (int k = 0; k < n; k++)
-            vent_slot(c, x, ys + k * pitch, sw, sh);
+            louvre_slot(c, x, ys + k * pitch, sw, sh, sh * 0.18f);
     }
 }
