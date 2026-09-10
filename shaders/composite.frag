@@ -297,6 +297,11 @@ void main(){
       vec2 q = vec2(sp.x*A, sp.y);
       float dh = seg_geom.x, dw = dh*seg_geom.y, pitch = dw*seg_geom.z, th = dh*seg_geom.w;
       float m = th*seg_lean.y, pxu = 1.0/(seg_rect.w*outsize.y);
+      // A lit segment is not a flat red bar.  The die sits under the
+      // middle of the light pipe, so the bar is a hot yellow-white line
+      // down its axis falling to saturated red at the edges, and the
+      // frosted face throws a bloom beyond the edge.
+      vec3 emit = vec3(0.0);
       float lit = 0.0, halo = 0.0;
       for (int k = 0; k < 3; ++k) {
         vec2 l = q - vec2(A*0.5 + float(k-1)*pitch, 0.5);
@@ -312,13 +317,18 @@ void main(){
           vec2 r = l - c;
           float u = abs(dot(r, ax)), v = abs(dot(r, vec2(-ax.y, ax.x)));
           float d = max(v - th*0.5, (u + v - L)*0.70710678 + m);
-          lit  += lv*(1.0 - smoothstep(-pxu*0.6, pxu*0.6, d));
-          halo += lv*exp(-max(d, 0.0)/(dh*0.22));
+          float cov = lv*(1.0 - smoothstep(-pxu*0.6, pxu*0.6, d));
+          float core = exp(-pow(v/(th*0.5), 2.0)*2.6);        // the axis
+          core *= 1.0 - 0.5*smoothstep(L - th*1.2, L, u);     // dimmer at the tips
+          emit += cov*mix(vec3(1.0, 0.10, 0.02), vec3(1.0, 0.72, 0.30), core);
+          lit  += cov;
+          halo += lv*exp(-max(d, 0.0)/(dh*0.16));
         }
       }
       // the window's edge shades the bloom, not the segments
       float edge = min(min(sp.x, 1.0-sp.x)*A, min(sp.y, 1.0-sp.y)) / 0.08;
-      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*0.8 + min(halo, 1.0)*0.2*clamp(edge, 0.0, 1.0)) * seg_on;
+      fin += (emit/max(lit, 1.0)*min(lit, 1.0)*1.05
+              + vec3(1.0, 0.13, 0.05)*min(halo, 1.0)*0.30*clamp(edge, 0.0, 1.0)) * seg_on;
     } else if (all(greaterThan(sp, vec2(-0.6))) && all(lessThan(sp, vec2(1.6)))) {
       // What leaks out of the window onto the plastic around it: a faint
       // red wash, in proportion to how many segments are lit, falling off

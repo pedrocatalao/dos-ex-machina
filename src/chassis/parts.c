@@ -589,6 +589,11 @@ static float seg_ghost(float qx, float qy, float A) {
             if (d < best)
                 best = d;
         }
+        /* the decimal point, at the digit's lower right, never lit */
+        float px2 = lx - (dw * 0.5f + th * 0.95f), py2 = ly + dh * 0.5f - th * 0.45f;
+        float dp = sqrtf(px2 * px2 + py2 * py2) - th * 0.42f;
+        if (dp < best)
+            best = dp;
     }
     return best;
 }
@@ -613,18 +618,21 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
             /* smoked acrylic over a black board: near-black with the red
              * of the LEDs' own plastic in it, darker under the top lip
              * where the well shades it, and a faint sheen down the face */
-            float r = 36.0f, g = 15.0f, b = 12.0f;
+            /* a black epoxy face, the way a bare LED display module is,
+             * with the red of the diffusers only in the segments */
+            float r = 21.0f, g = 15.0f, b = 14.0f;
             float lip = 1.0f - 0.45f * expf(-(1.0f - qy) / 0.10f);
-            float sheen = 1.0f + 0.16f * expf(-((qy - 0.72f) * (qy - 0.72f)) / 0.06f);
+            float sheen = 1.0f + 0.20f * expf(-((qy - 0.72f) * (qy - 0.72f)) / 0.06f);
             float f = lip * sheen;
-            /* the digits, seen through the glass: a shade lighter than the
-             * board, and a shade greyer, being the LEDs' frosted faces */
+            /* the unlit segments: the frosted light pipes are a pale
+             * pinkish grey against the face, plainly there, as they are on
+             * a real module - the shadows of the digits, not a hint */
             float gd = seg_ghost(qx, qy, A);
             float pxu = 1.0f / h; /* one pixel, in window units */
             float ghost = 1.0f - fminf(1.0f, fmaxf(0.0f, (gd + pxu * 0.5f) / pxu));
-            r = r * f + (74.0f - r * f) * ghost * 0.55f;
-            g = g * f + (36.0f - g * f) * ghost * 0.55f;
-            b = b * f + (31.0f - b * f) * ghost * 0.55f;
+            r = r * f + (96.0f - r * f) * ghost * 0.80f;
+            g = g * f + (74.0f - g * f) * ghost * 0.80f;
+            b = b * f + (70.0f - b * f) * ghost * 0.80f;
             /* the frosted grain a moulded light pipe carries */
             float n = (hash2(i2, j2, 11) - 0.5f) * 5.0f;
             px_blend(c, i2, j2, (int)(r + n), (int)(g + n), (int)(b + n), a);
