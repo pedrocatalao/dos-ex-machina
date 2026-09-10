@@ -147,14 +147,15 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float pbx = edge + inset * 0.65f, pby = mid - pbh * 0.5f;
         badge(c, pbx, pby, pbw, pbh);
 
-        /* power button + status LEDs */
+        /* power button + status LEDs, and the turbo display beside the
+         * cap and level with it: both a touch below the badge's line,
+         * with their labels above them */
         float px0 = pbx + pbw + inset * 0.85f;
         float pw = 16.0f * mm; /* a 16mm power cap */
-        power_button(c, px0, pw, mid, mm, band_h, L);
-
-        /* the turbo display, beside the cap and level with it */
+        float pmid = mid + 3.0f * mm;
+        power_button(c, px0, pw, pmid, mm, band_h, L);
         float sx = px0 + pw + inset * 0.55f;
-        turbo_display(c, sx, pw, mid, mm, L);
+        turbo_display(c, sx, pw, pmid, mm, L);
 
         /* the knobs' fallback: on the band beside the display, for a
          * screen whose pods have no room under them */
@@ -195,7 +196,7 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
          * as what it is - ducting put where the airflow is. */
         {
             float vy0 =
-                fmaxf(pby + pbh, mid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm) +
+                fmaxf(pby + pbh, pmid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm) +
                 inset * 0.10f;
             float vy1 = (float)H - inset * 0.28f;
             float vx0 = (float)W * 0.40f, vx1 = (float)W * 0.60f;
