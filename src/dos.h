@@ -6,8 +6,8 @@
 /* The picture carries a border around the text, the way a real card's
  * overscan did: the whole area is lit and scanned, the characters just do
  * not run to the edge of the tube. */
-#define DOS_PAD_X 20
-#define DOS_PAD_Y 14
+#define DOS_PAD_X 14
+#define DOS_PAD_Y 12
 #define DOS_W (DOS_COLS * 8 + DOS_PAD_X * 2)
 #define DOS_H (DOS_ROWS * 16 + DOS_PAD_Y * 2)
 /* DOS_HANDOVER: the boot is done and a real DOS owns the tube from here;

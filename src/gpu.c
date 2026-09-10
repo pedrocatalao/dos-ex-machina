@@ -112,7 +112,7 @@ static int gl_load(void) {
  * a memory of the picture, texel for texel, and the composite reads the
  * picture from them.  They start at this size and follow the tube texture
  * from the first frame on.  A fixed 640x400 here was wrong for everything
- * that was not 320x200 or 640x400: the 680-column text screen resampled
+ * that was not 320x200 or 640x400: the 668-column text screen resampled
  * to 640 and then read back as if it were 680, a beat every seventeen
  * columns; a 640x480 picture lost eighty rows. */
 #define PERSIST_W 640
