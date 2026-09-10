@@ -14,6 +14,13 @@ uniform vec3  ledcol[2];
 uniform float ledon[2];
 uniform float ledround[2];
 uniform float ledclip[2];
+// the turbo display (segdisp.h): the window in uv, the three digits'
+// segment masks, the emission, and the digit geometry in window-height units
+uniform vec4  seg_rect;
+uniform int   segmask[3];
+uniform float seg_on;
+uniform vec4  seg_geom;   // digit height, width/height, pitch/width, thickness/height
+uniform vec2  seg_lean;   // slant, end gap/thickness
 uniform vec2  u_raster;         // deflection: fraction of the raster drawn
 uniform float u_gain;           // beam drive
 uniform float crt_lines, crt_cols, vgrid;
@@ -102,6 +109,12 @@ float column(float x, float px){
   float g = exp(-d*d*3.0/ (w*0.62));
   return mix(1.0, g, vgrid);
 }
+// segment endpoints in the digit's half-extents, y up: a b c d e f g
+const vec4 SEG_ENDS[7] = vec4[7](
+  vec4(-1.0, 1.0, 1.0, 1.0), vec4(1.0, 1.0, 1.0, 0.0), vec4(1.0, 0.0, 1.0, -1.0),
+  vec4(-1.0, -1.0, 1.0, -1.0), vec4(-1.0, -1.0, -1.0, 0.0), vec4(-1.0, 1.0, -1.0, 0.0),
+  vec4(-1.0, 0.0, 1.0, 0.0));
+
 void main(){
   vec4 chas = texture(chassis, vec2(uv.x, 1.0-uv.y));
   vec3 plastic = chas.rgb;
@@ -272,6 +285,37 @@ void main(){
     // stops there; a lamp does not light the front of a button above it.
     bleed *= 1.0 - smoothstep(ledclip[i] - 1.5/outsize.y, ledclip[i], uv.y);
     fin += ledcol[i] * (lens*1.50 + bleed) * ledon[i];
+  }
+  // The turbo display's lit segments.  Red LEDs behind smoked acrylic:
+  // a sharp segment, and a soft bloom on the glass around it - the
+  // diffusion the window adds is what stops them reading as flat paint.
+  if (seg_on > 0.001) {
+    vec2 sp = (uv - seg_rect.xy) / seg_rect.zw;
+    if (all(greaterThan(sp, vec2(0.0))) && all(lessThan(sp, vec2(1.0)))) {
+      float A = (seg_rect.z*outsize.x) / (seg_rect.w*outsize.y);
+      vec2 q = vec2(sp.x*A, sp.y);
+      float dh = seg_geom.x, dw = dh*seg_geom.y, pitch = dw*seg_geom.z, th = dh*seg_geom.w;
+      float gap = th*seg_lean.y, pxu = 1.0/(seg_rect.w*outsize.y);
+      float lit = 0.0, halo = 0.0;
+      for (int k = 0; k < 3; ++k) {
+        vec2 l = q - vec2(A*0.5 + float(k-1)*pitch, 0.5);
+        l.x -= l.y*seg_lean.x;
+        for (int s = 0; s < 7; ++s) {
+          if ((segmask[k] & (1 << s)) == 0) continue;
+          vec2 a = SEG_ENDS[s].xy*vec2(dw, dh)*0.5, b = SEG_ENDS[s].zw*vec2(dw, dh)*0.5;
+          vec2 v = normalize(b - a);
+          a += v*gap; b -= v*gap;
+          vec2 ap = l - a, ab = b - a;
+          float t = clamp(dot(ap, ab)/dot(ab, ab), 0.0, 1.0);
+          float d = length(ap - ab*t) - th*0.5;
+          lit  += 1.0 - smoothstep(-pxu*0.6, pxu*0.6, d);
+          halo += exp(-max(d, 0.0)/(dh*0.22));
+        }
+      }
+      // the window's edge shades the bloom, not the segments
+      float edge = min(min(sp.x, 1.0-sp.x)*A, min(sp.y, 1.0-sp.y)) / 0.08;
+      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*1.30 + min(halo, 1.0)*0.20*clamp(edge, 0.0, 1.0)) * seg_on;
+    }
   }
   o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);
 }

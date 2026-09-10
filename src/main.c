@@ -172,6 +172,10 @@ int main(int argc, char **argv) {
 
     Uint64 t_start = app_now_ns();
     int frame = 0, core_started = 0;
+    /* the turbo display's reading: frames counted over half a second of
+     * the machine's clock, so under --deterministic it reads a steady 60 */
+    Uint64 fps_t0 = t_start;
+    int fps_n = 0;
     /* the running game, by id: lib_scan rebuilds the library array in
      * place, so a pointer into it would not survive a rescan */
     char core_id[32] = "";
@@ -339,6 +343,15 @@ int main(int argc, char **argv) {
         SDL_GL_SwapWindow(a.win);
         frame++;
         app_frame_done();
+        fps_n++;
+        {
+            Uint64 now = app_now_ns();
+            if (now - fps_t0 >= 500000000ull) {
+                theatre_fps(&th, (int)((double)fps_n * 1e9 / (double)(now - fps_t0) + 0.5));
+                fps_n = 0;
+                fps_t0 = now;
+            }
+        }
         if (frame == 1)
             dxm_log("first machine frame on screen");
         if (o.shot && frame >= (o.shot_frames ? o.shot_frames : 60)) {

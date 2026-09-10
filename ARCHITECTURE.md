@@ -13,7 +13,7 @@ dos-ex-machina/
 │   ├── app.c/.h            SDL, the window, the GL context, the GPU pipeline,
 │   │                       the audio device, the clock, screenshots
 │   ├── splash.c/.h         the chassis worker thread and the splash it hides behind
-│   ├── theatre.c/.h        power on and off, the two LEDs, the fades, the drive
+│   ├── theatre.c/.h        power on and off, the LEDs, the turbo display, the fades, the drive
 │   ├── input.c/.h          scancodes, mouse capture, knob drag, the event switch
 │   ├── selftest.c/.h       --selftest: launch, unwind, relaunch a game
 │   ├── log.c/.h            dxm_log: stderr and dxm.log in the preferences dir
@@ -26,7 +26,7 @@ dos-ex-machina/
 │   │   ├── canvas.c        pixels, grain, shading, distance fields, bevels, lettering
 │   │   ├── surface.c       the case body: base coat, roll, side strips, recess, wear, light
 │   │   ├── bezel.c         the aperture in warped space, the dished band, the facing mask
-│   │   ├── parts.c         LEDs, the power button, vents, grilles, the floppy drive
+│   │   ├── parts.c         LEDs, the power button, the turbo display, vents, grilles, the floppy drive
 │   │   ├── marks.c         the badge, the stickers, the engraved marks
 │   │   ├── knobs.c         the rotary controls, drawn last and redrawn alone when turned
 │   │   ├── params.h        every tuned dimension and colour
@@ -96,7 +96,10 @@ per module; a subdirectory once a module has more than three files.
    sounds by leaving requests (`dos_take_beep`, `dos_take_floppy`) that the
    loop turns into `theatre_drive()` and `snd_beep()`.
 5. **The theatre** sets the tube's power state (warm-up, steady, collapse)
-   and the two LEDs (`theatre_frame`).
+   and the two LEDs (`theatre_frame`), and the turbo display's reading: the
+   case bakes the smoked window with its unlit digits, and the shader lights
+   the segments of the frame rate the main loop counts (`src/segdisp.h`
+   holds the digit geometry both sides draw from).
 6. **The tube source** is the core's frame if one is running, else
    `dos_render()`: an RGB8 image, with its line count and column count.
 7. **The knobs** that moved are redrawn into the chassis texture

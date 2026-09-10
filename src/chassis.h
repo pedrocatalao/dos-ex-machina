@@ -15,6 +15,9 @@ typedef struct {
     float pwr_led[4];
     float pwr_shelf; /* y of the power cap's lower edge: the LED's light
                             reaches the plastic below it, not the cap's face */
+    /* The turbo display's window: x,y,w,h in output px.  The digits are
+     * lit live by the shader, like the LEDs; the case holds the window. */
+    float seg[4];
     /* The two rotary knobs, brightness then contrast: centre x, y and
      * radius in output px.  They are the one part of the case that moves. */
     float knob[2][3];

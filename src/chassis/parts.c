@@ -1,6 +1,7 @@
 /* parts.c — the moulded parts: LEDs, the power button, vents, the
  * speaker grilles and the floppy drive. */
 #include "internal.h"
+#include "segdisp.h"
 
 static void led(canvas *c, float cx, float cy, float rad, int r, int g, int b) {
     /* Matched to the reference PNG's LEDs at 16x magnification:
@@ -554,4 +555,100 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
         L->pwr_led[3] = lr * 2.0f;
         L->pwr_shelf = cap_lo;
     }
+}
+
+/* ---- the turbo display ---------------------------------------------------- */
+
+/* Signed distance from p to the segment a-b, in whatever units p is in. */
+static float seg_sd(float px, float py, float ax, float ay, float bx, float by) {
+    float dx = bx - ax, dy = by - ay;
+    float t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+    if (t < 0.0f)
+        t = 0.0f;
+    if (t > 1.0f)
+        t = 1.0f;
+    float ex = px - (ax + dx * t), ey = py - (ay + dy * t);
+    return sqrtf(ex * ex + ey * ey);
+}
+
+/* Coverage of the seven UNLIT segments of the three digits at window point
+ * (qx, qy), in window-height units with y up; A is the window's aspect. */
+static float seg_ghost(float qx, float qy, float A) {
+    static const float ends[7][4] = SEG_ENDS;
+    float dh = SEG_DH, dw = dh * SEG_WR, pitch = dw * SEG_PITCH, th = dh * SEG_T;
+    float gap = th * SEG_GAP, best = 1e9f;
+    for (int k = 0; k < 3; k++) {
+        float lx = qx - (A * 0.5f + (float)(k - 1) * pitch), ly = qy - 0.5f;
+        lx -= ly * SEG_SLANT; /* take the lean out */
+        for (int s = 0; s < 7; s++) {
+            float ax = ends[s][0] * dw * 0.5f, ay = ends[s][1] * dh * 0.5f;
+            float bx = ends[s][2] * dw * 0.5f, by = ends[s][3] * dh * 0.5f;
+            float vx = bx - ax, vy = by - ay, vl = sqrtf(vx * vx + vy * vy);
+            vx /= vl;
+            vy /= vl;
+            float d = seg_sd(lx, ly, ax + vx * gap, ay + vy * gap, bx - vx * gap, by - vy * gap);
+            if (d < best)
+                best = d;
+        }
+    }
+    return best - th * 0.5f;
+}
+
+/* The turbo display: a smoked acrylic window in a well beside the power
+ * cap, level with it, with the three dark digits showing through the
+ * glass the way an unlit LED display does.  The digits are LIT by the
+ * shader; here they are only the shadows of themselves.  Records the
+ * window in L. */
+void turbo_display(canvas *c, float x, float pw, float mid, float mm, dxm_layout *L) {
+    float h = pw * 0.78f; /* the cap's own height */
+    float w = SEG_WIN_W_MM * mm;
+    float y = mid - pw * 0.39f;
+    float rad = h * 0.08f;
+    /* painted, centred, and on the same line as POWER */
+    {
+        const char *pl = "FPS";
+        float ls = fmaxf(1.0f, canvas_lbl * 0.70f);
+        float tw3 = (float)strlen(pl) * 8.0f * ls;
+        float ly = mid - pw * 0.39f - 1.9f * mm - 8.0f * ls - 0.7f * mm;
+        text_smooth(c, x + (w - tw3) * 0.5f, ly, pl, ls, 112, 107, 96);
+    }
+    well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
+    float A = w / h, cx = x + w * 0.5f, cy = y + h * 0.5f;
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    for (int j2 = (int)y - 1; j2 <= (int)(y + h) + 1; j2++)
+        for (int i2 = (int)x - 1; i2 <= (int)(x + w) + 1; i2++) {
+            float sd = rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, cx, cy, w * 0.5f, h * 0.5f, rad);
+            if (sd > 0.5f)
+                continue;
+            float a = fminf(1.0f, 0.5f - sd);
+            /* the window, in its own units: x across, y UP */
+            float qx = ((float)i2 + 0.5f - x) / h, qy = (y + h - ((float)j2 + 0.5f)) / h;
+            /* smoked acrylic over a black board: near-black with the red
+             * of the LEDs' own plastic in it, darker under the top lip
+             * where the well shades it, and a faint sheen down the face */
+            float r = 36.0f, g = 15.0f, b = 12.0f;
+            float lip = 1.0f - 0.45f * expf(-(1.0f - qy) / 0.10f);
+            float sheen = 1.0f + 0.16f * expf(-((qy - 0.72f) * (qy - 0.72f)) / 0.06f);
+            float f = lip * sheen;
+            /* the digits, seen through the glass: a shade lighter than the
+             * board, and a shade greyer, being the LEDs' frosted faces */
+            float gd = seg_ghost(qx, qy, A);
+            float pxu = 1.0f / h; /* one pixel, in window units */
+            float ghost = 1.0f - fminf(1.0f, fmaxf(0.0f, (gd + pxu * 0.5f) / pxu));
+            r = r * f + (74.0f - r * f) * ghost * 0.55f;
+            g = g * f + (36.0f - g * f) * ghost * 0.55f;
+            b = b * f + (31.0f - b * f) * ghost * 0.55f;
+            /* the frosted grain a moulded light pipe carries */
+            float n = (hash2(i2, j2, 11) - 0.5f) * 5.0f;
+            px_blend(c, i2, j2, (int)(r + n), (int)(g + n), (int)(b + n), a);
+        }
+    /* the glass's own edge catches a line along the top, under the lip */
+    for (int i2 = (int)(x + rad); i2 < (int)(x + w - rad); i2++)
+        px_blend(c, i2, (int)y, 255, 255, 255, 0.09f);
+    canvas_grain = saved;
+    L->seg[0] = x;
+    L->seg[1] = y;
+    L->seg[2] = w;
+    L->seg[3] = h;
 }

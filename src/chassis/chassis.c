@@ -121,7 +121,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
     }
 }
 
-/* ---- bottom band: badge | power+LEDs | volume/phones | floppy ---- */
+/* ---- bottom band: badge | power+LEDs | turbo display | floppy ---- */
 static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
                         int *knobs_placed) {
     float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
@@ -152,11 +152,15 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float pw = 16.0f * mm; /* a 16mm power cap */
         power_button(c, px0, pw, mid, mm, band_h, L);
 
-        /* the knobs' fallback: on the band beside the power cap, for a
+        /* the turbo display, beside the cap and level with it */
+        float sx = px0 + pw + inset * 0.55f;
+        turbo_display(c, sx, pw, mid, mm, L);
+
+        /* the knobs' fallback: on the band beside the display, for a
          * screen whose pods have no room under them */
         if (!*knobs_placed) {
             float kr = 3.9f * mm;
-            float kx = px0 + pw + inset * 0.85f + kr;
+            float kx = sx + L->seg[2] + inset * 0.85f + kr;
             float ky = mid;
             knob_icons(c, kx, ky + kr + 3.0f * mm, kx + kr * 3.0f, ky + kr + 3.0f * mm, 1.4f * mm);
             /* only their places for now: the knobs themselves go on LAST,

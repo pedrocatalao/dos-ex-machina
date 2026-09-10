@@ -1,5 +1,6 @@
 /* theatre.h — what the machine does that is not the picture: powering on
- * and off, the two LEDs, the drive running, and the room going dark.
+ * and off, the two LEDs, the turbo display, the drive running, and the
+ * room going dark.
  *
  * Power on: the mains switch, and the monitor's degauss thump as its coil
  * kicks in.  The picture then WARMS UP over the next second or so - small
@@ -19,12 +20,15 @@ typedef struct {
     float pwr;          /* the power LED, eased toward on or off */
     int selftest;       /* no warm-up and no fade: the test wants the picture now */
     int deterministic;  /* the drive LED follows the machine clock, not the audio */
+    int fps;            /* what the turbo display shows; <0 = nothing yet */
 } theatre;
 
 void theatre_power_on(theatre *th, int selftest, int deterministic);
 void theatre_power_off(theatre *th, double t);
 /* The drive works for `seconds` from machine time t: sound, and the LED. */
 void theatre_drive(theatre *th, double seconds, double t);
+/* The turbo display's reading: frames per second, 0..999.  <0 blanks it. */
+void theatre_fps(theatre *th, int fps);
 /* Per frame, before the picture: the tube's power state and both LEDs.
  * Returns 1 once the power-off sequence has run its course. */
 int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double t);
