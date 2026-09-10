@@ -23,8 +23,11 @@
 #define SEG_T 0.15f
 /* the italic lean every LED digit of the period had: x shift per unit y */
 #define SEG_SLANT 0.10f
-/* the gap at a segment's ends, over its thickness */
-#define SEG_GAP 0.70f
+/* Each segment is a hexagon: a bar with 45-degree pointed ends, the tips
+ * meeting at the digit's corners.  Neighbours would touch flank to flank
+ * there, so every segment stands back from its outline by this much,
+ * over the thickness - the hairline between segments a real display has. */
+#define SEG_GAP 0.16f
 
 /* Segment endpoints in the digit's own half-extents (x, y in -1..1, y up):
  * a top, b upper right, c lower right, d bottom, e lower left, f upper

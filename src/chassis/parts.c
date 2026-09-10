@@ -559,16 +559,18 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
 
 /* ---- the turbo display ---------------------------------------------------- */
 
-/* Signed distance from p to the segment a-b, in whatever units p is in. */
-static float seg_sd(float px, float py, float ax, float ay, float bx, float by) {
-    float dx = bx - ax, dy = by - ay;
-    float t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
-    if (t < 0.0f)
-        t = 0.0f;
-    if (t > 1.0f)
-        t = 1.0f;
-    float ex = px - (ax + dx * t), ey = py - (ay + dy * t);
-    return sqrtf(ex * ex + ey * ey);
+/* Signed distance from p to the segment a-b: a bar of half-thickness t with
+ * 45-degree pointed ends, its tips at a and b, stood back by m all round
+ * the ends (the shader draws the same shape). */
+static float seg_sd(float px, float py, float ax, float ay, float bx, float by, float t,
+                    float m) {
+    float cx = (ax + bx) * 0.5f, cy = (ay + by) * 0.5f;
+    float dx = bx - ax, dy = by - ay, L = sqrtf(dx * dx + dy * dy) * 0.5f;
+    dx /= 2.0f * L;
+    dy /= 2.0f * L;
+    float u = fabsf((px - cx) * dx + (py - cy) * dy), v = fabsf(-(px - cx) * dy + (py - cy) * dx);
+    float bar = v - t, tip = (u + v - L) * 0.70710678f + m;
+    return bar > tip ? bar : tip;
 }
 
 /* Coverage of the seven UNLIT segments of the three digits at window point
@@ -576,22 +578,19 @@ static float seg_sd(float px, float py, float ax, float ay, float bx, float by) 
 static float seg_ghost(float qx, float qy, float A) {
     static const float ends[7][4] = SEG_ENDS;
     float dh = SEG_DH, dw = dh * SEG_WR, pitch = dw * SEG_PITCH, th = dh * SEG_T;
-    float gap = th * SEG_GAP, best = 1e9f;
+    float m = th * SEG_GAP, best = 1e9f;
     for (int k = 0; k < 3; k++) {
         float lx = qx - (A * 0.5f + (float)(k - 1) * pitch), ly = qy - 0.5f;
         lx -= ly * SEG_SLANT; /* take the lean out */
         for (int s = 0; s < 7; s++) {
             float ax = ends[s][0] * dw * 0.5f, ay = ends[s][1] * dh * 0.5f;
             float bx = ends[s][2] * dw * 0.5f, by = ends[s][3] * dh * 0.5f;
-            float vx = bx - ax, vy = by - ay, vl = sqrtf(vx * vx + vy * vy);
-            vx /= vl;
-            vy /= vl;
-            float d = seg_sd(lx, ly, ax + vx * gap, ay + vy * gap, bx - vx * gap, by - vy * gap);
+            float d = seg_sd(lx, ly, ax, ay, bx, by, th * 0.5f, m);
             if (d < best)
                 best = d;
         }
     }
-    return best - th * 0.5f;
+    return best;
 }
 
 /* The turbo display: a smoked acrylic window in a well beside the power
