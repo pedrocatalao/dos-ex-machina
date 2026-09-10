@@ -35,7 +35,8 @@ if(WIN32)
 endif()
 
 add_executable(dxm
-    src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/selftest.c
+    src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/cursor.c
+    src/selftest.c
     src/gpu.c src/font.c src/sound.c
     src/dos/dos.c src/dos/term.c src/dos/shell.c src/dos/boot.c src/dos/nc.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c

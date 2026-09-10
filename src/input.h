@@ -16,6 +16,7 @@ typedef struct {
     int knob_drag;          /* the knob being turned, or -1 */
     float knob_y0, knob_v0; /* where the hand and the knob started */
     int button;             /* the display button just pressed, for INPUT_BUTTON */
+    SDL_Cursor *arrow;      /* the vintage pointer, for when the mouse is out on the case */
 } input_state;
 
 typedef enum { INPUT_HANDLED, INPUT_QUIT, INPUT_RESIZED, INPUT_BUTTON } input_result;

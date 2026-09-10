@@ -1,5 +1,6 @@
 /* input.c — see input.h. */
 #include "input.h"
+#include "cursor.h"
 #include "log.h"
 #include "dos.h"
 #include "corehost.h"
@@ -109,6 +110,9 @@ void input_init(input_state *in, app *a) {
     in->knob_drag = -1;
     in->knob_y0 = in->knob_v0 = 0.0f;
     in->holding = -1; /* nothing asked of SDL yet */
+    in->arrow = cursor_vintage();
+    if (in->arrow)
+        SDL_SetCursor(in->arrow);
     input_capture(in, a, 1);
 }
 
