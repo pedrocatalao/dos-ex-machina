@@ -672,7 +672,7 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
         canvas_grain = saved;
     }
     {
-        float ls = fmaxf(0.5f, canvas_lbl * 0.55f);
+        float ls = fmaxf(0.5f, canvas_lbl * 0.62f);
         float tw3 = (float)strlen(label) * 8.0f * ls;
         text_smooth(c, x + (w - tw3) * 0.5f, y + (h - 8.0f * ls) * 0.5f - 0.5f, label, ls, 196, 190,
                     176);
