@@ -212,6 +212,22 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+/* A target that the bloom and spill passes shrink FROM samples through a
+ * mip chain, so that a texel of the small picture is the average of all
+ * the source under it.  Five taps of the blur over a 4x or 7x reduction
+ * miss most of the source, and a bright line scrolling through the picture
+ * drifted in and out of the taps: the light on the case moved in steps
+ * while the picture moved smoothly. */
+static void mipmapped(GLuint tex) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_2D);
+}
+static void remip(GLuint tex) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glGenerateMipmap(GL_TEXTURE_2D);
+}
+
 gpu *gpu_create(int w, int h) {
     if (!gl_load()) {
         gpu_logf("this GL context is missing functions DXM needs");
@@ -271,6 +287,10 @@ gpu *gpu_create(int w, int h) {
     mktarget(&g->fbo_room, &g->tex_room, ROOM_W, ROOM_H);
     mktarget(&g->fbo_burn[0], &g->tex_burn[0], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_burn[1], &g->tex_burn[1], PERSIST_W, PERSIST_H);
+    mipmapped(g->tex_persist[0]);
+    mipmapped(g->tex_persist[1]);
+    mipmapped(g->tex_bloom2);
+    mipmapped(g->tex_spill);
     glGenTextures(1, &g->tex_overlay);
     glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -361,6 +381,7 @@ void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h) {
          * as the picture did on a real tube while the monitor re-synced */
         for (int i = 0; i < 2; i++) {
             retarget(g->fbo_persist[i], g->tex_persist[i], w, h);
+            remip(g->tex_persist[i]);
             retarget(g->fbo_burn[i], g->tex_burn[i], w, h);
         }
         g->persist_w = w;
@@ -397,6 +418,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1f(glGetUniformLocation(g->prog_persist, "dt"), dt);
     glUniform1f(glGetUniformLocation(g->prog_persist, "persist"), k->persistence);
     pass(g, g->prog_persist, g->fbo_persist[cur], g->persist_w, g->persist_h);
+    remip(g->tex_persist[cur]);
     g->persist_cur = cur;
     /* burn-in: a much slower average of the same signal */
     {
@@ -436,11 +458,13 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glBindTexture(GL_TEXTURE_2D, g->tex_bloom);
     glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0, 0.55f / BLOOM_H);
     pass(g, g->prog_blur, g->fbo_bloom2, BLOOM_W, BLOOM_H);
+    remip(g->tex_bloom2);
     /* spill: downsample hard, then blur again — soft enough not to streak */
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g->tex_bloom2);
     glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 1.6f / SPILL_W, 0);
     pass(g, g->prog_blur, g->fbo_spill, SPILL_W, SPILL_H);
+    remip(g->tex_spill);
     /* down again to almost nothing: the room-light term */
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g->tex_spill);
