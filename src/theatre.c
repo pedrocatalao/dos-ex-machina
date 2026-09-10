@@ -4,6 +4,7 @@
 #include "log.h"
 #include "segdisp.h"
 #include <math.h>
+#include <string.h>
 
 /* The machine comes up out of the same black the splash left behind, so
  * the two read as one continuous power-on rather than a cut. */
@@ -21,6 +22,9 @@ void theatre_power_on(theatre *th, int selftest, int deterministic) {
     th->fps = -1;
     th->mhz_stop = SEG_MHZ_DEFAULT;
     th->mode = 0;
+    memset(th->seg_lvl, 0, sizeof th->seg_lvl);
+    th->leg_lvl[0] = th->leg_lvl[1] = 0.0f;
+    th->seg_t = -1.0;
     snd_relay();
     snd_degauss();
 }
@@ -140,11 +144,30 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
         /* the turbo display: lit like the power LED, and it comes up and
          * goes down with it; the clock or the frame rate, with the legend
          * to say which */
-        static const int legends[2][3] = SEG_LEGENDS;
+        /* An LED does not snap: each segment eases toward on or off over a
+         * fifth of a second, so a change of speed or of mode crossfades
+         * rather than cuts.  The mode lights crossfade the same way. */
         int mask[3];
         seg_figures(th->mode ? th->fps : mhz_stops[th->mhz_stop], mask);
+        float dt = th->seg_t < 0.0 ? 1.0 : (float)(t - th->seg_t);
+        th->seg_t = t;
+        float k = 1.0f - expf(-dt / 0.22f);
+        for (int i = 0; i < 21; i++) {
+            float want = (mask[i / 7] >> (i % 7)) & 1 ? 1.0f : 0.0f;
+            th->seg_lvl[i] += (want - th->seg_lvl[i]) * k;
+        }
+        for (int i = 0; i < 2; i++) {
+            float want = (th->mode ? 0 : 1) == i ? 1.0f : 0.0f;
+            th->leg_lvl[i] += (want - th->leg_lvl[i]) * k;
+        }
         gpu_set_segdisp(g, L->seg[0] / W, 1.0f - (L->seg[1] + L->seg[3]) / H, L->seg[2] / W,
-                        L->seg[3] / H, mask, legends[th->mode ? 0 : 1], th->pwr);
+                        L->seg[3] / H, th->seg_lvl, th->pwr);
+        /* the mode lights: red, against FPS or MHz, and dark with the machine */
+        for (int i = 0; i < 2; i++)
+            gpu_set_led(g, 2 + i, L->mode_led[i][0] / W,
+                        1.0f - (L->mode_led[i][1] + L->mode_led[i][3]) / H, L->mode_led[i][2] / W,
+                        L->mode_led[i][3] / H, th->leg_lvl[i] * th->pwr, 1.0f, 0.16f, 0.06f, 1,
+                        2.0f);
     }
     return done;
 }

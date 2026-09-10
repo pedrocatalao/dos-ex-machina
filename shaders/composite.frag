@@ -9,21 +9,19 @@ uniform float warp, bright, contrast, ambient, scan, margin;
 uniform float u_bloom, u_burn, u_noise, u_jitter, u_glowline;
 uniform float u_flicker, u_hsync, u_rgb, u_chassis;
 uniform float aper_r, time;
-uniform vec4  led[2];
-uniform vec3  ledcol[2];
-uniform float ledon[2];
-uniform float ledround[2];
-uniform float ledclip[2];
-// the turbo display (segdisp.h): the window in uv, the three digits'
-// segment masks, the legend's three glyphs, the emission, and the digit
-// geometry in window-height units
+uniform vec4  led[4];
+uniform vec3  ledcol[4];
+uniform float ledon[4];
+uniform float ledround[4];
+uniform float ledclip[4];
+// the turbo display (segdisp.h): the window in uv, how lit each of the
+// three digits' seven segments is, the emission, and the digit geometry
+// in window-height units
 uniform vec4  seg_rect;
-uniform int   segmask[3];
-uniform int   seglegend[3];
+uniform float seglvl[21];
 uniform float seg_on;
 uniform vec4  seg_geom;   // digit height, width/height, pitch/width, thickness/height
 uniform vec2  seg_lean;   // slant, end stand-back/thickness
-uniform vec3  seg_legend; // the legend column's x, its glyph cell, the digits' offset
 uniform vec2  u_raster;         // deflection: fraction of the raster drawn
 uniform float u_gain;           // beam drive
 uniform float crt_lines, crt_cols, vgrid;
@@ -263,7 +261,7 @@ void main(){
            // the dish, now that the edge light is the only source
            + spill*fall*u_chassis*facing*(0.54+0.50*(1.0-ambient));
   vec3 fin = mix(lit, col, inside);
-  for (int i = 0; i < 2; ++i) {
+  for (int i = 0; i < 4; ++i) {
     if (ledon[i] <= 0.001) continue;
     vec2 lc = led[i].xy + led[i].zw*0.5;
     vec2 dd  = (uv - lc) / (led[i].zw*0.5);
@@ -301,10 +299,11 @@ void main(){
       float m = th*seg_lean.y, pxu = 1.0/(seg_rect.w*outsize.y);
       float lit = 0.0, halo = 0.0;
       for (int k = 0; k < 3; ++k) {
-        vec2 l = q - vec2(A*0.5 + seg_legend.z + float(k-1)*pitch, 0.5);
+        vec2 l = q - vec2(A*0.5 + float(k-1)*pitch, 0.5);
         l.x -= l.y*seg_lean.x;
         for (int s = 0; s < 7; ++s) {
-          if ((segmask[k] & (1 << s)) == 0) continue;
+          float lv = seglvl[k*7+s];
+          if (lv <= 0.002) continue;
           vec2 a = SEG_ENDS[s].xy*vec2(dw, dh)*0.5, b = SEG_ENDS[s].zw*vec2(dw, dh)*0.5;
           // a hexagonal bar: half-thickness th/2, 45-degree tips at a and
           // b, stood back by m so neighbours leave a hairline (segdisp.h)
@@ -313,30 +312,13 @@ void main(){
           vec2 r = l - c;
           float u = abs(dot(r, ax)), v = abs(dot(r, vec2(-ax.y, ax.x)));
           float d = max(v - th*0.5, (u + v - L)*0.70710678 + m);
-          lit  += 1.0 - smoothstep(-pxu*0.6, pxu*0.6, d);
-          halo += exp(-max(d, 0.0)/(dh*0.22));
+          lit  += lv*(1.0 - smoothstep(-pxu*0.6, pxu*0.6, d));
+          halo += lv*exp(-max(d, 0.0)/(dh*0.22));
         }
-      }
-      // the legend, spelled down the left in small lit letters: 5x5
-      // glyphs a cell apart, box-filtered since a cell can be under a
-      // pixel; it is lit dimmer than the digits, being the small print
-      float leg = 0.0;
-      {
-        float cell = seg_legend.y, rows = 17.0, top = 0.5 + rows*cell*0.5;
-        for (int sy = -1; sy <= 1; ++sy)
-          for (int sx = -1; sx <= 1; ++sx) {
-            vec2 qq = q + vec2(float(sx), float(sy))*pxu/3.0;
-            float cx = (qq.x - seg_legend.x)/cell, cy = (top - qq.y)/cell;
-            if (cx < 0.0 || cx >= 5.0 || cy < 0.0 || cy >= rows) continue;
-            int r = int(cy), n = r/6, rr = r - n*6;
-            if (rr >= 5) continue;
-            leg += float((seglegend[n] >> (rr*5 + int(cx))) & 1);
-          }
-        leg /= 9.0;
       }
       // the window's edge shades the bloom, not the segments
       float edge = min(min(sp.x, 1.0-sp.x)*A, min(sp.y, 1.0-sp.y)) / 0.08;
-      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*0.8 + leg*0.55 + min(halo, 1.0)*0.2*clamp(edge, 0.0, 1.0)) * seg_on;
+      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*0.8 + min(halo, 1.0)*0.2*clamp(edge, 0.0, 1.0)) * seg_on;
     } else if (all(greaterThan(sp, vec2(-0.6))) && all(lessThan(sp, vec2(1.6)))) {
       // What leaks out of the window onto the plastic around it: a faint
       // red wash, in proportion to how many segments are lit, falling off
@@ -346,11 +328,9 @@ void main(){
       vec2 q = vec2(sp.x*A, sp.y);
       vec2 o = max(max(-q, q - vec2(A, 1.0)), 0.0);
       float d = length(o);
-      int n = 0;
-      for (int k = 0; k < 3; ++k)
-        for (int s = 0; s < 7; ++s)
-          n += (segmask[k] >> s) & 1;
-      float wash = exp(-d/0.22) * (float(n)/21.0);
+      float n = 0.0;
+      for (int j = 0; j < 21; ++j) n += seglvl[j];
+      float wash = exp(-d/0.22) * (n/21.0);
       fin += vec3(1.0, 0.13, 0.05) * wash * 0.12 * seg_on;
     }
   }

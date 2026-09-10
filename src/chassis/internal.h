@@ -72,7 +72,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
 void grille_panel(canvas *c, float x, float y, float w, float h, float pitch);
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h, dxm_layout *L);
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
-                  float btn[3][4]);
+                  float btn[3][4], float mode_led[2][4]);
 void vent_slot(canvas *c, float x, float y, float w, float h);
 
 /* marks.c */

@@ -23,6 +23,9 @@ typedef struct {
     int fps;            /* the frame rate, for the display; <0 = nothing yet */
     int mhz_stop;       /* the clock, as an index into SEG_MHZ_STOPS */
     int mode;           /* what the display shows: 0 the clock, 1 the frame rate */
+    float seg_lvl[21];  /* how lit each segment is, easing toward what is shown */
+    float leg_lvl[2];   /* the two mode LEDs, FPS and MHz, likewise */
+    double seg_t;       /* when the display was last eased */
 } theatre;
 
 void theatre_power_on(theatre *th, int selftest, int deterministic);

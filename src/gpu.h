@@ -69,18 +69,17 @@ void gpu_set_overlay(gpu *g, const uint8_t *rgba, int w, int h);
 void gpu_draw_overlay(gpu *g);
 
 /* Live LED emission painted over the baked chassis, which contains only the
- * UNLIT lens.  idx 0 = floppy activity, 1 = power.  round!=0 uses a circular
+ * UNLIT lens.  idx 0 = floppy activity, 1 = power, 2 and 3 the turbo
+ * display's FPS and MHz mode lights.  round!=0 uses a circular
  * lens profile.  All the light and its bleed onto the plastic come from here. */
 /* clip: a height in 0..1 output space above which the LED throws no light
  * on the plastic - the underside of a button it sits beneath.  2.0 = none. */
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
                  float b, int round, float clip);
-/* The turbo display's digits and legend, lit over the baked window (see
- * segdisp.h).  x,y,w,h in 0..1 output space; mask[k] lights the segments
- * of digit k, left to right; legend[k] is the k-th letter's glyph; on
- * scales the emission, 0 = dark. */
-void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const int mask[3],
-                     const int legend[3], float on);
+/* The turbo display's digits, lit over the baked window (see segdisp.h).
+ * x,y,w,h in 0..1 output space; lvl[k*7+s] is how lit segment s of digit
+ * k is, 0..1, left to right; on scales the whole emission. */
+void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const float lvl[21], float on);
 
 /* read the framebuffer back (for --shot); caller frees */
 uint8_t *gpu_readback(gpu *g, int *w, int *h);

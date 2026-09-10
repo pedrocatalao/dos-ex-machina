@@ -155,7 +155,7 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float pmid = mid + 1.5f * mm;
         power_button(c, px0, pw, pmid, mm, band_h, L);
         float sx = px0 + pw + inset * 0.55f;
-        turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn);
+        turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn, L->mode_led);
         float mod_r = L->btn[2][0] + L->btn[2][2] + 0.7f * mm; /* the module's right edge */
 
         /* the knobs' fallback: on the band beside the module, for a

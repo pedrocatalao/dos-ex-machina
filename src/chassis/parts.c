@@ -580,7 +580,7 @@ static float seg_ghost(float qx, float qy, float A) {
     float dh = SEG_DH, dw = dh * SEG_WR, pitch = dw * SEG_PITCH, th = dh * SEG_T;
     float m = th * SEG_GAP, best = 1e9f;
     for (int k = 0; k < 3; k++) {
-        float lx = qx - (A * 0.5f + SEG_DIGITS_OFF + (float)(k - 1) * pitch), ly = qy - 0.5f;
+        float lx = qx - (A * 0.5f + (float)(k - 1) * pitch), ly = qy - 0.5f;
         lx -= ly * SEG_SLANT; /* take the lean out */
         for (int s = 0; s < 7; s++) {
             float ax = ends[s][0] * dw * 0.5f, ay = ends[s][1] * dh * 0.5f;
@@ -595,9 +595,8 @@ static float seg_ghost(float qx, float qy, float A) {
 
 /* The turbo display's glass: a smoked acrylic window with the three dark
  * digits showing through it the way an unlit LED display does.  The
- * digits are LIT by the shader, and so is the legend, which changes with
- * the mode; here the digits are only the shadows of themselves.  Records
- * the window in out. */
+ * digits are LIT by the shader; here they are only the shadows of
+ * themselves.  Records the window in out. */
 static void turbo_glass(canvas *c, float x, float y, float w, float h, float out[4]) {
     float rad = h * 0.08f;
     float A = w / h, cx = x + w * 0.5f, cy = y + h * 0.5f;
@@ -677,21 +676,40 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
 }
 
 /* The turbo module, one part: a single well in the case beside the power
- * cap, level with it, holding a dark plate that carries the glass on the
- * left and the three keys on the right - MODE across the top, - and +
- * under it - parted only by the plate showing between them.  The way a
- * case carried its display and its buttons: one moulded unit, not a hole
- * for each.  Records the window in seg and each key's outline in btn[]. */
+ * cap, level with it, holding a dark plate that carries, left to right,
+ * the legend - FPS over MHz, printed, with an LED against each for the
+ * shader to light whichever is showing - the glass, and the three keys,
+ * MODE across the top, - and + under it, parted only by the plate showing
+ * between them.  The way a case carried its display and its buttons: one
+ * moulded unit, not a hole for each.  Records the window in seg, each
+ * key's outline in btn[] and the two LEDs in mode_led[]. */
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
-                  float btn[3][4]) {
+                  float btn[3][4], float mode_led[2][4]) {
     float lip = 0.7f * mm, gap = 0.8f * mm, part = 1.1f * mm;
     float gh = pw * 0.78f, gw = SEG_WIN_W_MM * mm, kw = 13.5f * mm;
-    float h = gh + 2.0f * lip, w = lip + gw + part + kw + lip;
+    /* the legend strip: an LED and a printed word, FPS over MHz */
+    float ls = fmaxf(0.5f, canvas_lbl * 0.50f), lr = 1.0f * mm;
+    float sw = 1.2f * mm + lr * 2.0f + 1.0f * mm + 3.0f * 8.0f * ls + 0.6f * mm;
+    float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
     float y = mid - pw * 0.39f - lip, rad = h * 0.09f;
     well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
-    turbo_glass(c, x + lip, y + lip, gw, gh, seg);
-    float kx = x + lip + gw + part, ky = y + lip;
+    {
+        const char *words[2] = {"FPS", "MHz"};
+        float pitch = gh * 0.40f, lcx = x + lip + 1.2f * mm + lr;
+        float tx = lcx + lr + 1.0f * mm;
+        for (int i = 0; i < 2; i++) {
+            float cy = y + h * 0.5f + (i ? 0.5f : -0.5f) * pitch;
+            led(c, lcx, cy, lr, 44, 18, 14); /* UNLIT, red */
+            mode_led[i][0] = lcx - lr;
+            mode_led[i][1] = cy - lr;
+            mode_led[i][2] = lr * 2.0f;
+            mode_led[i][3] = lr * 2.0f;
+            text_smooth(c, tx, cy - 4.0f * ls, words[i], ls, 196, 190, 176);
+        }
+    }
+    turbo_glass(c, x + lip + sw, y + lip, gw, gh, seg);
+    float kx = x + lip + sw + gw + part, ky = y + lip;
     float ch = (gh - gap) * 0.5f, cw = (kw - gap) * 0.5f;
     cluster_cap(c, kx, ky, kw, ch, mm, "MODE", btn[0]);
     cluster_cap(c, kx, ky + ch + gap, cw, ch, mm, "-", btn[1]);

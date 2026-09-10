@@ -20,6 +20,7 @@ typedef struct {
      * its three push buttons, MODE, - and +, for the mouse to find. */
     float seg[4];
     float btn[3][4];
+    float mode_led[2][4]; /* the FPS and the MHz LEDs, unlit in the bake */
     /* The two rotary knobs, brightness then contrast: centre x, y and
      * radius in output px.  They are the one part of the case that moves. */
     float knob[2][3];
