@@ -147,24 +147,22 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float pbx = edge + inset * 0.65f, pby = mid - pbh * 0.5f + 1.5f * mm;
         badge(c, pbx, pby, pbw, pbh);
 
-        /* power button + status LEDs, and the two digit displays beside
-         * the cap and level with it - the frame rate, then the clock in
-         * MHz, the turbo display the case was made for: all a touch below
-         * the badge's line, with their labels above them */
+        /* power button + status LEDs, and the turbo module beside the cap
+         * and level with it - the display's glass and its three keys in
+         * one well: all a touch below the badge's line */
         float px0 = pbx + pbw + inset * 0.85f;
         float pw = 16.0f * mm; /* a 16mm power cap */
         float pmid = mid + 1.5f * mm;
         power_button(c, px0, pw, pmid, mm, band_h, L);
         float sx = px0 + pw + inset * 0.55f;
-        turbo_display(c, sx, pw, pmid, mm, "FPS", L->seg[0]);
-        sx += L->seg[0][2] + inset * 0.45f;
-        turbo_display(c, sx, pw, pmid, mm, "MHZ", L->seg[1]);
+        turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn);
+        float mod_r = L->btn[2][0] + L->btn[2][2] + 0.7f * mm; /* the module's right edge */
 
-        /* the knobs' fallback: on the band beside the displays, for a
+        /* the knobs' fallback: on the band beside the module, for a
          * screen whose pods have no room under them */
         if (!*knobs_placed) {
             float kr = 3.9f * mm;
-            float kx = sx + L->seg[1][2] + inset * 0.85f + kr;
+            float kx = mod_r + inset * 0.85f + kr;
             float ky = mid;
             knob_icons(c, kx, ky + kr + 3.0f * mm, kx + kr * 3.0f, ky + kr + 3.0f * mm, 1.4f * mm);
             /* only their places for now: the knobs themselves go on LAST,

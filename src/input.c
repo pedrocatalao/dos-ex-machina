@@ -73,6 +73,16 @@ static int sc_from_sdl(SDL_Scancode s) {
     return (s >= 0 && s < SDL_SCANCODE_COUNT) ? xt_of_sdl[s] : 0;
 }
 
+/* Which of the display's buttons, if any, is under a point in drawable
+ * pixels; -1 for none. */
+static int button_at(const dxm_layout *L, float x, float y) {
+    for (int i = 0; i < 3; i++)
+        if (x >= L->btn[i][0] && x < L->btn[i][0] + L->btn[i][2] && y >= L->btn[i][1] &&
+            y < L->btn[i][1] + L->btn[i][3])
+            return i;
+    return -1;
+}
+
 /* Which knob, if any, is under a point in drawable pixels; -1 for none.
  * The hit circle is a little larger than the knob, since a finger is. */
 static int knob_at(const dxm_layout *L, float x, float y) {
@@ -191,9 +201,13 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     case SDL_EVENT_MOUSE_BUTTON_DOWN: {
         float mx = e->button.x * a->W / a->win_wf, my = e->button.y * a->H / a->win_hf;
         int kn = (!in->captured && !ui_visible()) ? knob_at(L, mx, my) : -1;
+        int bt = (!in->captured && !ui_visible()) ? button_at(L, mx, my) : -1;
         if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
-        else if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {
+        else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
+            in->button = bt;
+            return INPUT_BUTTON;
+        } else if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             /* grab: remember where the hand and the knob started */
             in->knob_drag = kn;
             in->knob_y0 = my;

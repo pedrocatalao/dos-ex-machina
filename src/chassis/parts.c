@@ -580,7 +580,7 @@ static float seg_ghost(float qx, float qy, float A) {
     float dh = SEG_DH, dw = dh * SEG_WR, pitch = dw * SEG_PITCH, th = dh * SEG_T;
     float m = th * SEG_GAP, best = 1e9f;
     for (int k = 0; k < 3; k++) {
-        float lx = qx - (A * 0.5f + (float)(k - 1) * pitch), ly = qy - 0.5f;
+        float lx = qx - (A * 0.5f + SEG_DIGITS_OFF + (float)(k - 1) * pitch), ly = qy - 0.5f;
         lx -= ly * SEG_SLANT; /* take the lean out */
         for (int s = 0; s < 7; s++) {
             float ax = ends[s][0] * dw * 0.5f, ay = ends[s][1] * dh * 0.5f;
@@ -593,26 +593,13 @@ static float seg_ghost(float qx, float qy, float A) {
     return best;
 }
 
-/* The turbo display: a smoked acrylic window in a well beside the power
- * cap, level with it, with the three dark digits showing through the
- * glass the way an unlit LED display does.  The digits are LIT by the
- * shader; here they are only the shadows of themselves.  Records the
- * window in out. */
-void turbo_display(canvas *c, float x, float pw, float mid, float mm, const char *label,
-                   float out[4]) {
-    float h = pw * 0.78f; /* the cap's own height */
-    float w = SEG_WIN_W_MM * mm;
-    float y = mid - pw * 0.39f;
+/* The turbo display's glass: a smoked acrylic window with the three dark
+ * digits showing through it the way an unlit LED display does.  The
+ * digits are LIT by the shader, and so is the legend, which changes with
+ * the mode; here the digits are only the shadows of themselves.  Records
+ * the window in out. */
+static void turbo_glass(canvas *c, float x, float y, float w, float h, float out[4]) {
     float rad = h * 0.08f;
-    /* painted, centred, and on the same line as POWER */
-    {
-        const char *pl = label;
-        float ls = fmaxf(1.0f, canvas_lbl * 0.70f);
-        float tw3 = (float)strlen(pl) * 8.0f * ls;
-        float ly = mid - pw * 0.39f - 1.9f * mm - 8.0f * ls - 0.7f * mm;
-        text_smooth(c, x + (w - tw3) * 0.5f, ly, pl, ls, 112, 107, 96);
-    }
-    well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     float A = w / h, cx = x + w * 0.5f, cy = y + h * 0.5f;
     int saved = canvas_grain;
     canvas_grain = 0;
@@ -651,4 +638,62 @@ void turbo_display(canvas *c, float x, float pw, float mid, float mm, const char
     out[1] = y;
     out[2] = w;
     out[3] = h;
+}
+
+/* One cap of the button cluster: the power cap's construction at a
+ * fraction of the size - cap, bevel, the shadow it throws on the plate
+ * below - with its function painted on it.  Records its outline in out,
+ * for the mouse. */
+static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
+                        const char *label, float out[4]) {
+    float rad = h * 0.12f;
+    rrect(c, x, y, w, h, rad, (int)(PLASTIC_R * 0.74f), (int)(PLASTIC_G * 0.72f),
+          (int)(PLASTIC_B * 0.76f), 1.16f, 0.84f);
+    bevel(c, x, y, w, h, fmaxf(1.0f, 0.45f * mm), 1);
+    {
+        int saved = canvas_grain;
+        canvas_grain = 0;
+        float sw = 1.0f * mm, cb = y + h;
+        for (int j2 = (int)cb; j2 <= (int)(cb + sw) + 1; j2++) {
+            float t = ((float)j2 + 0.5f - cb) / sw;
+            if (t < 0.0f || t >= 1.0f)
+                continue;
+            float f = (1.0f - t) * (1.0f - t);
+            for (int i2 = (int)x; i2 < (int)(x + w); i2++)
+                px_shade(c, i2, j2, 1.0f - 0.30f * f, 0.0f);
+        }
+        canvas_grain = saved;
+    }
+    {
+        float ls = fmaxf(0.5f, canvas_lbl * 0.55f);
+        float tw3 = (float)strlen(label) * 8.0f * ls;
+        text_smooth(c, x + (w - tw3) * 0.5f, y + (h - 8.0f * ls) * 0.5f - 0.5f, label, ls, 196, 190,
+                    176);
+    }
+    out[0] = x;
+    out[1] = y;
+    out[2] = w;
+    out[3] = h;
+}
+
+/* The turbo module, one part: a single well in the case beside the power
+ * cap, level with it, holding a dark plate that carries the glass on the
+ * left and the three keys on the right - MODE across the top, - and +
+ * under it - parted only by the plate showing between them.  The way a
+ * case carried its display and its buttons: one moulded unit, not a hole
+ * for each.  Records the window in seg and each key's outline in btn[]. */
+void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
+                  float btn[3][4]) {
+    float lip = 0.7f * mm, gap = 0.8f * mm, part = 1.1f * mm;
+    float gh = pw * 0.78f, gw = SEG_WIN_W_MM * mm, kw = 13.5f * mm;
+    float h = gh + 2.0f * lip, w = lip + gw + part + kw + lip;
+    float y = mid - pw * 0.39f - lip, rad = h * 0.09f;
+    well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
+    rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
+    turbo_glass(c, x + lip, y + lip, gw, gh, seg);
+    float kx = x + lip + gw + part, ky = y + lip;
+    float ch = (gh - gap) * 0.5f, cw = (kw - gap) * 0.5f;
+    cluster_cap(c, kx, ky, kw, ch, mm, "MODE", btn[0]);
+    cluster_cap(c, kx, ky + ch + gap, cw, ch, mm, "-", btn[1]);
+    cluster_cap(c, kx + cw + gap, ky + ch + gap, cw, ch, mm, "+", btn[2]);
 }

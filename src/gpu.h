@@ -75,11 +75,12 @@ void gpu_draw_overlay(gpu *g);
  * on the plastic - the underside of a button it sits beneath.  2.0 = none. */
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
                  float b, int round, float clip);
-/* A digit display's digits, lit over its baked window (see segdisp.h).
- * idx 0 = FPS, 1 = MHz; x,y,w,h in 0..1 output space; mask[k] lights the
- * segments of digit k, left to right; on scales the emission, 0 = dark. */
-void gpu_set_segdisp(gpu *g, int idx, float x, float y, float w, float h, const int mask[3],
-                     float on);
+/* The turbo display's digits and legend, lit over the baked window (see
+ * segdisp.h).  x,y,w,h in 0..1 output space; mask[k] lights the segments
+ * of digit k, left to right; legend[k] is the k-th letter's glyph; on
+ * scales the emission, 0 = dark. */
+void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const int mask[3],
+                     const int legend[3], float on);
 
 /* read the framebuffer back (for --shot); caller frees */
 uint8_t *gpu_readback(gpu *g, int *w, int *h);

@@ -15,15 +15,18 @@ typedef struct {
     int holding;            /* relative mode as SDL currently has it, -1 unknown */
     int knob_drag;          /* the knob being turned, or -1 */
     float knob_y0, knob_v0; /* where the hand and the knob started */
+    int button;             /* the display button just pressed, for INPUT_BUTTON */
 } input_state;
 
-typedef enum { INPUT_HANDLED, INPUT_QUIT, INPUT_RESIZED } input_result;
+typedef enum { INPUT_HANDLED, INPUT_QUIT, INPUT_RESIZED, INPUT_BUTTON } input_result;
 
 /* The machine takes the mouse from the start. */
 void input_init(input_state *in, app *a);
 void input_capture(input_state *in, app *a, int on);
 /* One event.  INPUT_RESIZED means the drawable changed size and the
- * caller must lay the machine out again; nothing else escapes. */
+ * caller must lay the machine out again; INPUT_BUTTON that one of the
+ * display's buttons was pressed, which one in in->button.  Nothing else
+ * escapes. */
 input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k,
                          const SDL_Event *e);
 /* Make SDL's idea of who holds the mouse match this state; call it once a

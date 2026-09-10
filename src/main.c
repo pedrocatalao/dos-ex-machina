@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
     dos_init();
     /* The real DOS boots now, unseen, so it is at its prompt long before
      * the POST is done.  If it cannot, the machine's own DOS carries on. */
+    dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
     if (o.dosbox && dosbox_start(o.dosbox_core, o.dosbox, a.pref) == 0)
         dos_handover_mode();
     dxm_log("dos ready, entering the frame loop");
@@ -189,6 +190,10 @@ int main(int argc, char **argv) {
             input_result r = input_event(&in, &a, &L, &k, &e);
             if (r == INPUT_QUIT)
                 quit = 1;
+            else if (r == INPUT_BUTTON) {
+                theatre_button(&th, in.button);
+                dosbox_set_cycles(theatre_cycles(&th));
+            }
             else if (r == INPUT_RESIZED) {
                 app_measure(&a);
                 gpu_resize(a.gpu, a.W, a.H);

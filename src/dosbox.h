@@ -44,6 +44,10 @@ void dosbox_mouse_button(int sdl_button, int down);
 /* Type a string into DOS, a key per frame, as if from the keyboard: ASCII
  * on a US layout, '\r' for Enter.  For --type and the tests. */
 void dosbox_type(const char *s);
+/* The emulated CPU's speed, in DOSBox cycles (instructions per
+ * millisecond).  Takes effect on the core's next frame; set before
+ * dosbox_start() it is what the machine boots with. */
+void dosbox_set_cycles(int cycles);
 
 /* Pull for the audio device: 16-bit stereo at DOSBOX_AUDIO_HZ.  Silent
  * until shown. */

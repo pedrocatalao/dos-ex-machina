@@ -15,10 +15,11 @@ typedef struct {
     float pwr_led[4];
     float pwr_shelf; /* y of the power cap's lower edge: the LED's light
                             reaches the plastic below it, not the cap's face */
-    /* The two digit displays' windows, FPS then MHz: x,y,w,h in output px.
-     * The digits are lit live by the shader, like the LEDs; the case holds
-     * the windows. */
-    float seg[2][4];
+    /* The digit display's window, x,y,w,h in output px: the digits are lit
+     * live by the shader, like the LEDs; the case holds the window.  And
+     * its three push buttons, MODE, - and +, for the mouse to find. */
+    float seg[4];
+    float btn[3][4];
     /* The two rotary knobs, brightness then contrast: centre x, y and
      * radius in output px.  They are the one part of the case that moves. */
     float knob[2][3];

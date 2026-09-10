@@ -1,7 +1,7 @@
-/* segdisp.h — the digit displays: three seven-segment LED digits behind a
- * smoked window on the band, next to the power button - two of them, the
- * frames per second and then the clock in MHz, the turbo display the 1993
- * case had.
+/* segdisp.h — the digit display: three seven-segment LED digits behind a
+ * smoked window on the band, next to the power button.  The turbo display
+ * the 1993 case had, showing the clock in MHz; MODE switches it to the
+ * frames per second, and - and + step the clock.
  *
  * The chassis bakes the window and the UNLIT segments - the faint "8.8.8"
  * a dark display shows through its glass - and the composite shader lights
@@ -12,14 +12,30 @@
 #ifndef DXM_SEGDISP_H
 #define DXM_SEGDISP_H
 
-/* The MHz display's range: what a 1993 case could claim, and what it
- * shows until the clock is wired to the emulator's speed. */
-#define SEG_MHZ_MIN 33
-#define SEG_MHZ_MAX 100
-#define SEG_MHZ_DEFAULT 66
+/* The clock's stops, in MHz: the speeds a 1993 case could claim. */
+#define SEG_MHZ_STOPS                                                                            \
+    { 33, 40, 50, 66, 80, 100 }
+/* and what each stop asks of the emulator: DOSBox cycles, instructions
+ * per millisecond, at roughly the machine each clock names - a 386DX at
+ * 33 up to a 486DX4 at 100 */
+#define SEG_MHZ_CYCLES                                                                           \
+    { 10000, 14000, 20000, 30000, 40000, 60000 }
+#define SEG_MHZ_NSTOPS 6
+#define SEG_MHZ_DEFAULT 3 /* index: 66 */
 
-/* the window, in mm: a 0.3" digit set, three wide */
-#define SEG_WIN_W_MM 21.0f
+/* the window, in mm: a 0.3" digit set, three wide, and its legend */
+#define SEG_WIN_W_MM 22.5f
+/* The legend: the unit of what is showing, spelled down the left of the
+ * window in small lit letters, one under the other - lit by the shader
+ * only, since it changes with the mode.  Each letter is a 5x5 cell glyph,
+ * bit r*5+c set for row r (top first), column c (left first). */
+#define SEG_LEG_X 0.13f    /* the column's left edge, in window-height units */
+#define SEG_LEG_CELL 0.024f /* one cell of the glyph grid */
+#define SEG_LEG_GAP 1       /* cells between letters */
+/* the digits stand right of the legend: their centre, off the window's */
+#define SEG_DIGITS_OFF 0.10f
+/* F P S, then M H Z */
+#define SEG_LEGENDS {{0x10BC3F, 0x10BE2F, 0xF8383E}, {0x118D771, 0x118FE31, 0x1F1111F}}
 /* digit height as a fraction of the window's; 0.62 of 12.5 mm is 0.3" */
 #define SEG_DH 0.62f
 /* digit width over its height */

@@ -157,8 +157,8 @@ struct gpu {
     double last_t;
     int have_last;
     float led[2][4], led_col[2][3], led_on[2], led_round[2], led_clip[2];
-    float seg[2][4], seg_on[2];
-    int seg_mask[2][3];
+    float seg[4], seg_on;
+    int seg_mask[3], seg_legend[3];
     float raster_h, raster_v, tube_gain;
 };
 
@@ -335,17 +335,17 @@ void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, 
     g->led_clip[idx] = clip;
 }
 
-void gpu_set_segdisp(gpu *g, int idx, float x, float y, float w, float h, const int mask[3],
-                     float on) {
-    if (idx < 0 || idx > 1)
-        return;
-    g->seg[idx][0] = x;
-    g->seg[idx][1] = y;
-    g->seg[idx][2] = w;
-    g->seg[idx][3] = h;
-    for (int k = 0; k < 3; k++)
-        g->seg_mask[idx][k] = mask[k];
-    g->seg_on[idx] = on;
+void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const int mask[3],
+                     const int legend[3], float on) {
+    g->seg[0] = x;
+    g->seg[1] = y;
+    g->seg[2] = w;
+    g->seg[3] = h;
+    for (int k = 0; k < 3; k++) {
+        g->seg_mask[k] = mask[k];
+        g->seg_legend[k] = legend[k];
+    }
+    g->seg_on = on;
 }
 
 void gpu_set_tube_power(gpu *g, float h, float v, float gain) {
@@ -549,11 +549,13 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1fv(glGetUniformLocation(p, "ledon"), 2, g->led_on);
     glUniform1fv(glGetUniformLocation(p, "ledround"), 2, g->led_round);
     glUniform1fv(glGetUniformLocation(p, "ledclip"), 2, g->led_clip);
-    glUniform4fv(glGetUniformLocation(p, "seg_rect"), 2, &g->seg[0][0]);
-    glUniform1iv(glGetUniformLocation(p, "segmask"), 6, &g->seg_mask[0][0]);
-    glUniform1fv(glGetUniformLocation(p, "seg_on"), 2, g->seg_on);
+    glUniform4fv(glGetUniformLocation(p, "seg_rect"), 1, g->seg);
+    glUniform1iv(glGetUniformLocation(p, "segmask"), 3, g->seg_mask);
+    glUniform1iv(glGetUniformLocation(p, "seglegend"), 3, g->seg_legend);
+    glUniform1f(glGetUniformLocation(p, "seg_on"), g->seg_on);
     glUniform4f(glGetUniformLocation(p, "seg_geom"), SEG_DH, SEG_WR, SEG_PITCH, SEG_T);
     glUniform2f(glGetUniformLocation(p, "seg_lean"), SEG_SLANT, SEG_GAP);
+    glUniform3f(glGetUniformLocation(p, "seg_legend"), SEG_LEG_X, SEG_LEG_CELL, SEG_DIGITS_OFF);
     glUniform2f(glGetUniformLocation(p, "u_raster"), g->raster_h, g->raster_v);
     glUniform1f(glGetUniformLocation(p, "u_gain"), g->tube_gain);
     glUniform1f(glGetUniformLocation(p, "crt_lines"), (float)k->crt_lines);

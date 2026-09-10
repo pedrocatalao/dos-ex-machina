@@ -19,7 +19,8 @@ void theatre_power_on(theatre *th, int selftest, int deterministic) {
     th->selftest = selftest;
     th->deterministic = deterministic;
     th->fps = -1;
-    th->mhz = SEG_MHZ_DEFAULT;
+    th->mhz_stop = SEG_MHZ_DEFAULT;
+    th->mode = 0;
     snd_relay();
     snd_degauss();
 }
@@ -35,8 +36,27 @@ void theatre_fps(theatre *th, int fps) {
     th->fps = fps > 999 ? 999 : fps;
 }
 
-void theatre_mhz(theatre *th, int mhz) {
-    th->mhz = mhz < SEG_MHZ_MIN ? SEG_MHZ_MIN : mhz > SEG_MHZ_MAX ? SEG_MHZ_MAX : mhz;
+static const int mhz_stops[SEG_MHZ_NSTOPS] = SEG_MHZ_STOPS;
+
+static const int mhz_cycles[SEG_MHZ_NSTOPS] = SEG_MHZ_CYCLES;
+
+int theatre_mhz(const theatre *th) {
+    return mhz_stops[th->mhz_stop];
+}
+
+int theatre_cycles(const theatre *th) {
+    return mhz_cycles[th->mhz_stop];
+}
+
+void theatre_button(theatre *th, int which) {
+    if (which == 0)
+        th->mode ^= 1;
+    else if (th->mode == 0) {
+        int n = th->mhz_stop + (which == 2 ? 1 : -1);
+        if (n >= 0 && n < SEG_MHZ_NSTOPS)
+            th->mhz_stop = n;
+    }
+    dxm_log("display: %s, %d MHz", th->mode ? "fps" : "mhz", mhz_stops[th->mhz_stop]);
 }
 
 /* the three digits of v, leading zeros blank, as on the real displays */
@@ -117,15 +137,14 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
         gpu_set_led(g, 1, L->pwr_led[0] / W, 1.0f - (L->pwr_led[1] + L->pwr_led[3]) / H,
                     L->pwr_led[2] / W, L->pwr_led[3] / H, th->pwr, 0.20f, 1.0f, 0.26f, 1,
                     1.0f - L->pwr_shelf / H);
-        /* the digit displays: lit like the power LED, and they come up
-         * and go down with it */
-        int vals[2] = {th->fps, th->mhz};
-        for (int i = 0; i < 2; i++) {
-            int mask[3];
-            seg_figures(vals[i], mask);
-            gpu_set_segdisp(g, i, L->seg[i][0] / W, 1.0f - (L->seg[i][1] + L->seg[i][3]) / H,
-                            L->seg[i][2] / W, L->seg[i][3] / H, mask, th->pwr);
-        }
+        /* the turbo display: lit like the power LED, and it comes up and
+         * goes down with it; the clock or the frame rate, with the legend
+         * to say which */
+        static const int legends[2][3] = SEG_LEGENDS;
+        int mask[3];
+        seg_figures(th->mode ? th->fps : mhz_stops[th->mhz_stop], mask);
+        gpu_set_segdisp(g, L->seg[0] / W, 1.0f - (L->seg[1] + L->seg[3]) / H, L->seg[2] / W,
+                        L->seg[3] / H, mask, legends[th->mode ? 0 : 1], th->pwr);
     }
     return done;
 }

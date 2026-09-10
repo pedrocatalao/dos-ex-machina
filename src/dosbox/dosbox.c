@@ -83,6 +83,18 @@ static const struct {
     {"dosbox_pure_cpu_core", "normal"},
 };
 
+/* The one option that changes while the machine runs: the CPU speed, from
+ * the turbo display's buttons.  The main thread sets it; the core thread
+ * reads it through the variable callbacks, which is why it is atomic and
+ * why the "variables updated" flag is too. */
+static SDL_AtomicInt g_cycles, g_cycles_dirty;
+static char g_cycles_str[16];
+
+void dosbox_set_cycles(int cycles) {
+    SDL_SetAtomicInt(&g_cycles, cycles);
+    SDL_SetAtomicInt(&g_cycles_dirty, 1);
+}
+
 #define FRAME_MAX_W 1280
 #define FRAME_MAX_H 1024
 #define NFRAMES 3 /* one being read, one being written, one waiting */
@@ -174,13 +186,23 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         struct retro_variable *v = data;
         v->value = NULL;
+        if (!strcmp(v->key, "dosbox_pure_cycles")) {
+            int cy = SDL_GetAtomicInt(&g_cycles);
+            if (cy > 0) {
+                snprintf(g_cycles_str, sizeof g_cycles_str, "%d", cy);
+                v->value = g_cycles_str;
+                dxm_log("dosbox: cycles %d", cy); /* the core took the new speed */
+            }
+            return v->value != NULL;
+        }
         for (size_t i = 0; i < sizeof OPTIONS / sizeof OPTIONS[0]; i++)
             if (!strcmp(OPTIONS[i].key, v->key))
                 v->value = OPTIONS[i].value;
         return v->value != NULL;
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
-        *(bool *)data = false;
+        /* the core asks every frame, and re-reads its options when told */
+        *(bool *)data = SDL_SetAtomicInt(&g_cycles_dirty, 0) != 0;
         return true;
     case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
         *(unsigned *)data = 2;
@@ -207,13 +229,19 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_SET_CORE_OPTIONS:
     case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2:
     case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
-    case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK:
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
     case RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS:
     case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
     case RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE:
     case RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE:
         return true;
+    case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK:
+        /* Declined on purpose.  A frontend that accepts this promises to
+         * call the core back when an option changes, and the core then
+         * stops asking GET_VARIABLE_UPDATE each frame.  Saying yes and
+         * never calling is how the cycles from the turbo display's
+         * buttons were taken at boot and never again. */
+        return false;
     default:
         /* hardware rendering, VFS, MIDI, perf counters, throttle state,
          * fast-forward: none of it, and the core copes */
