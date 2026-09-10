@@ -47,7 +47,9 @@ void px_set(canvas *c, int x, int y, int r, int g, int b);
 void px_shade(canvas *c, int x, int y, float mul, float spec);
 void rrect(canvas *c, float x, float y, float w, float h, float rad, int r, int g, int b,
            float shade_top, float shade_bot);
-void seam(canvas *c, float x, float y, float len, int vertical, float w);
+/* a dark join line; lit>0 adds the light flank past it (right/below),
+ * lit<0 before it (left/above), 0 none */
+void seam(canvas *c, float x, float y, float len, int vertical, float w, int lit);
 void soft_hedge(canvas *c, float x0, float x1, float y, float span, float mul_peak, float spec_peak,
                 int downward);
 void soft_vedge(canvas *c, float y0, float y1, float x, float span, float mul_peak, int rightward);

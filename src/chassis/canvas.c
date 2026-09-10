@@ -286,17 +286,22 @@ void panel_gap(canvas *c, float x, float y, float w, float d) {
     }
 }
 
-void seam(canvas *c, float x, float y, float len, int vertical, float w) {
-    for (int t = 0; t < (int)fmaxf(1.0f, w); t++) {
+void seam(canvas *c, float x, float y, float len, int vertical, float w, int lit) {
+    int ww = (int)fmaxf(1.0f, w);
+    /* the light flank: ww past the line on its far side, or ww before it */
+    int off = lit > 0 ? ww : -ww;
+    for (int t = 0; t < ww; t++) {
         if (vertical)
             for (int j = (int)y; j < (int)(y + len); j++) {
                 px_blend(c, (int)x + t, j, 52, 49, 44, 0.60f);
-                px_blend(c, (int)x + t + (int)fmaxf(1.0f, w), j, 255, 252, 244, 0.24f);
+                if (lit)
+                    px_blend(c, (int)x + t + off, j, 255, 252, 244, 0.24f);
             }
         else
             for (int i = (int)x; i < (int)(x + len); i++) {
                 px_blend(c, i, (int)y + t, 52, 49, 44, 0.60f);
-                px_blend(c, i, (int)y + t + (int)fmaxf(1.0f, w), 255, 252, 244, 0.24f);
+                if (lit)
+                    px_blend(c, i, (int)y + t + off, 255, 252, 244, 0.24f);
             }
     }
 }

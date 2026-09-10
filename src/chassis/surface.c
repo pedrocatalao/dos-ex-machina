@@ -78,8 +78,15 @@ void surface_edges(canvas *c, int W, int H, const chassis_geom *G) {
         {
             float yfloor = gap_lo + gap_d * 0.5f;
             float cr = FACE_R_TOP * (float)H / 268.0f;
-            seam(c, edge, yfloor, (float)H - yfloor, 1, fmaxf(1.0f, W * 0.0012f));
-            seam(c, (float)W - edge, yfloor, (float)H - yfloor, 1, fmaxf(1.0f, W * 0.0012f));
+            /* the seam's light flank lands on the front face on both
+             * corners: past the line on the left, before it on the right */
+            /* The seam is CENTRED on the wall above it, which is drawn
+             * either side of `edge`: starting the seam at `edge` set it a
+             * pixel or two to the right of the wall, and the monitor read
+             * as nudged left of the base. */
+            float sw2 = fmaxf(1.0f, W * 0.0012f), s0 = floorf(sw2 * 0.5f - 0.5f);
+            seam(c, edge - s0, yfloor, (float)H - yfloor, 1, sw2, 1);
+            seam(c, (float)W - edge - s0, yfloor, (float)H - yfloor, 1, sw2, -1);
             float ww = fmaxf(1.5f, W * 0.0011f);
             for (int side = 0; side < 2; side++) {
                 float xw = side ? (float)W - edge : edge;
@@ -91,6 +98,14 @@ void surface_edges(canvas *c, int W, int H, const chassis_geom *G) {
                             continue;
                         px_shade(c, i2, j2, 1.0f - 0.42f * (1.0f - d * d), 0.0f);
                     }
+                /* the front face's own corner catches the same light line
+                 * along the wall that the base's seam has along it below:
+                 * the one edge, continued up the monitor */
+                int s0i = (int)(xw - s0); /* where the seam below starts */
+                int fx0 = side ? s0i - (int)sw2 : s0i + (int)sw2;
+                for (int t = 0; t < (int)sw2; t++)
+                    for (int j2 = (int)ceilf(cr); j2 < (int)yfloor; j2++)
+                        px_blend(c, fx0 + t, j2, 255, 252, 244, 0.24f);
             }
         }
     }
