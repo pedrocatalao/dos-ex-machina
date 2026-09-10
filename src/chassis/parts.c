@@ -686,12 +686,14 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
                   float btn[3][4], float mode_led[2][4]) {
     float lip = 0.7f * mm, gap = 0.8f * mm, part = 1.1f * mm;
+    /* the glass and the keys are the power cap's own height, and the
+     * module's top edge is on the cap's top line */
     float gh = pw * 0.78f, gw = SEG_WIN_W_MM * mm, kw = 13.5f * mm;
     /* the legend strip: an LED and a printed word, FPS over MHz */
     float ls = fmaxf(0.5f, canvas_lbl * 0.50f), lr = 1.0f * mm;
     float sw = 1.2f * mm + lr * 2.0f + 1.0f * mm + 3.0f * 8.0f * ls + 0.6f * mm;
     float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
-    float y = mid - pw * 0.39f - lip, rad = h * 0.09f;
+    float y = mid - pw * 0.39f, rad = h * 0.09f;
     well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
     {
