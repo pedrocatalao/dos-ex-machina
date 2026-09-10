@@ -53,6 +53,7 @@ void soft_hedge(canvas *c, float x0, float x1, float y, float span, float mul_pe
 void soft_vedge(canvas *c, float y0, float y1, float x, float span, float mul_peak, int rightward);
 void text(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
 void text_smooth(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
+void text_smooth16(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
 
 /* surface.c */
 void surface_base(canvas *c, int W, int H);

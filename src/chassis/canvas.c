@@ -233,6 +233,34 @@ void text_smooth(canvas *c, float x, float y, const char *s, float sc, int r, in
     }
 }
 
+/* The same, in the VGA face: lighter strokes and true lowercase, for the
+ * small printed legends a moulded 8x8 would make too heavy.  sc scales the
+ * 8x16 cell, so a glyph is 8*sc wide and 16*sc tall. */
+void text_smooth16(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b) {
+    if (sc < 0.25f)
+        sc = 0.25f;
+    float gw = 8.0f * sc, gh = 16.0f * sc;
+    for (int n = 0; s[n]; n++) {
+        const uint8_t *gl = font_glyph16((unsigned char)s[n]);
+        float gx = x + n * gw;
+        for (int j = 0; j < (int)ceilf(gh); j++)
+            for (int i = 0; i < (int)ceilf(gw); i++) {
+                int on = 0;
+                for (int sy = 0; sy < 4; sy++)
+                    for (int sx = 0; sx < 4; sx++) {
+                        float u = ((float)i + (sx + 0.5f) / 4.0f) / sc,
+                              v = ((float)j + (sy + 0.5f) / 4.0f) / sc;
+                        int ui = (int)u, vi = (int)v;
+                        if (ui >= 0 && ui < 8 && vi >= 0 && vi < 16 && (gl[vi] & (0x80 >> ui)))
+                            on++;
+                    }
+                if (!on)
+                    continue;
+                px_blend(c, (int)(gx + i), (int)(y + j), r, g, b, (float)on / 16.0f);
+            }
+    }
+}
+
 /* The parting between two mouldings.  It is a COVE, not a notch: the face
  * curves down into it and back out again with no edge anywhere, which is
  * what a moulded gap in a case actually looks like - the tool has a radius

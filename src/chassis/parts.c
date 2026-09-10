@@ -685,21 +685,24 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
  * key's outline in btn[] and the two LEDs in mode_led[]. */
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
                   float btn[3][4], float mode_led[2][4]) {
-    float lip = 0.7f * mm, gap = 0.8f * mm, part = 1.1f * mm;
-    /* the glass and the keys are the power cap's own height, and the
-     * module's top edge is on the cap's top line */
-    float gh = pw * 0.78f, gw = SEG_WIN_W_MM * mm, kw = 13.5f * mm;
-    /* the legend strip: an LED and a printed word, FPS over MHz */
-    float ls = fmaxf(0.5f, canvas_lbl * 0.50f), lr = 1.0f * mm;
-    float sw = 1.2f * mm + lr * 2.0f + 1.0f * mm + 3.0f * 8.0f * ls + 0.6f * mm;
+    /* The module is drawn a millimetre taller than the power cap's
+     * height would make it, and everything in it scales with that; its
+     * top edge is on the cap's top line. */
+    float k = (pw * 0.78f + 1.4f * mm + 1.0f * mm) / (pw * 0.78f + 1.4f * mm);
+    float lip = 0.7f * mm * k, gap = 0.8f * mm * k, part = 1.1f * mm * k;
+    float gh = pw * 0.78f * k, gw = SEG_WIN_W_MM * mm * k, kw = 13.5f * mm * k;
+    /* the legend strip: an LED and a printed word, FPS over MHz, in the
+     * VGA face at a 2.6 mm cell - a silk-screened legend, not moulding */
+    float ls = 2.6f * mm * k / 16.0f, lr = 1.0f * mm * k;
+    float sw = (1.2f * mm + 1.0f * mm + 0.6f * mm) * k + lr * 2.0f + 3.0f * 8.0f * ls;
     float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
     float y = mid - pw * 0.39f, rad = h * 0.09f;
     well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
     {
         const char *words[2] = {"FPS", "MHz"};
-        float pitch = gh * 0.40f, lcx = x + lip + 1.2f * mm + lr;
-        float tx = lcx + lr + 1.0f * mm;
+        float pitch = gh * 0.40f, lcx = x + lip + 1.2f * mm * k + lr;
+        float tx = lcx + lr + 1.0f * mm * k;
         for (int i = 0; i < 2; i++) {
             float cy = y + h * 0.5f + (i ? 0.5f : -0.5f) * pitch;
             led(c, lcx, cy, lr, 44, 18, 14); /* UNLIT, red */
@@ -707,7 +710,7 @@ void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4
             mode_led[i][1] = cy - lr;
             mode_led[i][2] = lr * 2.0f;
             mode_led[i][3] = lr * 2.0f;
-            text_smooth(c, tx, cy - 4.0f * ls, words[i], ls, 196, 190, 176);
+            text_smooth16(c, tx, cy - 8.0f * ls, words[i], ls, 196, 190, 176);
         }
     }
     turbo_glass(c, x + lip + sw, y + lip, gw, gh, seg);
