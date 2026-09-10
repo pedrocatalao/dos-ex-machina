@@ -287,9 +287,21 @@ int main(int argc, char **argv) {
          * running core, else the DOS text screen */
         int cw, ch, cl, held = 0;
         const uint8_t *src = NULL;
-        if (dosbox_shown())
+        if (dosbox_shown()) {
             held = (src = dosbox_frame(&cw, &ch, &cl)) != NULL;
-        else if (corehost_running())
+            /* A change of picture size is a program starting or ending, and
+             * on this machine a program starting means the drive reads it -
+             * the fiction the simulated DOS already keeps when a game is
+             * typed at its prompt.  The first size seen is the prompt's
+             * own, and a drive already running is not restarted. */
+            static int last_w = -1, last_h = -1;
+            if (held && (cw != last_w || ch != last_h)) {
+                if (last_w >= 0 && t >= th.drive_until)
+                    theatre_drive(&th, 2.2, t);
+                last_w = cw;
+                last_h = ch;
+            }
+        } else if (corehost_running())
             src = corehost_frame(&cw, &ch, &cl);
         if (src) {
             gpu_set_tube(a.gpu, src, cw, ch);
