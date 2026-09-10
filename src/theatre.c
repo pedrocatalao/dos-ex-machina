@@ -19,6 +19,7 @@ void theatre_power_on(theatre *th, int selftest, int deterministic) {
     th->selftest = selftest;
     th->deterministic = deterministic;
     th->fps = -1;
+    th->mhz = SEG_MHZ_DEFAULT;
     snd_relay();
     snd_degauss();
 }
@@ -32,6 +33,23 @@ void theatre_power_off(theatre *th, double t) {
 
 void theatre_fps(theatre *th, int fps) {
     th->fps = fps > 999 ? 999 : fps;
+}
+
+void theatre_mhz(theatre *th, int mhz) {
+    th->mhz = mhz < SEG_MHZ_MIN ? SEG_MHZ_MIN : mhz > SEG_MHZ_MAX ? SEG_MHZ_MAX : mhz;
+}
+
+/* the three digits of v, leading zeros blank, as on the real displays */
+static void seg_figures(int v, int mask[3]) {
+    static const int figures[10] = SEG_FIGURES;
+    mask[0] = mask[1] = mask[2] = 0;
+    if (v < 0)
+        return;
+    mask[2] = figures[v % 10];
+    if (v >= 10)
+        mask[1] = figures[(v / 10) % 10];
+    if (v >= 100)
+        mask[0] = figures[(v / 100) % 10];
 }
 
 void theatre_drive(theatre *th, double seconds, double t) {
@@ -99,20 +117,15 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
         gpu_set_led(g, 1, L->pwr_led[0] / W, 1.0f - (L->pwr_led[1] + L->pwr_led[3]) / H,
                     L->pwr_led[2] / W, L->pwr_led[3] / H, th->pwr, 0.20f, 1.0f, 0.26f, 1,
                     1.0f - L->pwr_shelf / H);
-        /* the turbo display: lit like the power LED, and it comes up and
-         * goes down with it; leading zeros are blank, as on the real one */
-        static const int figures[10] = SEG_FIGURES;
-        int mask[3] = {0, 0, 0};
-        if (th->fps >= 0) {
-            int v = th->fps;
-            mask[2] = figures[v % 10];
-            if (v >= 10)
-                mask[1] = figures[(v / 10) % 10];
-            if (v >= 100)
-                mask[0] = figures[(v / 100) % 10];
+        /* the digit displays: lit like the power LED, and they come up
+         * and go down with it */
+        int vals[2] = {th->fps, th->mhz};
+        for (int i = 0; i < 2; i++) {
+            int mask[3];
+            seg_figures(vals[i], mask);
+            gpu_set_segdisp(g, i, L->seg[i][0] / W, 1.0f - (L->seg[i][1] + L->seg[i][3]) / H,
+                            L->seg[i][2] / W, L->seg[i][3] / H, mask, th->pwr);
         }
-        gpu_set_segdisp(g, L->seg[0] / W, 1.0f - (L->seg[1] + L->seg[3]) / H, L->seg[2] / W,
-                        L->seg[3] / H, mask, th->pwr);
     }
     return done;
 }

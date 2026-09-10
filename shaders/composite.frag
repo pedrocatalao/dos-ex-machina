@@ -14,11 +14,12 @@ uniform vec3  ledcol[2];
 uniform float ledon[2];
 uniform float ledround[2];
 uniform float ledclip[2];
-// the turbo display (segdisp.h): the window in uv, the three digits'
-// segment masks, the emission, and the digit geometry in window-height units
-uniform vec4  seg_rect;
-uniform int   segmask[3];
-uniform float seg_on;
+// the two digit displays, FPS and MHz (segdisp.h): each window in uv, its
+// three digits' segment masks, its emission; and the digit geometry in
+// window-height units, shared
+uniform vec4  seg_rect[2];
+uniform int   segmask[6];
+uniform float seg_on[2];
 uniform vec4  seg_geom;   // digit height, width/height, pitch/width, thickness/height
 uniform vec2  seg_lean;   // slant, end stand-back/thickness
 uniform vec2  u_raster;         // deflection: fraction of the raster drawn
@@ -286,22 +287,23 @@ void main(){
     bleed *= 1.0 - smoothstep(ledclip[i] - 1.5/outsize.y, ledclip[i], uv.y);
     fin += ledcol[i] * (lens*1.50 + bleed) * ledon[i];
   }
-  // The turbo display's lit segments.  Red LEDs behind smoked acrylic:
+  // The digit displays' lit segments.  Red LEDs behind smoked acrylic:
   // a sharp segment, and a soft bloom on the glass around it - the
   // diffusion the window adds is what stops them reading as flat paint.
-  if (seg_on > 0.001) {
-    vec2 sp = (uv - seg_rect.xy) / seg_rect.zw;
+  for (int i = 0; i < 2; ++i) {
+    if (seg_on[i] <= 0.001) continue;
+    vec2 sp = (uv - seg_rect[i].xy) / seg_rect[i].zw;
     if (all(greaterThan(sp, vec2(0.0))) && all(lessThan(sp, vec2(1.0)))) {
-      float A = (seg_rect.z*outsize.x) / (seg_rect.w*outsize.y);
+      float A = (seg_rect[i].z*outsize.x) / (seg_rect[i].w*outsize.y);
       vec2 q = vec2(sp.x*A, sp.y);
       float dh = seg_geom.x, dw = dh*seg_geom.y, pitch = dw*seg_geom.z, th = dh*seg_geom.w;
-      float m = th*seg_lean.y, pxu = 1.0/(seg_rect.w*outsize.y);
+      float m = th*seg_lean.y, pxu = 1.0/(seg_rect[i].w*outsize.y);
       float lit = 0.0, halo = 0.0;
       for (int k = 0; k < 3; ++k) {
         vec2 l = q - vec2(A*0.5 + float(k-1)*pitch, 0.5);
         l.x -= l.y*seg_lean.x;
         for (int s = 0; s < 7; ++s) {
-          if ((segmask[k] & (1 << s)) == 0) continue;
+          if ((segmask[i*3+k] & (1 << s)) == 0) continue;
           vec2 a = SEG_ENDS[s].xy*vec2(dw, dh)*0.5, b = SEG_ENDS[s].zw*vec2(dw, dh)*0.5;
           // a hexagonal bar: half-thickness th/2, 45-degree tips at a and
           // b, stood back by m so neighbours leave a hairline (segdisp.h)
@@ -316,22 +318,22 @@ void main(){
       }
       // the window's edge shades the bloom, not the segments
       float edge = min(min(sp.x, 1.0-sp.x)*A, min(sp.y, 1.0-sp.y)) / 0.08;
-      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*0.8 + min(halo, 1.0)*0.2*clamp(edge, 0.0, 1.0)) * seg_on;
+      fin += vec3(1.0, 0.13, 0.05) * (min(lit, 1.0)*0.8 + min(halo, 1.0)*0.2*clamp(edge, 0.0, 1.0)) * seg_on[i];
     } else if (all(greaterThan(sp, vec2(-0.6))) && all(lessThan(sp, vec2(1.6)))) {
       // What leaks out of the window onto the plastic around it: a faint
       // red wash, in proportion to how many segments are lit, falling off
       // with the distance from the glass.  Just enough to say the digits
       // are a light and not a print.
-      float A = (seg_rect.z*outsize.x) / (seg_rect.w*outsize.y);
+      float A = (seg_rect[i].z*outsize.x) / (seg_rect[i].w*outsize.y);
       vec2 q = vec2(sp.x*A, sp.y);
       vec2 o = max(max(-q, q - vec2(A, 1.0)), 0.0);
       float d = length(o);
       int n = 0;
       for (int k = 0; k < 3; ++k)
         for (int s = 0; s < 7; ++s)
-          n += (segmask[k] >> s) & 1;
+          n += (segmask[i*3+k] >> s) & 1;
       float wash = exp(-d/0.22) * (float(n)/21.0);
-      fin += vec3(1.0, 0.13, 0.05) * wash * 0.12 * seg_on;
+      fin += vec3(1.0, 0.13, 0.05) * wash * 0.12 * seg_on[i];
     }
   }
   o = vec4(pow(max(fin,0.0), vec3(1.0/2.2)), 1.0);

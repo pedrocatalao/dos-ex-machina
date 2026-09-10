@@ -597,15 +597,16 @@ static float seg_ghost(float qx, float qy, float A) {
  * cap, level with it, with the three dark digits showing through the
  * glass the way an unlit LED display does.  The digits are LIT by the
  * shader; here they are only the shadows of themselves.  Records the
- * window in L. */
-void turbo_display(canvas *c, float x, float pw, float mid, float mm, dxm_layout *L) {
+ * window in out. */
+void turbo_display(canvas *c, float x, float pw, float mid, float mm, const char *label,
+                   float out[4]) {
     float h = pw * 0.78f; /* the cap's own height */
     float w = SEG_WIN_W_MM * mm;
     float y = mid - pw * 0.39f;
     float rad = h * 0.08f;
     /* painted, centred, and on the same line as POWER */
     {
-        const char *pl = "FPS";
+        const char *pl = label;
         float ls = fmaxf(1.0f, canvas_lbl * 0.70f);
         float tw3 = (float)strlen(pl) * 8.0f * ls;
         float ly = mid - pw * 0.39f - 1.9f * mm - 8.0f * ls - 0.7f * mm;
@@ -646,8 +647,8 @@ void turbo_display(canvas *c, float x, float pw, float mid, float mm, dxm_layout
     for (int i2 = (int)(x + rad); i2 < (int)(x + w - rad); i2++)
         px_blend(c, i2, (int)y, 255, 255, 255, 0.09f);
     canvas_grain = saved;
-    L->seg[0] = x;
-    L->seg[1] = y;
-    L->seg[2] = w;
-    L->seg[3] = h;
+    out[0] = x;
+    out[1] = y;
+    out[2] = w;
+    out[3] = h;
 }

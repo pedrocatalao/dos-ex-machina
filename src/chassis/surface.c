@@ -251,7 +251,7 @@ void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G) {
         float mmu = (float)H / 268.0f; /* same mm as the band */
         float ms = fmaxf(1.0f, canvas_lbl * 0.72f);
         /* the compliance block, low and to the left, where nobody looks */
-        moulded_text(c, edge + inset * 0.9f, (float)H - inset * 0.95f + 9.0f * ms,
+        moulded_text(c, edge + inset * 0.9f, (float)H - inset * 0.95f + 9.0f * ms + 1.5f * mmu,
                      "MADE IN PORTUGAL", ms, 0);
 
         /* ejector pin marks: faint discs on the broad flat areas */

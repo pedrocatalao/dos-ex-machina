@@ -1,6 +1,7 @@
-/* segdisp.h — the turbo display's digits: three seven-segment LED digits
- * behind a smoked window on the band, next to the power button.  The 1993
- * case showed the clock in MHz; this one shows the frames per second.
+/* segdisp.h — the digit displays: three seven-segment LED digits behind a
+ * smoked window on the band, next to the power button - two of them, the
+ * frames per second and then the clock in MHz, the turbo display the 1993
+ * case had.
  *
  * The chassis bakes the window and the UNLIT segments - the faint "8.8.8"
  * a dark display shows through its glass - and the composite shader lights
@@ -10,6 +11,12 @@
  * them as uniforms, so this header is the one place they live. */
 #ifndef DXM_SEGDISP_H
 #define DXM_SEGDISP_H
+
+/* The MHz display's range: what a 1993 case could claim, and what it
+ * shows until the clock is wired to the emulator's speed. */
+#define SEG_MHZ_MIN 33
+#define SEG_MHZ_MAX 100
+#define SEG_MHZ_DEFAULT 66
 
 /* the window, in mm: a 0.3" digit set, three wide */
 #define SEG_WIN_W_MM 21.0f
