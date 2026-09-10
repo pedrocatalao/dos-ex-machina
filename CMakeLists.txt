@@ -54,7 +54,8 @@ target_include_directories(dxm PRIVATE src contract ${CMAKE_BINARY_DIR}/generate
 # time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.
 set(DXM_SHADERS
     shaders/quad.vert shaders/persist.frag shaders/blur.frag shaders/composite.frag
-    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag)
+    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag
+    shaders/edge.frag shaders/ease.frag)
 list(TRANSFORM DXM_SHADERS PREPEND ${CMAKE_SOURCE_DIR}/)
 # The list crosses a command line, where ';' would split it into separate
 # arguments; it travels comma-joined and the script splits it again.

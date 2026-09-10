@@ -1,7 +1,7 @@
 #version 330 core
-/* ---- passes 2..7 fused: curvature, beam/mask, bloom add, glass, spill ---- */
+/* ---- passes 2..7 fused: curvature, beam/mask, bloom add, glass, the case ---- */
 in vec2 uv; out vec4 o;
-uniform sampler2D tube, bloom, chassis, spillsrc, roomsrc, burnsrc;
+uniform sampler2D tube, bloom, chassis, edgesrc, burnsrc;
 uniform vec4  rect;        // tube x,y,w,h in 0..1 output space
 uniform vec2  outsize;
 uniform float warp, bright, contrast, ambient, scan, margin;
@@ -158,9 +158,12 @@ void main(){
         // grow toward the edges of the tube
         vec2 ctr = sb - 0.5;
         vec2 sep = ctr * u_rgb * 0.020;
-        s.r = texture(tube, tap(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y)))).r;
-        s.g = texture(tube, tap(vec2(sb.x,       1.0- sb.y      ))).g;
-        s.b = texture(tube, tap(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y)))).b;
+        // level 0 by name: the picture carries a mip chain for the edge
+        // light, and this runs in non-uniform control flow, where the
+        // derivatives an implicit level needs are undefined
+        s.r = textureLod(tube, tap(vec2(sb.x+sep.x, 1.0-(sb.y+sep.y))), 0.0).r;
+        s.g = textureLod(tube, tap(vec2(sb.x,       1.0- sb.y      )), 0.0).g;
+        s.b = textureLod(tube, tap(vec2(sb.x-sep.x, 1.0-(sb.y-sep.y))), 0.0).b;
         s = (s - 0.5)*contrast + 0.5 + (bright-0.5)*0.6;
         bm = beam(sb.y, px);
         bm *= column(sb.x, 1.0/max(rect.z*outsize.x,1.0));
@@ -215,12 +218,26 @@ void main(){
       col *= fl;
     }
   }
-  // bezel spill: heavily blurred tube lights the surrounding plastic (6.6)
-  vec2 sp = clamp((uv-rect.xy)/rect.zw, 0.0, 1.0);
-  vec3 spill = texture(spillsrc, vec2(sp.x,1.0-sp.y)).rgb;
-  vec2 outv = max(max(rect.xy-uv, uv-(rect.xy+rect.zw)), vec2(0.0));
-  outv.x *= outsize.x/outsize.y;   // uv.x and uv.y are not the same distance
-  float d = length(outv)/max(rect.w,1e-4);      // in tube-heights
+  // The picture's light on the case comes from the edge the case is
+  // nearest: the profile along that edge (edge.frag), read at this point's
+  // own place along it.  Where the case is, and which edge it is past, is
+  // measured against the APERTURE the chassis cut - barrel and corner
+  // radius included - not the picture's rectangle: the dish begins where
+  // the glass ends, and at a corner it takes both edges in the proportion
+  // of how far past each it is.
+  vec2 sp = (uv-rect.xy)/rect.zw;
+  float th = rect.w*outsize.y;
+  vec2 bw = barrel_k(sp, u_dish_warp);
+  vec2 apx = abs(bw*2.0-1.0)*rect.zw*outsize*0.5;
+  vec2 og = max(apx - (rect.zw*outsize*0.5 - u_dish_rin*th), vec2(0.0));
+  float os = max(og.x+og.y, 1e-4);
+  vec3 spill = vec3(0.0);
+  if (warped_rr_px(sp, u_dish_rin*th, 0.0, u_dish_warp) > 0.0) {
+    vec2 along = clamp(bw, 0.0, 1.0);
+    float wy = og.y/os, wx = og.x/os;
+    spill += texture(edgesrc, vec2(along.x, bw.y < 0.5 ? 0.125 : 0.375)).rgb*wy;
+    spill += texture(edgesrc, vec2(along.y, bw.x < 0.5 ? 0.625 : 0.875)).rgb*wx;
+  }
   // The picture's light on the case: the dish faces the glass and takes it
   // in full, then from the shoulder outward it drops away sharply - past
   // the rim the moulding turns from the tube and the picture is a small
@@ -236,13 +253,10 @@ void main(){
   // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear
   // factors toward 1, so a linear ramp here looks nearly flat.
   float amb = pow(0.16 + 0.98*ambient, 2.2);
-  // What the tube throws into the ROOM: a near-average of the whole
-  // picture, lighting the entire chassis and falling off only slowly.
-  vec3 room = texture(roomsrc, vec2(0.5,0.5)).rgb;
-  float roomfall = exp(-d*1.1);
   vec3 lit = plastic*amb
-           + spill*fall*u_chassis*facing*(0.30+0.26*(1.0-ambient))
-           + room*roomfall*u_chassis*facing*(0.34+0.40*(1.0-ambient));
+           // the gain the edge light and the room wash used to add up to on
+           // the dish, now that the edge light is the only source
+           + spill*fall*u_chassis*facing*(0.54+0.50*(1.0-ambient));
   vec3 fin = mix(lit, col, inside);
   for (int i = 0; i < 2; ++i) {
     if (ledon[i] <= 0.001) continue;
