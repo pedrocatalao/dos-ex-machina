@@ -1,7 +1,8 @@
 #version 330 core
 /* ---- passes 2..7 fused: curvature, beam/mask, bloom add, glass, the case ---- */
 in vec2 uv; out vec4 o;
-uniform sampler2D tube, bloom, chassis, edgesrc, burnsrc;
+uniform sampler2D tube, bloom, chassis, glowsrc, burnsrc;
+uniform float u_glow_ext;         // the field's margin around the picture (gpu.c)
 uniform vec4  rect;        // tube x,y,w,h in 0..1 output space
 uniform vec2  outsize;
 uniform float warp, bright, contrast, ambient, scan, margin;
@@ -218,26 +219,15 @@ void main(){
       col *= fl;
     }
   }
-  // The picture's light on the case comes from the edge the case is
-  // nearest: the profile along that edge (edge.frag), read at this point's
-  // own place along it.  Where the case is, and which edge it is past, is
-  // measured against the APERTURE the chassis cut - barrel and corner
-  // radius included - not the picture's rectangle: the dish begins where
-  // the glass ends, and at a corner it takes both edges in the proportion
-  // of how far past each it is.
+  // The picture's light on the case: the field every point of the glass's
+  // edge throws (glow.frag), read at this point, and only where the case
+  // is - past the APERTURE the chassis cut, barrel and corner radius
+  // included, so the dish begins exactly where the glass ends.
   vec2 sp = (uv-rect.xy)/rect.zw;
   float th = rect.w*outsize.y;
-  vec2 bw = barrel_k(sp, u_dish_warp);
-  vec2 apx = abs(bw*2.0-1.0)*rect.zw*outsize*0.5;
-  vec2 og = max(apx - (rect.zw*outsize*0.5 - u_dish_rin*th), vec2(0.0));
-  float os = max(og.x+og.y, 1e-4);
   vec3 spill = vec3(0.0);
-  if (warped_rr_px(sp, u_dish_rin*th, 0.0, u_dish_warp) > 0.0) {
-    vec2 along = clamp(bw, 0.0, 1.0);
-    float wy = og.y/os, wx = og.x/os;
-    spill += texture(edgesrc, vec2(along.x, bw.y < 0.5 ? 0.125 : 0.375)).rgb*wy;
-    spill += texture(edgesrc, vec2(along.y, bw.x < 0.5 ? 0.625 : 0.875)).rgb*wx;
-  }
+  if (warped_rr_px(sp, u_dish_rin*th, 0.0, u_dish_warp) > 0.0)
+    spill = texture(glowsrc, (sp + u_glow_ext)/(1.0 + 2.0*u_glow_ext)).rgb;
   // The picture's light on the case: the dish faces the glass and takes it
   // in full, then from the shoulder outward it drops away sharply - past
   // the rim the moulding turns from the tube and the picture is a small
@@ -248,8 +238,7 @@ void main(){
   // lit by a source it is moving away from, a haze rather than a strip -
   // and at the roll it drops.
   vec2 dsh = dish((uv - rect.xy)/rect.zw);
-  float across = 1.0 - 0.55*smoothstep(0.0, 1.0, dsh.y);
-  float fall = across * exp(-dsh.x/max(rect.w*outsize.y,1.0)*36.0);
+  float fall = exp(-dsh.x/max(rect.w*outsize.y,1.0)*36.0);
   // ambient is PERCEPTUAL: the sRGB encode at the end compresses linear
   // factors toward 1, so a linear ramp here looks nearly flat.
   float amb = pow(0.16 + 0.98*ambient, 2.2);

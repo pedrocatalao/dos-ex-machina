@@ -125,6 +125,11 @@ static int gl_load(void) {
  * the picture, and what lights a side is what is at that height. */
 #define EDGE_W 96
 #define EDGE_H 4
+/* and the field those profiles throw on the case (glow.frag): the picture
+ * and a margin of GLOW_EXT around it, in the picture's coordinates */
+#define GLOW_W 128
+#define GLOW_H 96
+#define GLOW_EXT 0.30f
 
 struct gpu {
     int out_w, out_h;
@@ -136,10 +141,11 @@ struct gpu {
     int persist_cur;
     int persist_w, persist_h; /* the targets' size: the tube texture's */
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
-    GLuint fbo_edge, tex_edge, fbo_edge2, tex_edge2; /* the second for the blur's ping-pong */
+    GLuint fbo_edge, tex_edge;
+    GLuint fbo_glow, tex_glow;
     GLuint fbo_edgef[2], tex_edgef[2];               /* the eased profiles, this frame and last */
     int edgef_cur;
-    GLuint prog_edge, prog_ease;
+    GLuint prog_edge, prog_ease, prog_glow;
     GLuint fbo_burn[2], tex_burn[2];
     int burn_cur;
     GLuint prog_burn, prog_overlay, tex_overlay;
@@ -253,6 +259,7 @@ gpu *gpu_create(int w, int h) {
     g->prog_blur = mkprog(shader_blur_frag);
     g->prog_edge = mkprog(shader_edge_frag);
     g->prog_ease = mkprog(shader_ease_frag);
+    g->prog_glow = mkprog(shader_glow_frag);
     g->prog_composite = mkprog(shader_composite_frag);
     g->prog_burn = mkprog(shader_burn_frag);
     g->prog_overlay = mkprog(shader_overlay_frag);
@@ -286,7 +293,7 @@ gpu *gpu_create(int w, int h) {
     mktarget(&g->fbo_bloom, &g->tex_bloom, BLOOM_W, BLOOM_H);
     mktarget(&g->fbo_bloom2, &g->tex_bloom2, BLOOM_W, BLOOM_H);
     mktarget(&g->fbo_edge, &g->tex_edge, EDGE_W, EDGE_H);
-    mktarget(&g->fbo_edge2, &g->tex_edge2, EDGE_W, EDGE_H);
+    mktarget(&g->fbo_glow, &g->tex_glow, GLOW_W, GLOW_H);
     mktarget(&g->fbo_edgef[0], &g->tex_edgef[0], EDGE_W, EDGE_H);
     mktarget(&g->fbo_edgef[1], &g->tex_edgef[1], EDGE_W, EDGE_H);
     mktarget(&g->fbo_burn[0], &g->tex_burn[0], PERSIST_W, PERSIST_H);
@@ -429,20 +436,6 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1i(glGetUniformLocation(g->prog_edge, "src"), 0);
     glUniform1f(glGetUniformLocation(g->prog_edge, "reach"), 0.18f);
     pass(g, g->prog_edge, g->fbo_edge, EDGE_W, EDGE_H);
-    /* Spread each profile along its edge: a diffuse surface passes light
-     * sideways, so a bright spot lights the dish in a soft stretch, not a
-     * blob straight under it.  Twice, wide, along the rows only - the four
-     * rows are four edges and must not mix. */
-    glUseProgram(g->prog_blur);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_edge);
-    glUniform1i(glGetUniformLocation(g->prog_blur, "src"), 0);
-    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 4.5f / EDGE_W, 0);
-    pass(g, g->prog_blur, g->fbo_edge2, EDGE_W, EDGE_H);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_edge2);
-    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 4.5f / EDGE_W, 0);
-    pass(g, g->prog_blur, g->fbo_edge, EDGE_W, EDGE_H);
     /* and a little inertia: the plastic's light eases toward the picture
      * over a tenth of a second, in and out alike, rather than following
      * it frame by frame */
@@ -460,6 +453,16 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
         pass(g, g->prog_ease, g->fbo_edgef[ec], EDGE_W, EDGE_H);
         g->edgef_cur = ec;
     }
+    /* the field: every point of every edge a source, summed over the case */
+    glUseProgram(g->prog_glow);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_edgef[g->edgef_cur]);
+    glUniform1i(glGetUniformLocation(g->prog_glow, "edgesrc"), 0);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "lambda"), 0.10f);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "ext"), GLOW_EXT);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "aspect"),
+                (tw * (float)g->out_w) / fmaxf(th * (float)g->out_h, 1.0f));
+    pass(g, g->prog_glow, g->fbo_glow, GLOW_W, GLOW_H);
     /* burn-in: a much slower average of the same signal */
     {
         int bp = g->burn_cur, bc = 1 - bp;
@@ -513,8 +516,9 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1i(glGetUniformLocation(p, "bloom"), 1);
     glUniform1i(glGetUniformLocation(p, "chassis"), 2);
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, g->tex_edgef[g->edgef_cur]);
-    glUniform1i(glGetUniformLocation(p, "edgesrc"), 3);
+    glBindTexture(GL_TEXTURE_2D, g->tex_glow);
+    glUniform1i(glGetUniformLocation(p, "glowsrc"), 3);
+    glUniform1f(glGetUniformLocation(p, "u_glow_ext"), GLOW_EXT);
     glUniform4f(glGetUniformLocation(p, "rect"), tx, ty, tw, th);
     glUniform2f(glGetUniformLocation(p, "outsize"), (float)g->out_w, (float)g->out_h);
     glUniform1f(glGetUniformLocation(p, "warp"), k->warp);
