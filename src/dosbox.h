@@ -15,9 +15,9 @@
 #include <stdint.h>
 
 /* Open the core and boot it with `c_drive` mounted as C:.  A NULL
- * core_path looks beside the executable and then in the preferences
- * directory.  The picture and the sound stay hidden until dosbox_show().
- * 0 on success; the reason is logged otherwise. */
+ * core_path looks beside the executable (in a macOS bundle, in
+ * Contents/Frameworks) and then in the preferences directory.  The picture and the sound stay
+ * hidden until dosbox_show(). 0 on success; the reason is logged otherwise. */
 int dosbox_start(const char *core_path, const char *c_drive, const char *pref_dir);
 void dosbox_stop(void);   /* unwind the emulator and join its thread */
 int dosbox_running(void); /* booted, or still booting */

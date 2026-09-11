@@ -1,7 +1,7 @@
 /* term.c — the text screen: 80x25 characters with a VGA attribute each,
  * a cursor, and the rendering of that grid into pixels with the VGA
- * font.  Everything the machine shows at the prompt, and everything the
- * navigator draws, goes through here. */
+ * font.  The machine's own POST is drawn here, before DOSBox takes the
+ * tube. */
 #include "internal.h"
 #include "font.h"
 

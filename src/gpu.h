@@ -1,6 +1,6 @@
-/* gpu.h — the ONLY file that names a graphics API (SPEC §6.5).
- * v0 runs OpenGL 3.3 core; the SPEC §12.1 decision is SDL3+SDL_GPU, and this
- * isolation is exactly what makes that a contained port. */
+/* gpu.h — the ONLY file that names a graphics API (SPEC §6.5): OpenGL 3.3
+ * core (SPEC §12.1).  Keeping it to this one module is what would make a
+ * move to another API a contained port. */
 #ifndef DXM_GPU_H
 #define DXM_GPU_H
 #include <stdint.h>

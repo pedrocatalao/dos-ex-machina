@@ -1,6 +1,6 @@
-/* sound.h — everything the SHELL makes noise with (SPEC §9).  The game core
- * renders its own audio; this is the machine around it: PC speaker, PSU fan,
- * hard disk spindle and head seeks. */
+/* sound.h — everything the machine itself makes noise with (SPEC §9).  The
+ * DOS's own sound comes from DOSBox; this is the case around it: the POST
+ * beep, the PSU fan, the disk spindle and the floppy drive. */
 #ifndef DXM_SOUND_H
 #define DXM_SOUND_H
 #include <stdint.h>

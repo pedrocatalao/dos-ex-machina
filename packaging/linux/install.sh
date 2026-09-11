@@ -46,7 +46,7 @@ cat > "$APPS/dos-ex-machina.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=DOS ex Machina
-Comment=A 1993 PC on your screen, running native ports of DOS games
+Comment=A 1993 PC on your screen, running DOS behind its CRT glass
 Exec=$DEST/dxm
 Icon=dxm
 Terminal=false
