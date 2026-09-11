@@ -30,7 +30,7 @@ dos-ex-machina/
 │   │   ├── bezel.c         the aperture in warped space, the dished band, the facing mask
 │   │   ├── parts.c         LEDs, the power button, the turbo module, vents, grilles,
 │   │   │                   the floppy drive
-│   │   ├── marks.c         the badge, the stickers, the engraved marks
+│   │   ├── marks.c         the MULTIMEDIA sticker and the engraved marks
 │   │   ├── knobs.c         the rotary controls, drawn last and redrawn alone when turned
 │   │   ├── params.h        every tuned dimension and colour
 │   │   └── internal.h      shared inside src/chassis only

@@ -1,134 +1,10 @@
-/* marks.c — what is printed, stuck or engraved on the case: the badge,
- * the sound-card sticker, the maker's mark and the corner engraving. */
+/* marks.c — what is printed, stuck or engraved on the case: the MULTIMEDIA
+ * sticker, and the two marks cut into the plastic, the DXM mark on the base
+ * and the dotted mark above the left speaker. */
 #include "internal.h"
-#include "gen/sb_logo.h"
-#include "gen/mark.h"
 #include "gen/corner_sticker.h"
+#include "gen/mark.h"
 #include "gen/multimedia.h"
-
-/* The sound-card sticker.  Everything else on this machine was moulded or
- * printed at the factory; this is the one mark a PREVIOUS OWNER left, so it
- * is applied ON the case - clear laminate margin, contact shadow round the
- * edge, and the gloss catch vinyl has and plastic does not.
- *
- * The artwork is the real logo, baked (tools/mklogo.py).  Setting it in the
- * 8x8 case font got the words right and everything else wrong: the mark has
- * letterforms of its own - the triangular A over its rule, the notched E -
- * and faking those is exactly the sort of thing that reads as a cartoon.
- *
- * It is die-cut to the artwork, with no laminate margin around it, so the
- * corner radius has to come off the print itself. */
-void sb_sticker(canvas *c, float cx, float cy, float w) {
-    float lw = w; /* the print IS the label */
-    float lh = lw * (float)SB_LOGO_HT / (float)SB_LOGO_W;
-    float h = lh;
-    float rad = h * 0.10f, hw = w * 0.5f, hh = h * 0.5f;
-    /* Applied by hand, so not quite square: a degree clockwise.  Everything
-     * below works in the label's own frame - a canvas pixel is turned back
-     * through that angle and asked where on the label it falls. */
-    const float ang = 1.0f * 3.14159265f / 180.0f;
-    const float ca = cosf(ang), sa = sinf(ang);
-    float sw = h * 0.13f;                               /* shadow reach */
-    float reach = sqrtf(hw * hw + hh * hh) + sw + 2.0f; /* covers the turned corners */
-    int j0 = (int)(cy - reach), j1 = (int)(cy + reach) + 1;
-    int i0 = (int)(cx - reach), i1 = (int)(cx + reach) + 1;
-    float sx = (float)SB_LOGO_W / lw, sy = (float)SB_LOGO_HT / lh;
-    canvas_grain = 0; /* printed vinyl has no grain */
-
-    /* the shadow it casts on the pod, which is what puts it on top */
-    for (int j2 = j0; j2 < j1; j2++)
-        for (int i2 = i0; i2 < i1; i2++) {
-            float dx = (float)i2 - cx, dy = (float)j2 - cy;
-            float lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca;
-            float sd = rr_sd(lx, ly, 0.0f, 0.0f, hw, hh, rad);
-            if (sd <= 0.0f || sd > sw)
-                continue;
-            float t = sd / sw, dyn = ly / hh;
-            /* deeper below, away from the key light */
-            float side = 0.55f + 0.60f * fmaxf(0.0f, dyn);
-            px_shade(c, i2, j2, 1.0f - 0.17f * (1.0f - t) * (1.0f - t) * side, 0.0f);
-        }
-
-    /* the artwork, box-filtered down to whatever size it landed at, with
-     * the die-cut edge anti-aliased off the same distance the shadow uses */
-    for (int j2 = j0; j2 < j1; j2++)
-        for (int i2 = i0; i2 < i1; i2++) {
-            float dx = (float)i2 - cx, dy = (float)j2 - cy;
-            float lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca;
-            float cov = 0.5f - rr_sd(lx, ly, 0.0f, 0.0f, hw, hh, rad);
-            if (cov <= 0.0f)
-                continue;
-            if (cov > 1.0f)
-                cov = 1.0f;
-            float uc = (lx + hw) * sx, vc = (ly + hh) * sy; /* source texel footprint */
-            int u0 = (int)floorf(uc - sx * 0.5f), u1 = (int)ceilf(uc + sx * 0.5f);
-            int v0 = (int)floorf(vc - sy * 0.5f), v1 = (int)ceilf(vc + sy * 0.5f);
-            if (u0 < 0)
-                u0 = 0;
-            if (v0 < 0)
-                v0 = 0;
-            if (u1 > SB_LOGO_W)
-                u1 = SB_LOGO_W;
-            if (v1 > SB_LOGO_HT)
-                v1 = SB_LOGO_HT;
-            if (u1 <= u0)
-                u1 = u0 + 1;
-            if (v1 <= v0)
-                v1 = v0 + 1;
-            if (u0 >= SB_LOGO_W || v0 >= SB_LOGO_HT)
-                continue;
-            int r = 0, g = 0, b = 0, n = 0;
-            for (int v = v0; v < v1; v++)
-                for (int u = u0; u < u1; u++) {
-                    const uint8_t *sp = sb_logo + ((size_t)v * SB_LOGO_W + u) * 4;
-                    r += sp[0];
-                    g += sp[1];
-                    b += sp[2];
-                    n++;
-                }
-            if (!n)
-                continue;
-            /* A label that has sat on a warm case for thirty years is not
-             * the print file any more.  Two corrections:
-             *
-             * The black.  Print black on vinyl is not 0,0,0 - nothing on
-             * this machine is - and the artwork comes off an SVG where it
-             * is.  Lift the black point onto the same dark blue-grey the
-             * 486 badge is printed in, as a levels move rather than a flat
-             * add, so white stays white and everything between scales.
-             *
-             * Then desaturate a touch and take the top off the brightness. */
-            {
-                const float BK_R = 0x22, BK_G = 0x26, BK_B = 0x30;
-                float R = BK_R + (float)r / n * (255.0f - BK_R) / 255.0f;
-                float G = BK_G + (float)g / n * (255.0f - BK_G) / 255.0f;
-                float B = BK_B + (float)b / n * (255.0f - BK_B) / 255.0f;
-                float lum = 0.299f * R + 0.587f * G + 0.114f * B;
-                const float DULL = 0.15f, FADE = 0.95f;
-                R = (R + (lum - R) * DULL) * FADE;
-                G = (G + (lum - G) * DULL) * FADE;
-                B = (B + (lum - B) * DULL) * FADE;
-                px_blend(c, i2, j2, (int)R, (int)G, (int)B, cov);
-            }
-        }
-
-    /* Vinyl is glossy, but not new vinyl-glossy: a worn label scatters, so
-     * the catch is broader and weaker.  Narrowing and brightening it is
-     * what would put it back to looking freshly applied. */
-    for (int j2 = j0; j2 < j1; j2++)
-        for (int i2 = i0; i2 < i1; i2++) {
-            float dx = (float)i2 - cx, dy = (float)j2 - cy;
-            float lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca;
-            if (rr_sd(lx, ly, 0.0f, 0.0f, hw, hh, rad) > 0.0f)
-                continue;
-            float u = (lx + hw) / w + ((ly + hh) / h) * 0.50f;
-            float d = (u - 0.40f) / 0.28f;
-            float a = expf(-d * d) * 0.085f;
-            if (a > 0.004f)
-                px_blend(c, i2, j2, 255, 255, 255, a);
-        }
-    canvas_grain = 1;
-}
 
 /* The maker's mark cut INTO the case: the badge's alpha, box-filtered to
  * the size it lands at, read as depth and shaded from its gradient by the
@@ -204,23 +80,17 @@ void engrave_mark(canvas *c, float cx, float cy, float w, float fill) {
     free(dep);
 }
 
-/* The mark on the speaker pod, cut INTO the plastic rather than stuck on
- * it.  An engraving changes no colour at all - the material is the same
- * material at the bottom of the cut as on the face - so this pass only ever
- * shades what is already there.  Painting the mark in and then shading it
- * is what would give the game away.
- *
- * The artwork is baked from assets/corner-sticker.png (tools/mklogo.py) and
- * its alpha is read as DEPTH.  Shading comes from that depth field's
- * gradient: the wall you meet first is turned away from the key light and
- * falls dark, the far wall is turned into it and catches a highlight, and
- * the floor between them sits in its own shade.  A fixed light-above /
- * dark-below pair - which is fine for lettering - would be wrong here,
- * because the mark is all circles and the walls face every direction. */
 /* Cut a depth field into the plastic.  dep is dw x dh, 0 = untouched
- * surface, 1 = full depth; its top-left lands at (x,y).  Shading comes from
- * the field's gradient - see corner_engraving() for why - so this serves
- * any mark whose walls face every direction. */
+ * surface, 1 = full depth; its top-left lands at (x,y).
+ *
+ * An engraving changes no colour - the material at the bottom of the cut
+ * is the material on the face - so this only ever shades what is already
+ * there.  The shading comes from the depth field's gradient: the wall you
+ * meet first is turned away from the key light and falls dark, the far wall
+ * is turned into it and catches a highlight, and the floor between them
+ * sits in its own shade.  A fixed light-above / dark-below pair, which is
+ * fine for lettering, would be wrong for a mark whose walls face every
+ * direction. */
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep) {
     float *bl = calloc((size_t)dw * dh, sizeof *bl);
     if (!bl)
@@ -262,6 +132,9 @@ void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep
     free(bl);
 }
 
+/* The dotted mark: the alpha of assets/corner-sticker.png, box-filtered to
+ * the size it lands at and cut into the plastic as depth (engrave_field),
+ * `w` wide and centred on (cx, cy). */
 void corner_engraving(canvas *c, float cx, float cy, float w) {
     float h = w * (float)CORNER_STICKER_HT / (float)CORNER_STICKER_W;
     int dw = (int)w, dh = (int)h;
@@ -317,9 +190,14 @@ static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]
 
 /* An RGBA image drawn into the box x, y, w, h: sixteen bilinear taps a
  * pixel in premultiplied space, so it holds up scaled either way and its
- * transparent edges do not fringe. */
-static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w,
-                  float h) {
+ * transparent edges do not fringe.  `white` is the image value that prints
+ * as full white - a levels move that lifts the paper and leaves the ink -
+ * and coverage within a few percent of full is taken as full, so the body
+ * of a printed sticker is solid rather than faintly see-through.  `fade`
+ * washes it out, 0 not at all: the colour drains by that share and the
+ * darks lift toward the warm grey a sun-faded print goes to. */
+static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w, float h,
+                  float white, float fade) {
     float sx = w / (float)iw, sy = h / (float)ih;
     for (int py = (int)floorf(y); py <= (int)ceilf(y + h); py++)
         for (int px = (int)floorf(x); px <= (int)ceilf(x + w); px++) {
@@ -341,19 +219,33 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
             float a = acc[3] / 16.0f;
             if (a <= 0.004f)
                 continue;
-            px_blend(c, px, py, (int)(acc[0] / acc[3]), (int)(acc[1] / acc[3]),
-                     (int)(acc[2] / acc[3]), a);
+            float lift = 255.0f / white / acc[3];
+            float r = acc[0] * lift, g = acc[1] * lift, b = acc[2] * lift;
+            if (fade > 0.0f) {
+                float l = 0.299f * r + 0.587f * g + 0.114f * b;
+                r += (l - r) * fade;
+                g += (l - g) * fade;
+                b += (l - b) * fade;
+                r += (205.0f - r) * fade * 0.45f;
+                g += (198.0f - g) * fade * 0.45f;
+                b += (184.0f - b) * fade * 0.45f;
+            }
+            if (a > 0.96f)
+                a = 1.0f;
+            px_blend(c, px, py, (int)r, (int)g, (int)b, a);
         }
 }
 
 /* The MULTIMEDIA sticker: the artwork in assets/multimedia-sticker.png,
- * the word in brush script over the colour stripes, `w` wide at its own
- * proportions and centred on (cx, cy).  Not drawn at all if it would not
- * fit in maxw x maxh. */
-void multimedia_sticker(canvas *c, float cx, float cy, float w, float maxw, float maxh) {
-    float h = w * (float)DXM_MULTIMEDIA_HT / (float)DXM_MULTIMEDIA_W;
+ * the word over the colour stripes, `w` wide and `taller` beyond its own
+ * proportions, centred on (cx, cy), a little washed out, the way thirty
+ * years of light leave a print.  Not drawn at all if it would not fit in
+ * maxw x maxh. */
+void multimedia_sticker(canvas *c, float cx, float cy, float w, float taller, float maxw,
+                        float maxh) {
+    float h = w * (float)DXM_MULTIMEDIA_HT / (float)DXM_MULTIMEDIA_W + taller;
     if (w > maxw || h > maxh)
         return;
     decal(c, dxm_multimedia, DXM_MULTIMEDIA_W, DXM_MULTIMEDIA_HT, cx - w * 0.5f, cy - h * 0.5f, w,
-          h);
+          h, 255.0f, 0.30f);
 }

@@ -117,9 +117,11 @@ true.
 ### 6.1 Procedural, not painted
 
 There is no raster art of the machine. The case, the bezel, the speaker
-pods, the louvres, the vents, the LEDs, the floppy drive, the badge and the
-lettering are drawn from parameters at startup, at whatever resolution the
-display has.
+pods, the louvres, the vents, the LEDs, the floppy drive and the lettering
+are drawn from parameters at startup, at whatever resolution the display
+has. The only images are what a real case carried: the MULTIMEDIA sticker,
+and two marks cut into the plastic from their artwork's alpha rather than
+laid on top, the DXM mark and the dotted mark.
 
 - **Resolution independence.** A painting is soft on a 5K panel and there is
   no resolution one raster covers from 1080p up. Geometry drawn at the
@@ -166,11 +168,13 @@ The solve is tube-first:
 2. **The monitor housing** wraps the tube by a fixed fraction of its height
    on every side, with the dished bezel band inside it.
 3. **The speaker columns** take what is left on either side, each a raised
-   pod with its grille. On a display too narrow for them, the tube shrinks
-   rather than the speakers vanishing.
-4. **The base band** below holds the badge, the power button and its LED,
-   the turbo module, the engraved mark, the vents and the floppy drive, at
-   real-world sizes in millimetres.
+   pod with its grille, the dotted mark engraved above the left one and the
+   MULTIMEDIA sticker under the right one's holes. On a display too narrow
+   for them, the tube shrinks rather than the speakers vanishing.
+4. **The base band** below holds, from the left, the power button and its
+   LED, the turbo module, the DXM mark engraved on the centre line, the
+   vents and the floppy drive, at real-world sizes in millimetres. The
+   sticker and the marks are left off where they do not fit.
 5. **The knobs** go under the right speaker when there is room, and on the
    band beside the turbo module when there is not.
 

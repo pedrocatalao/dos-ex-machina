@@ -221,10 +221,6 @@ were MIT licensed, and remain so.
 - **The VGA font** is FreeBSD's `cp437-8x16`, under the BSD licence.
 - **SDL3** is linked, not vendored, under the zlib licence.
 - **No software or data for DOS is in this repository or in its releases.**
-- **The Sound Blaster wordmark** on the modelled case is a trademark of
-  Creative Technology Ltd. It appears as a period detail, the sticker these
-  machines carried, not as a claim of ownership or a suggestion of any
-  affiliation.
 
 ## Design notes
 

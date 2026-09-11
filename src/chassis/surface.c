@@ -299,7 +299,7 @@ void surface_wear(canvas *c, int W, int H) {
         float hot[4][3] = {
             {0.50f, 0.86f, 1.00f}, /* the front band, most handled     */
             {0.86f, 0.86f, 0.85f}, /* around the floppy               */
-            {0.22f, 0.86f, 0.55f}, /* badge / power end               */
+            {0.22f, 0.86f, 0.55f}, /* the power end                   */
             {0.50f, 0.06f, 0.40f}, /* the top edge, where it is lifted */
         };
         for (int n = 0; n < 230; n++) {

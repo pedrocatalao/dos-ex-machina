@@ -7,7 +7,8 @@
  * surface.c, the moulded parts in parts.c and marks.c, the monitor bezel in
  * bezel.c, the knobs in knobs.c, and the layout solve in layout.c. */
 #include "internal.h"
-#include "gen/mark.h" /* only the mark's dimensions are used here */
+#include "gen/mark.h"           /* only the mark's dimensions are used here */
+#include "gen/corner_sticker.h" /* likewise */
 
 /* ---- speaker columns, one each side of the tube ---- */
 static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
@@ -72,17 +73,16 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             }
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
-            /* The sound-card sticker, on the RIGHT pod under the holes.  A
-             * FIXED physical size, like the badge: sized off the pod it was
+            /* The MULTIMEDIA sticker, on the RIGHT pod under the holes,
+             * centred between them and the foot of the pod.  A FIXED
+             * physical size, like every sticker: sized off the pod it was
              * 4 mm wide on a 4:3 screen and 59 mm on an ultrawide, because
              * the pods are whatever is left beside the tube.  A real sticker
              * is one size; when the pod cannot hold it, it is not there. */
             {
-                float sw = 18.0f * mm;
                 float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
-                float sh = sw * 0.5f;                     /* what sb_sticker builds */
-                if (sw <= pw * 0.80f && y1 - y0 > sh * 1.30f)
-                    sb_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, sw);
+                multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 1.0f * mm,
+                                   pw * 0.80f, (y1 - y0) / 1.30f);
             }
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -
@@ -104,15 +104,17 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     *knobs_placed = 1;
                 }
             }
-            /* The MULTIMEDIA sticker, above the LEFT pod and centred on it,
-             * halfway between the top of the display and the top of the
-             * pod - and clear of the top parting and the pod both.  A
-             * fixed physical size; a strip too short or a pod too narrow
-             * for it goes without. */
+            /* The dotted mark, engraved above the LEFT pod and centred on
+             * it, halfway between the top of the display and the top of the
+             * pod - and clear of the top parting and the pod both.  A fixed
+             * physical size; a strip too short or a pod too narrow for it
+             * goes without. */
             {
+                float ew = 11.0f * mm, eh = ew * (float)CORNER_STICKER_HT / (float)CORNER_STICKER_W;
                 float cy = py * 0.5f;
                 float room = fminf(cy - (gap_hi + gap_d + 1.0f * mm), py - 1.0f * mm - cy);
-                multimedia_sticker(c, pxs[0] + pw * 0.5f, cy, 24.0f * mm, pw * 0.9f, room * 2.0f);
+                if (eh <= room * 2.0f && ew <= pw * 0.9f)
+                    corner_engraving(c, pxs[0] + pw * 0.5f, cy, ew);
             }
         }
     }
