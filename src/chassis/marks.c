@@ -380,7 +380,7 @@ float badge(canvas *c, float right, float pby, float ref_w, float pbh) {
     float ink_l = (float)f0 * s1, ink_r = (float)((n - 1) * 8 + l1) * s1 + floorf(s1);
     float rs = fminf(ref_w * 0.28f / (float)DXM_ROAD_W, pbh * 0.66f / (float)DXM_ROAD_HT);
     float rw = DXM_ROAD_W * rs, rh = DXM_ROAD_HT * rs;
-    float ml = ref_w * 0.07f, gap = ref_w * 0.05f, mr = ref_w * 0.09f;
+    float ml = ref_w * 0.05f, gap = ref_w * 0.05f, mr = ref_w * 0.065f;
     float pbw = ml + rw + gap + (ink_r - ink_l) + mr;
     float pbx = right - pbw;
     float rx = pbx + ml, ry = pby + (pbh - rh) * 0.5f;

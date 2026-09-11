@@ -743,10 +743,10 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
  * key's outline in btn[] and the two LEDs in mode_led[]. */
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
                   float mode_led[2][4]) {
-    /* The module is drawn five millimetres taller than the power cap's
+    /* The module is drawn four millimetres taller than the power cap's
      * height would make it, and everything in it scales with that; its
      * top edge is two millimetres above the cap's top line. */
-    float k = (pw * 0.78f + 1.4f * mm + 5.0f * mm) / (pw * 0.78f + 1.4f * mm);
+    float k = (pw * 0.78f + 1.4f * mm + 4.0f * mm) / (pw * 0.78f + 1.4f * mm);
     float lip = 0.7f * mm * k, gap = 0.8f * mm * k, part = 1.1f * mm * k;
     float gh = pw * 0.78f * k, gw = SEG_WIN_W_MM * mm * k, kw = 13.5f * mm * k;
     /* the legend strip: an LED and a printed word, FPS over MHz, in the

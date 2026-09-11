@@ -147,14 +147,16 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float pb_ref = fminf(W * 0.115f, L->tube_h * 0.34f);
         float pbh = fminf(band_h * 0.52f, pb_ref * 0.42f);
 
-        /* power button + status LED at the left end of the band, a cap's
-         * width in from the case's left edge, and the turbo module beside
-         * the cap: the display's glass and its three keys in one well */
-        float pw = 16.0f * mm; /* a 16mm power cap */
-        float px0 = edge + pw;
+        /* power button + status LED at the left end of the band, with the
+         * same space either side of it - three quarters of a cap's width -
+         * between the case's left edge and the turbo module: the display's
+         * glass and its three keys in one well */
+        float pw = 16.0f * mm;   /* a 16mm power cap */
+        float pgap = pw * 0.75f; /* the space either side of it */
+        float px0 = edge + pgap;
         float pmid = mid + 1.5f * mm;
         power_button(c, px0, pw, pmid, mm, band_h, L);
-        float sx = px0 + pw + pw; /* a cap's width either side of the cap */
+        float sx = px0 + pw + pgap;
         turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn, L->mode_led);
         float mod_r = L->btn[2][0] + L->btn[2][2] + 0.7f * mm; /* the module's right edge */
         float left_r = mod_r; /* the right edge of everything at the left end */
