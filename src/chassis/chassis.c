@@ -121,7 +121,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
     }
 }
 
-/* ---- bottom band: badge | power+LEDs | turbo display | floppy ---- */
+/* ---- bottom band: power | turbo module | mark | vents | badge | floppy ---- */
 static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
                         int *knobs_placed) {
     float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
@@ -141,22 +141,23 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         surface_monitor_recess(c, W, H, G);
         float mid = band_y + band_h * 0.46f;
 
-        /* badge: the logo, kept, but narrow */
-        float pbw = fminf(W * 0.115f, L->tube_h * 0.34f);
-        float pbh = fminf(band_h * 0.52f, pbw * 0.42f);
-        float pbx = edge + inset * 0.65f, pby = mid - pbh * 0.5f + 1.5f * mm;
-        badge(c, pbx, pby, pbw, pbh);
+        /* the badge's height, and the width of the label it grew from,
+         * which sets the scale of its road and lettering; it goes beside
+         * the floppy drive, below, as wide as those need */
+        float pb_ref = fminf(W * 0.115f, L->tube_h * 0.34f);
+        float pbh = fminf(band_h * 0.52f, pb_ref * 0.42f);
 
-        /* power button + status LEDs, and the turbo module beside the cap
-         * and level with it - the display's glass and its three keys in
-         * one well: all a touch below the badge's line */
-        float px0 = pbx + pbw + inset * 0.85f;
+        /* power button + status LED at the left end of the band, a cap's
+         * width in from the case's left edge, and the turbo module beside
+         * the cap: the display's glass and its three keys in one well */
         float pw = 16.0f * mm; /* a 16mm power cap */
+        float px0 = edge + pw;
         float pmid = mid + 1.5f * mm;
         power_button(c, px0, pw, pmid, mm, band_h, L);
-        float sx = px0 + pw + inset * 0.55f;
+        float sx = px0 + pw + pw; /* a cap's width either side of the cap */
         turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn, L->mode_led);
         float mod_r = L->btn[2][0] + L->btn[2][2] + 0.7f * mm; /* the module's right edge */
+        float left_r = mod_r; /* the right edge of everything at the left end */
 
         /* the knobs' fallback: on the band beside the module, for a
          * screen whose pods have no room under them */
@@ -172,17 +173,7 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
             knobs_slot(0, kx, ky, kr);
             knobs_slot(1, kx + kr * 3.0f, ky, kr);
             *knobs_placed = 1;
-        }
-
-        /* The engraved mark, on the centre line of the base.  It is level
-         * with the badge rather than lower down, which keeps it clear of
-         * the vent run along the foot - two features sharing the middle of
-         * the case is one too many. */
-        {
-            float sh = pbh * 0.74f;
-            float sw = sh * (float)CORNER_STICKER_W / (float)CORNER_STICKER_HT;
-            if (sw > 8.0f)
-                corner_engraving(c, (float)W * 0.5f, mid, sw);
+            left_r = kx + kr * 4.0f;
         }
 
         /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
@@ -191,14 +182,31 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float fx = (float)W - edge - inset * 0.65f - fw2;
         float fmid = ((band_y - inset * 0.26f) + (float)H) * 0.5f;
 
-        /* Vent cuts along the foot of the band, confined to the middle
-         * fifth of the case.  A run all the way from the badge to the drive
-         * read as a decorative band; a short group on the centre line reads
-         * as what it is - ducting put where the airflow is. */
+        /* the badge, just left of the drive, a little above its centre */
+        float pby = fmid - pbh * 0.5f - 3.0f * mm;
+        float pbx = badge(c, fx - inset * 0.65f, pby, pb_ref, pbh);
+
+        /* The engraved mark, on the centre line of the base, level with
+         * the controls rather than lower down, which keeps it clear of the
+         * vent run along the foot.  Only where it clears the controls on
+         * its left and the badge on its right: on a narrow display there
+         * is no room for it between them, and it goes without. */
         {
-            float vy0 =
-                fmaxf(pby + pbh, pmid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm) +
-                inset * 0.10f;
+            float sh = pbh * 0.74f;
+            float sw = sh * (float)CORNER_STICKER_W / (float)CORNER_STICKER_HT;
+            float cx = (float)W * 0.5f;
+            if (sw > 8.0f && cx - sw * 0.5f > left_r + inset * 0.3f &&
+                cx + sw * 0.5f < pbx - inset * 0.3f)
+                corner_engraving(c, cx, mid, sw);
+        }
+
+        /* Vent cuts along the foot of the band, confined to the middle
+         * fifth of the case; they run on under the badge, which sits clear
+         * above them.  A run all the way across read as a decorative band;
+         * a short group on the centre line reads as what it is - ducting
+         * put where the airflow is. */
+        {
+            float vy0 = pmid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm + inset * 0.10f;
             float vy1 = (float)H - inset * 0.28f;
             float vx0 = (float)W * 0.40f, vx1 = (float)W * 0.60f;
             /* the run hangs from its BOTTOM edge: shortening it from the top

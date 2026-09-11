@@ -174,9 +174,10 @@ int app_init(app *a, const app_options *o) {
         }
     }
 
-    /* The core renders at 44100 Hz (skyroads audio.c SAMPLE_RATE).  The
-     * stream must be opened at the CORE's rate - SDL3 resamples to whatever
-     * the hardware wants.  Opening at 48000 played everything 8.8%% fast. */
+    /* DOSBox is asked for 44100 Hz (DOSBOX_AUDIO_HZ), and the stream is
+     * opened at that same rate so nothing on the machine's side resamples;
+     * SDL3 converts to whatever the hardware wants.  A stream at another
+     * rate than the samples fed it plays them fast or slow. */
     SDL_AudioSpec as = {SDL_AUDIO_S16, 2, 44100};
     a->audio = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &as, audio_cb, NULL);
     if (a->audio)

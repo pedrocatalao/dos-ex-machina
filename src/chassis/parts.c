@@ -743,18 +743,18 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
  * key's outline in btn[] and the two LEDs in mode_led[]. */
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
                   float mode_led[2][4]) {
-    /* The module is drawn a millimetre taller than the power cap's
+    /* The module is drawn five millimetres taller than the power cap's
      * height would make it, and everything in it scales with that; its
-     * top edge is on the cap's top line. */
-    float k = (pw * 0.78f + 1.4f * mm + 1.0f * mm) / (pw * 0.78f + 1.4f * mm);
+     * top edge is two millimetres above the cap's top line. */
+    float k = (pw * 0.78f + 1.4f * mm + 5.0f * mm) / (pw * 0.78f + 1.4f * mm);
     float lip = 0.7f * mm * k, gap = 0.8f * mm * k, part = 1.1f * mm * k;
     float gh = pw * 0.78f * k, gw = SEG_WIN_W_MM * mm * k, kw = 13.5f * mm * k;
     /* the legend strip: an LED and a printed word, FPS over MHz, in the
-     * VGA face at a 2.6 mm cell - a silk-screened legend, not moulding */
-    float ls = 2.6f * mm * k / 16.0f, lr = 1.0f * mm * k;
+     * VGA face at a 2.2 mm cell - a silk-screened legend, not moulding */
+    float ls = 2.2f * mm * k / 16.0f, lr = 1.0f * mm * k;
     float sw = (1.2f * mm + 1.0f * mm + 0.6f * mm) * k + lr * 2.0f + 3.0f * 8.0f * ls;
     float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
-    float y = mid - pw * 0.39f, rad = h * 0.09f;
+    float y = mid - pw * 0.39f - 2.0f * mm, rad = h * 0.09f;
     well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
     {

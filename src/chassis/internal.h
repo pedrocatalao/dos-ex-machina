@@ -82,7 +82,7 @@ void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float
 void louvre_slot(canvas *c, float x, float y, float w, float h, float rad);
 
 /* marks.c */
-void badge(canvas *c, float pbx, float pby, float pbw, float pbh);
+float badge(canvas *c, float right, float pby, float ref_w, float pbh);
 void corner_engraving(canvas *c, float cx, float cy, float w);
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);

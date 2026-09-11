@@ -255,20 +255,13 @@ void surface_monitor_recess(canvas *c, int W, int H, const chassis_geom *G) {
     }
 }
 
-/* ---- moulded marks and manufacturing traces -------------------------
- * Text pressed INTO the tool, not printed on the part, plus the traces
- * every injection moulding carries: the parting line where the two tool
- * halves met, and the ejector-pin circles that pushed the part out. */
+/* ---- manufacturing traces ---------------------------------------------
+ * What every injection moulding carries: the parting line where the two
+ * tool halves met, and the ejector-pin circles that pushed the part out. */
 void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G) {
-    float inset = G->inset;
     float edge = G->edge;
     {
         float mmu = (float)H / 268.0f; /* same mm as the band */
-        float ms = fmaxf(1.0f, canvas_lbl * 0.72f);
-        /* the compliance block, low and to the left, where nobody looks */
-        moulded_text(c, edge + inset * 0.9f, (float)H - inset * 0.95f + 9.0f * ms + 1.5f * mmu,
-                     "MADE IN PORTUGAL CRL", ms, 0);
-
         /* ejector pin marks: faint discs on the broad flat areas */
         {
             float pr2 = 3.6f * mmu;
