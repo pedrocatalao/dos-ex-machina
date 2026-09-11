@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
     snprintf(cfgpath, sizeof cfgpath, "%scrt.cfg", a.pref ? a.pref : "./");
     if (!a.deterministic)
         ui_load(cfgpath);
-    dos_init();
+    dos_init(theatre_mhz(&th), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */

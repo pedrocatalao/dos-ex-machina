@@ -18,7 +18,8 @@
 #define DOS_W (DOS_COLS * 8 + DOS_PAD_X * 2)
 #define DOS_H (DOS_ROWS * 16 + DOS_PAD_Y * 2)
 typedef enum { DOS_BOOT, DOS_HANDOVER } dos_state;
-void dos_init(void);
+/* the CPU clock the POST reports, and 1 to read its clock as a fixed time */
+void dos_init(int mhz, int fixed_clock);
 void dos_skip(void); /* a key during the boot: no more waiting between lines */
 dos_state dos_update(double t);
 const uint8_t *dos_render(void); /* DOS_W x DOS_H RGB8 */

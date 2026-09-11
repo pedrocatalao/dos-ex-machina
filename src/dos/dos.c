@@ -4,11 +4,11 @@
 
 dos_machine machine;
 
-void dos_init(void) {
+void dos_init(int mhz, int fixed_clock) {
     term_clear();
     memset(&machine, 0, sizeof machine);
     machine.state = DOS_BOOT;
-    boot_init();
+    boot_init(mhz, fixed_clock);
 }
 
 void dos_skip(void) {

@@ -19,7 +19,7 @@ typedef struct {
 extern dos_machine machine;
 
 /* boot.c - the POST */
-void boot_init(void);
+void boot_init(int mhz, int fixed_clock);
 void boot_skip(void);      /* a key: no more waiting between lines */
 int boot_update(double t); /* 1 the moment the screen should clear */
 void boot_badge(double t); /* the POST badge, over the frame buffer */
