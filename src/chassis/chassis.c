@@ -7,8 +7,7 @@
  * surface.c, the moulded parts in parts.c and marks.c, the monitor bezel in
  * bezel.c, the knobs in knobs.c, and the layout solve in layout.c. */
 #include "internal.h"
-#include "gen/mark.h"           /* only the mark's dimensions are used here */
-#include "gen/corner_sticker.h" /* likewise */
+#include "gen/mark.h" /* only the mark's dimensions are used here */
 
 /* ---- speaker columns, one each side of the tube ---- */
 static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
@@ -105,23 +104,21 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     *knobs_placed = 1;
                 }
             }
-            /* The maker's mark: the DXM wordmark, engraved into the case
-             * above the LEFT pod and centred on it, in the flat between the
-             * top parting and the pod, with its colour laid in the cut.  A
+            /* The MULTIMEDIA sticker, above the LEFT pod and centred on it,
+             * halfway between the top of the display and the top of the
+             * pod - and clear of the top parting and the pod both.  A
              * fixed physical size; a strip too short or a pod too narrow
              * for it goes without. */
             {
-                float mw = 16.0f * mm, mh = mw * (float)DXM_MARK_HT / (float)DXM_MARK_W;
-                float top2 = gap_hi + gap_d + 1.5f * mm, bot2 = py - 1.0f * mm;
-                if (bot2 - top2 >= mh + 1.0f * mm && pw >= mw * 1.1f)
-                    engrave_mark(c, pxs[0] + pw * 0.5f, (top2 + bot2) * 0.5f - 1.2f * mm, mw,
-                                 0.75f);
+                float cy = py * 0.5f;
+                float room = fminf(cy - (gap_hi + gap_d + 1.0f * mm), py - 1.0f * mm - cy);
+                multimedia_sticker(c, pxs[0] + pw * 0.5f, cy, 24.0f * mm, pw * 0.9f, room * 2.0f);
             }
         }
     }
 }
 
-/* ---- bottom band: power | turbo module | mark | vents | badge | floppy ---- */
+/* ---- bottom band: power | turbo module | mark | vents | floppy ---- */
 static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
                         int *knobs_placed) {
     float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
@@ -140,12 +137,6 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         panel_gap(c, edge, gap_lo, (float)W - 2.0f * edge, gap_d);
         surface_monitor_recess(c, W, H, G);
         float mid = band_y + band_h * 0.46f;
-
-        /* the badge's height, and the width of the label it grew from,
-         * which sets the scale of its road and lettering; it goes beside
-         * the floppy drive, below, as wide as those need */
-        float pb_ref = fminf(W * 0.115f, L->tube_h * 0.34f);
-        float pbh = fminf(band_h * 0.52f, pb_ref * 0.42f);
 
         /* power button + status LED at the left end of the band, with the
          * same space either side of it - three quarters of a cap's width -
@@ -184,29 +175,20 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float fx = (float)W - edge - inset * 0.65f - fw2;
         float fmid = ((band_y - inset * 0.26f) + (float)H) * 0.5f;
 
-        /* the badge, just left of the drive, a little above its centre */
-        float pby = fmid - pbh * 0.5f - 3.0f * mm;
-        float pbx = badge(c, fx - inset * 0.65f, pby, pb_ref, pbh);
-
-        /* The engraved mark, on the centre line of the base, level with
-         * the controls rather than lower down, which keeps it clear of the
-         * vent run along the foot.  Only where it clears the controls on
-         * its left and the badge on its right: on a narrow display there
-         * is no room for it between them, and it goes without. */
+        /* The maker's mark: the DXM wordmark engraved on the centre line of
+         * the base, level with the controls, with its colour laid in the
+         * cut.  A fixed physical size, drawn only where it clears the
+         * controls on its left and the drive on its right. */
         {
-            float sh = pbh * 0.74f;
-            float sw = sh * (float)CORNER_STICKER_W / (float)CORNER_STICKER_HT;
-            float cx = (float)W * 0.5f;
-            if (sw > 8.0f && cx - sw * 0.5f > left_r + inset * 0.3f &&
-                cx + sw * 0.5f < pbx - inset * 0.3f)
-                corner_engraving(c, cx, mid, sw);
+            float mw = 17.0f * mm, cx = (float)W * 0.5f;
+            if (cx - mw * 0.5f > left_r + inset * 0.3f && cx + mw * 0.5f < fx - inset * 0.3f)
+                engrave_mark(c, cx, mid + 1.0f * mm, mw, 0.75f);
         }
 
         /* Vent cuts along the foot of the band, confined to the middle
-         * fifth of the case; they run on under the badge, which sits clear
-         * above them.  A run all the way across read as a decorative band;
-         * a short group on the centre line reads as what it is - ducting
-         * put where the airflow is. */
+         * fifth of the case, under the mark.  A run all the way across read
+         * as a decorative band; a short group on the centre line reads as
+         * what it is - ducting put where the airflow is. */
         {
             float vy0 = pmid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm + inset * 0.10f;
             float vy1 = (float)H - inset * 0.28f;

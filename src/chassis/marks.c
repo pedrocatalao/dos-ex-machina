@@ -1,11 +1,10 @@
 /* marks.c — what is printed, stuck or engraved on the case: the badge,
  * the sound-card sticker, the maker's mark and the corner engraving. */
 #include "internal.h"
-#include "font.h"
 #include "gen/sb_logo.h"
 #include "gen/mark.h"
 #include "gen/corner_sticker.h"
-#include "gen/road.h"
+#include "gen/multimedia.h"
 
 /* The sound-card sticker.  Everything else on this machine was moulded or
  * printed at the factory; this is the one mark a PREVIOUS OWNER left, so it
@@ -302,13 +301,13 @@ void corner_engraving(canvas *c, float cx, float cy, float w) {
     free(dep);
 }
 
-/* One texel of the road artwork, premultiplied; transparent outside it. */
-static void road_texel(int i, int j, float out[4]) {
-    if (i < 0 || j < 0 || i >= DXM_ROAD_W || j >= DXM_ROAD_HT) {
+/* One texel of an RGBA image, premultiplied; transparent outside it. */
+static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]) {
+    if (i < 0 || j < 0 || i >= iw || j >= ih) {
         out[0] = out[1] = out[2] = out[3] = 0.0f;
         return;
     }
-    const uint8_t *p = dxm_road + ((size_t)j * DXM_ROAD_W + i) * 4;
+    const uint8_t *p = img + ((size_t)j * (size_t)iw + (size_t)i) * 4;
     float a = p[3] / 255.0f;
     out[0] = p[0] * a;
     out[1] = p[1] * a;
@@ -316,26 +315,25 @@ static void road_texel(int i, int j, float out[4]) {
     out[3] = a;
 }
 
-/* The road mark: the artwork alone, fitted into maxw x maxh with its right
- * edge at `right` and centred on cy.  Each pixel takes sixteen bilinear
- * taps, so it holds up scaled up or down. */
-static void road_decal(canvas *c, float right, float cy, float maxw, float maxh) {
-    float sc = fminf(maxw / (float)DXM_ROAD_W, maxh / (float)DXM_ROAD_HT);
-    float w = DXM_ROAD_W * sc, h = DXM_ROAD_HT * sc;
-    float ox = right - w, oy = cy - h * 0.5f;
-    for (int y = (int)floorf(oy); y <= (int)ceilf(oy + h); y++)
-        for (int x = (int)floorf(ox); x <= (int)ceilf(ox + w); x++) {
+/* An RGBA image drawn into the box x, y, w, h: sixteen bilinear taps a
+ * pixel in premultiplied space, so it holds up scaled either way and its
+ * transparent edges do not fringe. */
+static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w,
+                  float h) {
+    float sx = w / (float)iw, sy = h / (float)ih;
+    for (int py = (int)floorf(y); py <= (int)ceilf(y + h); py++)
+        for (int px = (int)floorf(x); px <= (int)ceilf(x + w); px++) {
             float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            for (int sy = 0; sy < 4; sy++)
-                for (int sx = 0; sx < 4; sx++) {
-                    float u = ((float)x + (sx + 0.5f) / 4.0f - ox) / sc - 0.5f;
-                    float v = ((float)y + (sy + 0.5f) / 4.0f - oy) / sc - 0.5f;
+            for (int ty = 0; ty < 4; ty++)
+                for (int tx = 0; tx < 4; tx++) {
+                    float u = ((float)px + (tx + 0.5f) / 4.0f - x) / sx - 0.5f;
+                    float v = ((float)py + (ty + 0.5f) / 4.0f - y) / sy - 0.5f;
                     int i = (int)floorf(u), j = (int)floorf(v);
                     float fu = u - (float)i, fv = v - (float)j, t[4][4];
-                    road_texel(i, j, t[0]);
-                    road_texel(i + 1, j, t[1]);
-                    road_texel(i, j + 1, t[2]);
-                    road_texel(i + 1, j + 1, t[3]);
+                    texel(img, iw, ih, i, j, t[0]);
+                    texel(img, iw, ih, i + 1, j, t[1]);
+                    texel(img, iw, ih, i, j + 1, t[2]);
+                    texel(img, iw, ih, i + 1, j + 1, t[3]);
                     for (int k = 0; k < 4; k++)
                         acc[k] += (t[0][k] * (1.0f - fu) + t[1][k] * fu) * (1.0f - fv) +
                                   (t[2][k] * (1.0f - fu) + t[3][k] * fu) * fv;
@@ -343,85 +341,19 @@ static void road_decal(canvas *c, float right, float cy, float maxw, float maxh)
             float a = acc[3] / 16.0f;
             if (a <= 0.004f)
                 continue;
-            px_blend(c, x, y, (int)(acc[0] / acc[3]), (int)(acc[1] / acc[3]),
+            px_blend(c, px, py, (int)(acc[0] / acc[3]), (int)(acc[1] / acc[3]),
                      (int)(acc[2] / acc[3]), a);
         }
 }
 
-/* The first and last inked columns of a glyph of the 8x8 font; 8 and -1
- * for a blank one. */
-static void ink_cols(int ch, int *first, int *last) {
-    const uint8_t *g = font_glyph(ch);
-    *first = 8;
-    *last = -1;
-    for (int j = 0; j < 8; j++)
-        for (int i = 0; i < 8; i++)
-            if (g[j] & (0x80 >> i)) {
-                if (i < *first)
-                    *first = i;
-                if (i > *last)
-                    *last = i;
-            }
-}
-
-/* The badge, drawn with its RIGHT edge at `right`: the road mark on the
- * left, then "PC-486" over "MULTIMEDIA" with the four colour lines under
- * them, starting on the same left edge and dissolving toward the right.
- * As wide as those need: the road, a gap, the name measured by the font's
- * ink, and a margin.  ref_w is the original label's width, which sets every
- * scale here.  Returns the left edge. */
-float badge(canvas *c, float right, float pby, float ref_w, float pbh) {
-    static const char *const NAME = "PC-486";
-    float sc = fminf(fmaxf(1.0f, ref_w / 110.0f), pbh / 30.0f);
-    float s1 = sc * 1.35f; /* the name's scale, as text() lays it out */
-    int f0, l0, f1, l1, n = (int)strlen(NAME);
-    ink_cols((unsigned char)NAME[0], &f0, &l0);
-    ink_cols((unsigned char)NAME[n - 1], &f1, &l1);
-    float ink_l = (float)f0 * s1, ink_r = (float)((n - 1) * 8 + l1) * s1 + floorf(s1);
-    float rs = fminf(ref_w * 0.28f / (float)DXM_ROAD_W, pbh * 0.66f / (float)DXM_ROAD_HT);
-    float rw = DXM_ROAD_W * rs, rh = DXM_ROAD_HT * rs;
-    float ml = ref_w * 0.05f, gap = ref_w * 0.05f, mr = ref_w * 0.065f;
-    float pbw = ml + rw + gap + (ink_r - ink_l) + mr;
-    float pbx = right - pbw;
-    float rx = pbx + ml, ry = pby + (pbh - rh) * 0.5f;
-    float tx = rx + rw + gap - ink_l; /* where the name's cell starts */
-    canvas_grain = 0;                 /* the badge is a printed label */
-    rrect(c, pbx, pby, pbw, pbh, pbh * 0.10f, 0x22, 0x26, 0x30, 1.0f, 0.82f);
-    housing_edge(c, pbx, pby, pbw, pbh, pbh * 0.10f, fmaxf(2.0f, pbh * 0.09f),
-                 fmaxf(2.0f, pbh * 0.08f), 0, 1.0f);
-    text(c, tx, pby + pbh * 0.16f, NAME, s1, 0xEC, 0xE8, 0xDC);
-    /* the small print, smoothed: the blocky renderer cannot go below a
-     * pixel per font pixel, and on a small display that made this line
-     * wider than the name above it */
-    text_smooth(c, tx, pby + pbh * 0.56f, "MULTIMEDIA", sc * 0.60f, 0xA8, 0xB0, 0xC6);
-    {
-        int cols[4][3] = {
-            {0x2E, 0x4C, 0xA8}, {0x2E, 0x8C, 0x50}, {0xC8, 0x9A, 0x28}, {0xB8, 0x3C, 0x34}};
-        /* the lines start where the lettering does, straight down */
-        float x0 = rx + rw + gap, x1 = pbx + pbw - mr;
-        for (int k = 0; k < 4; k++) {
-            float ly0 = pby + pbh * (0.78f + k * 0.048f), lh = fmaxf(1.0f, pbh * 0.030f);
-            for (int yy = (int)floorf(ly0); yy <= (int)ceilf(ly0 + lh); yy++) {
-                float cy = (float)yy + 0.5f;
-                float ay = fminf(1.0f, fminf(cy - ly0 + 0.5f, ly0 + lh - cy + 0.5f));
-                if (ay <= 0.0f)
-                    continue;
-                for (int xx = (int)floorf(x0); xx <= (int)ceilf(x1); xx++) {
-                    float cx = (float)xx + 0.5f;
-                    float ax = fminf(1.0f, fminf(cx - x0 + 0.5f, x1 - cx + 0.5f));
-                    if (ax <= 0.0f)
-                        continue;
-                    /* the ink runs out rightward: the colour is constant and
-                     * the coverage falls to nothing, so the line dissolves
-                     * into the label rather than turning white */
-                    float m = fminf(1.0f, fmaxf(0.0f, ((cx - x0) / (x1 - x0) - 0.40f) / 0.60f));
-                    m = m * m * (3.0f - 2.0f * m);
-                    px_blend(c, xx, yy, cols[k][0], cols[k][1], cols[k][2], ay * ax * (1.0f - m));
-                }
-            }
-        }
-    }
-    road_decal(c, rx + rw, ry + rh * 0.5f, rw, rh);
-    canvas_grain = 1;
-    return pbx;
+/* The MULTIMEDIA sticker: the artwork in assets/multimedia-sticker.png,
+ * the word in brush script over the colour stripes, `w` wide at its own
+ * proportions and centred on (cx, cy).  Not drawn at all if it would not
+ * fit in maxw x maxh. */
+void multimedia_sticker(canvas *c, float cx, float cy, float w, float maxw, float maxh) {
+    float h = w * (float)DXM_MULTIMEDIA_HT / (float)DXM_MULTIMEDIA_W;
+    if (w > maxw || h > maxh)
+        return;
+    decal(c, dxm_multimedia, DXM_MULTIMEDIA_W, DXM_MULTIMEDIA_HT, cx - w * 0.5f, cy - h * 0.5f, w,
+          h);
 }

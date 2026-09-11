@@ -11,6 +11,7 @@ if a reproducible file drifts from what its tool produces.
 | `splash.c`, `splash.h` | startup splash, RLE | `mksplash.py`, width 1024 | `assets/splash-src.png` | reproducible |
 | `mark.h` | the DXM mark engraved on the case | `mklogo.py`, width 320 | `assets/dxm-badge.png` | reproducible |
 | `font16.h` | the VGA 8x16 CP437 font the text screen draws with | `mkfont.py` | `assets/cp437-8x16.fnt.uu` (3) | reproducible |
+| `multimedia.h` | the MULTIMEDIA sticker above the left speaker | `mklogo.py`, full size | `assets/multimedia-sticker.png` | reproducible |
 | `logo.h` | the POST-screen wordmark | `mklogo.py` | `assets/logo-src.png` | frozen (1) |
 | `icon.h` | window icon, 128 px | `mklogo.py` | `assets/icon-src.png` | frozen (1) |
 | `road.h` | the road mark on the badge | `mklogo.py` | `assets/road-src.png` | frozen (1) |
