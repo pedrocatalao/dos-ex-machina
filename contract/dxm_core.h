@@ -26,7 +26,7 @@ typedef enum { DXM_FB_INDEX8 = 0, DXM_FB_RGB888 = 1 } dxm_fb_format;
 typedef struct dxm_mode {
     int w, h; /* framebuffer dimensions                    */
     dxm_fb_format format;
-    int par_num, par_den; /* PIXEL aspect: 320x200 is 6:5         */
+    int par_num, par_den; /* PIXEL aspect: 320x200 is 5:6         */
     int crt_lines;        /* PHYSICAL scanlines this mode drove.  13h  */
                           /* is line-doubled: 400, not 200 (§2.2).     */
 } dxm_mode;
@@ -105,10 +105,29 @@ enum {
     DXM_SC_F10 = 0x44,
 };
 
-/* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c. */
-#include <setjmp.h>
+/* Provided by the shared adapter (dxm_platform.c) to a core's dxm_entry.c.
+ *
+ * Do not use raw setjmp/longjmp for the core-owned exit boundary. On the
+ * tested Windows MinGW GCC configuration, the CRT path has been observed to
+ * terminate the host with STATUS_BAD_STACK when a DXM module unwinds. Keep
+ * the jump point in dxm_core_main, but use these paired contract macros so
+ * Windows GCC uses the compiler builtins while other toolchains retain libc.
+ *
+ * This header and dxm_platform.c are compiled into each core. Existing .dxm
+ * modules built with an older vendored copy must update that copy and be
+ * rebuilt; updating the DXM shell alone cannot retrofit the unwind code. */
+#if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
+typedef intptr_t dxm_exit_buf[5];
+#    define DXM_EXIT_SETJMP(target_ptr) __builtin_setjmp(*(target_ptr))
+#    define DXM_EXIT_LONGJMP(target) __builtin_longjmp((target), 1)
+#else
+#    include <setjmp.h>
+typedef jmp_buf dxm_exit_buf;
+#    define DXM_EXIT_SETJMP(target_ptr) setjmp(*(target_ptr))
+#    define DXM_EXIT_LONGJMP(target) longjmp((target), 1)
+#endif
 void dxm_adapter_bind(const dxm_host *h);
-jmp_buf *dxm_adapter_exit_target(void);
+dxm_exit_buf *dxm_adapter_exit_target(void);
 
 /* Every core exports exactly these three, under exactly these names - see
  * DXM_SYM_* above.  They are the only symbols a module makes visible. */

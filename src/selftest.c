@@ -45,7 +45,7 @@ int selftest_step(double t) {
             }
         }
         break;
-    case 2: /* Esc: intro -> menu -> plat_exit -> longjmp -> unwind */
+    case 2: /* Esc: intro -> menu -> plat_exit -> contract unwind */
     {
         int phase = (int)(E / 0.33);
         corehost_push_key(DXM_SC_ESC, (phase & 1) == 0, (phase & 1) ? 0 : 27);
