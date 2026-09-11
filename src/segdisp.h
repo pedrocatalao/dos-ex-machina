@@ -14,13 +14,11 @@
 #define DXM_SEGDISP_H
 
 /* The clock's stops, in MHz: the speeds a 1993 case could claim. */
-#define SEG_MHZ_STOPS                                                                            \
-    { 33, 40, 50, 66, 80, 100 }
+#define SEG_MHZ_STOPS {33, 40, 50, 66, 80, 100}
 /* and what each stop asks of the emulator: DOSBox cycles, instructions
  * per millisecond, at roughly the machine each clock names - a 386DX at
  * 33 up to a 486DX4 at 100 */
-#define SEG_MHZ_CYCLES                                                                           \
-    { 10000, 14000, 20000, 30000, 40000, 60000 }
+#define SEG_MHZ_CYCLES {10000, 14000, 20000, 30000, 40000, 60000}
 #define SEG_MHZ_NSTOPS 6
 #define SEG_MHZ_DEFAULT 3 /* index: 66 */
 
@@ -45,14 +43,13 @@
 /* Segment endpoints in the digit's own half-extents (x, y in -1..1, y up):
  * a top, b upper right, c lower right, d bottom, e lower left, f upper
  * left, g middle.  Bit s of a digit's mask lights segment s. */
-#define SEG_ENDS                                                                                 \
-    {                                                                                            \
-        {-1, 1, 1, 1}, {1, 1, 1, 0}, {1, 0, 1, -1}, {-1, -1, 1, -1}, {-1, -1, -1, 0},           \
-            {-1, 1, -1, 0}, {-1, 0, 1, 0},                                                       \
+#define SEG_ENDS                                                                                   \
+    {                                                                                              \
+        {-1, 1, 1, 1},   {1, 1, 1, 0},   {1, 0, 1, -1}, {-1, -1, 1, -1},                           \
+        {-1, -1, -1, 0}, {-1, 1, -1, 0}, {-1, 0, 1, 0},                                            \
     }
 
 /* the ten figures, a..g in bits 0..6 */
-#define SEG_FIGURES                                                                              \
-    { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F }
+#define SEG_FIGURES {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F}
 
 #endif

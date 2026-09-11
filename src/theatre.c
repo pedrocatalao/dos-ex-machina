@@ -12,12 +12,11 @@ static const double MACH_FADE = 0.70;
 static const double WARM = 1.6;    /* the tube's warm-up, seconds */
 static const double OFF_END = 1.1; /* power-off, from the switch to the end */
 
-void theatre_power_on(theatre *th, int selftest, int deterministic) {
+void theatre_power_on(theatre *th, int deterministic) {
     th->fade0 = app_now_ns();
     th->off_t0 = -1.0;
     th->drive_until = 0.0;
     th->pwr = 0.0f;
-    th->selftest = selftest;
     th->deterministic = deterministic;
     th->fps = -1;
     th->mhz_stop = SEG_MHZ_DEFAULT;
@@ -110,7 +109,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
             }
             if (o >= OFF_END)
                 done = 1;
-        } else if (fe < WARM && !th->selftest) {
+        } else if (fe < WARM) {
             /* the raster opens quickly and then creeps the last of the
              * way, the way a cold tube settles: a cubic ease-OUT, all
              * the speed at the start and none at the end */
@@ -173,7 +172,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
 }
 
 void theatre_room(const theatre *th, gpu *g, double t) {
-    if (!th->selftest) {
+    {
         double fe = (app_now_ns() - th->fade0) / 1e9;
         if (fe < MACH_FADE) {
             float a = (float)(1.0 - fe / MACH_FADE);

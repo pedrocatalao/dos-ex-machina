@@ -1,10 +1,9 @@
 /* input.h — the keyboard and the mouse.
  *
- * Keys go to the running game as XT scancodes, or to the DOS prompt.  The
- * mouse belongs either to the machine - locked to the window and off the
- * desktop entirely, which is how it starts and how a game has it - or to
- * the operating system, where the arrow shows and turns the knobs.
- * Ctrl+F10 switches, as it does in DOSBox. */
+ * Keys go to the DOS as scancodes, once it has the tube; before that a key
+ * only hurries the POST.  The mouse belongs either to the machine - locked to the window and off
+ * the desktop entirely, which is how it starts and how a game has it - or to the operating system,
+ * where the arrow shows and turns the knobs. Ctrl+F10 switches, as it does in DOSBox. */
 #ifndef DXM_INPUT_H
 #define DXM_INPUT_H
 #include "app.h"

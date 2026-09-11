@@ -17,7 +17,6 @@
 #include "libretro.h"
 #pragma GCC diagnostic pop
 #include "log.h"
-#include "disk.h"
 #include "dos.h" /* the overscan border the text screen wears */
 #include <SDL3/SDL.h>
 #include <stdarg.h>
@@ -45,19 +44,19 @@
 
 /* The entry points the core exports, resolved by name.  libretro.h
  * declares each as a function, so its pointer type comes for free. */
-#define CORE_SYMS(X)                                                                          \
-    X(retro_api_version)                                                                      \
-    X(retro_set_environment)                                                                  \
-    X(retro_set_video_refresh)                                                                \
-    X(retro_set_audio_sample)                                                                 \
-    X(retro_set_audio_sample_batch)                                                           \
-    X(retro_set_input_poll)                                                                   \
-    X(retro_set_input_state)                                                                  \
-    X(retro_init)                                                                             \
-    X(retro_deinit)                                                                           \
-    X(retro_load_game)                                                                        \
-    X(retro_unload_game)                                                                      \
-    X(retro_get_system_av_info)                                                               \
+#define CORE_SYMS(X)                                                                               \
+    X(retro_api_version)                                                                           \
+    X(retro_set_environment)                                                                       \
+    X(retro_set_video_refresh)                                                                     \
+    X(retro_set_audio_sample)                                                                      \
+    X(retro_set_audio_sample_batch)                                                                \
+    X(retro_set_input_poll)                                                                        \
+    X(retro_set_input_state)                                                                       \
+    X(retro_init)                                                                                  \
+    X(retro_deinit)                                                                                \
+    X(retro_load_game)                                                                             \
+    X(retro_unload_game)                                                                           \
+    X(retro_get_system_av_info)                                                                    \
     X(retro_run)
 
 /* What the core is told when it asks for a setting.  Anything not here
@@ -75,12 +74,25 @@ static const struct {
     {"dosbox_pure_on_screen_keyboard", "false"},
     {"dosbox_pure_auto_mapping", "false"},
     {"dosbox_pure_perfstats", "none"},
+#if defined(__APPLE__) && defined(__aarch64__)
     /* The interpreter, not the recompiler: the dynrec allocates its code
      * cache with malloc and mprotects it executable, which Apple Silicon
      * refuses (a JIT there needs MAP_JIT and W^X toggling), and the core
      * then jumps into memory it cannot run.  A 486 interpreted on a
      * machine of this decade is not the bottleneck anywhere yet. */
     {"dosbox_pure_cpu_core", "normal"},
+#else
+    {"dosbox_pure_cpu_core", "auto"},
+#endif
+};
+
+/* What the DOS prints when it reaches its prompt: the ECHO lines of the
+ * DOSBOX.BAT the machine writes into C:.  DOSBox Pure runs that file in
+ * place of its own start menu when it finds one in the root. */
+static const char *const GREETING[] = {
+    "- For a list of available commands, type HELP.",
+    "- If you know, you know.",
+    "",
 };
 
 /* The one option that changes while the machine runs: the CPU speed, from
@@ -119,9 +131,9 @@ static struct {
     double fps; /* what the core says the picture refreshes at */
 
     uint8_t *fb[NFRAMES];
-    int fw[NFRAMES], fh[NFRAMES];   /* the texture, border included */
-    int sw[NFRAMES], sh[NFRAMES];   /* what the card actually drew */
-    volatile int front, reading; /* -1 for none */
+    int fw[NFRAMES], fh[NFRAMES]; /* the texture, border included */
+    int sw[NFRAMES], sh[NFRAMES]; /* what the card actually drew */
+    volatile int front, reading;  /* -1 for none */
 
     struct {
         unsigned key;
@@ -131,13 +143,13 @@ static struct {
     unsigned char keystate[RETROK_LAST];
     unsigned short mods; /* the lock keys, as RETROKMOD_* */
 
-    char typing[512];   /* what --type still has to type, and the key it holds */
+    char typing[512]; /* what --type still has to type, and the key it holds */
     int typing_n, held_key, held_shift;
-    int mdx, mdy;       /* mouse motion since the core last polled */
-    int pdx, pdy;       /* what it polled */
-    int mbtn[3];        /* left, middle, right */
+    int mdx, mdy; /* mouse motion since the core last polled */
+    int pdx, pdy; /* what it polled */
+    int mbtn[3];  /* left, middle, right */
 
-    int16_t *ring;      /* stereo frames */
+    int16_t *ring; /* stereo frames */
     int ring_r, ring_w;
 } db = {.front = -1, .reading = -1};
 
@@ -506,9 +518,12 @@ static int SDLCALL thread_main(void *ud) {
  * that names a driver this drive does not have - so the prompt arrives
  * the way it always has.  A file the machine wrote is rewritten each
  * boot; one somebody else put there is theirs and is kept. */
+/* DOSBOX.BAT in the root of C:.  Written the first time, and again only
+ * while it still starts with the marker - a file the user has replaced
+ * with their own is theirs and is left alone. */
 static void write_autoexec(const char *c_drive) {
     static const char MARK[] = "@REM DOS ex Machina writes this file; "
-                               "put your own AUTOEXEC.BAT lines below the last ECHO.";
+                               "replace it with your own to keep it.";
     char path[1200], head[128] = "";
     snprintf(path, sizeof path, "%s/DOSBOX.BAT", c_drive);
     FILE *f = fopen(path, "rb");
@@ -524,11 +539,9 @@ static void write_autoexec(const char *c_drive) {
         dxm_log("dosbox: cannot write %s", path);
         return;
     }
-    char lines[8][80];
-    int n = disk_autoexec_echo(lines, 8);
     fprintf(f, "%s\r\n@ECHO OFF\r\nCLS\r\n", MARK);
-    for (int i = 0; i < n; i++)
-        fprintf(f, lines[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", lines[i]);
+    for (size_t i = 0; i < sizeof GREETING / sizeof GREETING[0]; i++)
+        fprintf(f, GREETING[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", GREETING[i]);
     fclose(f);
     dxm_log("dosbox: wrote %s", path);
 }
@@ -568,13 +581,13 @@ int dosbox_start(const char *core_path, const char *c_drive, const char *pref_di
 #endif
         return -1;
     }
-#define X(sym)                                                                                \
-    db.fn.sym = (__typeof__(db.fn.sym))LIB_SYM(db.lib, #sym);                                 \
-    if (!db.fn.sym) {                                                                         \
-        dxm_log("dosbox: %s is not a libretro core: no %s", core_path, #sym);                 \
-        LIB_CLOSE(db.lib);                                                                    \
-        db.lib = NULL;                                                                        \
-        return -1;                                                                            \
+#define X(sym)                                                                                     \
+    db.fn.sym = (__typeof__(db.fn.sym))LIB_SYM(db.lib, #sym);                                      \
+    if (!db.fn.sym) {                                                                              \
+        dxm_log("dosbox: %s is not a libretro core: no %s", core_path, #sym);                      \
+        LIB_CLOSE(db.lib);                                                                         \
+        db.lib = NULL;                                                                             \
+        return -1;                                                                                 \
     }
     CORE_SYMS(X)
 #undef X

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dos_ex_machina VERSION 1.0.0 LANGUAGES C)
+project(dos_ex_machina VERSION 2.0.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 # Optimisation belongs to the build type, and a plain `cmake -S . -B build`
 # should not hand out an unoptimised chassis render by accident.
@@ -18,14 +18,9 @@ if(DXM_SANITIZE)
 endif()
 
 find_package(SDL3 REQUIRED CONFIG)
-# libcurl for downloads (TLS, and GitHub's release URLs redirect), and zlib
-# to inflate the game data archives.  Both are system libraries everywhere
-# DXM runs, and curl already depends on zlib - so neither is a new burden.
-find_package(CURL REQUIRED)
-find_package(ZLIB REQUIRED)
-# DXM links no game.  A game is a .dxm module in the games directory, opened
-# at run time - so the shell builds and ships on its own, and adding a game
-# is a download rather than a rebuild.
+# DXM links no emulator.  DOSBox Pure is a libretro core opened at run time
+# from beside the program (src/dosbox/), so the machine builds on its own
+# and the core is built from its own tree.
 # Windows carries its icon as a compiled-in resource, not a file beside the
 # binary.  The .ico is generated once by tools/mkico.py and committed, so no
 # image tooling has to exist on the runner.
@@ -36,21 +31,13 @@ endif()
 
 add_executable(dxm
     src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/cursor.c
-    src/selftest.c
-    src/gpu.c src/font.c src/sound.c
-    src/dos/dos.c src/dos/term.c src/dos/shell.c src/dos/boot.c src/dos/nc.c
+    src/gpu.c src/font.c src/sound.c src/ui.c src/gen/splash.c
+    src/dos/dos.c src/dos/term.c src/dos/boot.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
-    src/corehost.c src/coreload.c src/library.c src/ui.c src/gen/splash.c
     src/dosbox/dosbox.c src/dosbox/keys.c
-    src/sha256.c src/net.c src/catalogue.c src/unzip.c src/install.c
-    src/png.c src/art.c src/disk.c ${DXM_WIN_RC})
-# contract/ is what a port vendors: dxm_core.h, the interface both sides
-# compile against, and dxm_platform.c, the shared adapter.  The adapter is
-# deliberately NOT built here - it is compiled INTO each core, because a
-# module cannot reach back into this executable for the plat_* symbols it
-# needs.  The host only includes the header.
-target_include_directories(dxm PRIVATE src contract ${CMAKE_BINARY_DIR}/generated)
+    ${DXM_WIN_RC})
+target_include_directories(dxm PRIVATE src ${CMAKE_BINARY_DIR}/generated)
 # The shaders are GLSL files under shaders/, baked into one header at build
 # time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.
 set(DXM_SHADERS
@@ -90,7 +77,7 @@ target_link_options(dxm PRIVATE ${DXM_SANITIZE_FLAGS})
 # step picks it up.
 target_compile_definitions(dxm PRIVATE DXM_VERSION="${PROJECT_VERSION}")
 configure_file(packaging/macos/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist @ONLY)
-target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_DL_LIBS})
+target_link_libraries(dxm PRIVATE SDL3::SDL3 m ${CMAKE_DL_LIBS})
 # GL 1.1 is exported by the system library and has to be LINKED; everything
 # past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,
 # hence the framework; everywhere else CMake finds libGL / opengl32.

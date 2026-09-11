@@ -150,8 +150,7 @@ void vent_slot(canvas *c, float x, float y, float w, float h) {
 /* The same slot with its own corner radius (0 is a square-ended cut), how
  * deep it reads (1 = the foot vent's black trough, less = a shallower cut
  * whose floor takes light) and how strongly its rims are modelled. */
-void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float deep,
-                 float rim) {
+void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float deep, float rim) {
     float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float th = fminf(w, h); /* the narrow dimension */
     float lip = fmaxf(1.2f, th * 0.70f);
@@ -210,7 +209,7 @@ void louvre_slot(canvas *c, float x, float y, float w, float h, float rad) {
                 if (t < 0.50f)
                     v = 0.10f + 0.14f * (t / 0.50f); /* the hole, in the overhang's shadow */
                 else {
-                    float u = (t - 0.50f) / 0.50f;   /* the slat's face, lit */
+                    float u = (t - 0.50f) / 0.50f; /* the slat's face, lit */
                     v = 0.34f + 0.90f * u * u;
                 }
                 /* the end wall inside the cut, turned from the light */
@@ -614,8 +613,7 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
 /* Signed distance from p to the segment a-b: a bar of half-thickness t with
  * 45-degree pointed ends, its tips at a and b, stood back by m all round
  * the ends (the shader draws the same shape). */
-static float seg_sd(float px, float py, float ax, float ay, float bx, float by, float t,
-                    float m) {
+static float seg_sd(float px, float py, float ax, float ay, float bx, float by, float t, float m) {
     float cx = (ax + bx) * 0.5f, cy = (ay + by) * 0.5f;
     float dx = bx - ax, dy = by - ay, L = sqrtf(dx * dx + dy * dy) * 0.5f;
     dx /= 2.0f * L;
@@ -703,8 +701,8 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
  * fraction of the size - cap, bevel, the shadow it throws on the plate
  * below - with its function painted on it.  Records its outline in out,
  * for the mouse. */
-static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
-                        const char *label, float out[4]) {
+static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm, const char *label,
+                        float out[4]) {
     float rad = h * 0.12f;
     rrect(c, x, y, w, h, rad, (int)(PLASTIC_R * 0.74f), (int)(PLASTIC_G * 0.72f),
           (int)(PLASTIC_B * 0.76f), 1.16f, 0.84f);
@@ -743,8 +741,8 @@ static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm,
  * between them.  The way a case carried its display and its buttons: one
  * moulded unit, not a hole for each.  Records the window in seg, each
  * key's outline in btn[] and the two LEDs in mode_led[]. */
-void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4],
-                  float btn[3][4], float mode_led[2][4]) {
+void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
+                  float mode_led[2][4]) {
     /* The module is drawn a millimetre taller than the power cap's
      * height would make it, and everything in it scales with that; its
      * top edge is on the cap's top line. */

@@ -18,7 +18,6 @@ typedef struct {
     double off_t0;      /* when power-off began; <0 while the machine is on */
     double drive_until; /* the drive runs until this machine time */
     float pwr;          /* the power LED, eased toward on or off */
-    int selftest;       /* no warm-up and no fade: the test wants the picture now */
     int deterministic;  /* the drive LED follows the machine clock, not the audio */
     int fps;            /* the frame rate, for the display; <0 = nothing yet */
     int mhz_stop;       /* the clock, as an index into SEG_MHZ_STOPS */
@@ -28,7 +27,7 @@ typedef struct {
     double seg_t;       /* when the display was last eased */
 } theatre;
 
-void theatre_power_on(theatre *th, int selftest, int deterministic);
+void theatre_power_on(theatre *th, int deterministic);
 void theatre_power_off(theatre *th, double t);
 /* The drive works for `seconds` from machine time t: sound, and the LED. */
 void theatre_drive(theatre *th, double seconds, double t);

@@ -144,7 +144,7 @@ struct gpu {
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_edge, tex_edge;
     GLuint fbo_glow, tex_glow;
-    GLuint fbo_edgef[2], tex_edgef[2];               /* the eased profiles, this frame and last */
+    GLuint fbo_edgef[2], tex_edgef[2]; /* the eased profiles, this frame and last */
     int edgef_cur;
     GLuint prog_edge, prog_ease, prog_glow;
     GLuint fbo_burn[2], tex_burn[2];

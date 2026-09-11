@@ -20,7 +20,7 @@
 
 /* The bezel, as fractions of the tube's height. */
 #define BEZEL_BAND DXM_BEZEL_BAND /* dished part, next to the glass */
-#define BEZEL_HOUSING 0.095f /* full surround depth beyond the picture */
+#define BEZEL_HOUSING 0.095f      /* full surround depth beyond the picture */
 /* shoulder corner radius: the moulding face's OWN radius, not R_IN + BAND,
  * which forced a huge curve */
 #define BEZEL_R_MID DXM_BEZEL_R_MID

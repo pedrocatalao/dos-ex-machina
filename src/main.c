@@ -1,18 +1,13 @@
 /* main.c — the appliance: the order things come up in, and the frame loop.
- * --windowed, --shot and the rest are hidden dev flags (SPEC §11). */
+ * --windowed, --shot and the rest are hidden dev flags. */
 #include "app.h"
 #include "log.h"
 #include "splash.h"
 #include "theatre.h"
 #include "input.h"
-#include "selftest.h"
 #include "dos.h"
 #include "chassis.h"
-#include "corehost.h"
 #include "dosbox.h"
-#include "coreload.h"
-#include "library.h"
-#include "catalogue.h"
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
@@ -22,29 +17,25 @@
 
 typedef struct {
     app_options app;
-    int selftest;
     const char *shot;    /* --shot: write this frame and exit */
     int shot_frames;     /* ...after this many frames (60 if unset) */
-    const char *autocmd; /* --type: commands, ';'-separated, one per prompt */
+    const char *autocmd; /* --type: commands, ';'-separated, one a second */
     float ambient;       /* room light: 0 dark room .. 1 bright */
-    /* --dosbox DIR: a real DOS.  DOSBox Pure boots behind the POST with
-     * DIR as C: and takes the tube at the prompt.  --dosbox-core names
-     * the core library; unset, it is looked for beside the program. */
+    /* --dosbox DIR mounts DIR as C: instead of the machine's own drive;
+     * --dosbox-core names the core library instead of the one beside the
+     * program.  Both also read from the environment. */
     const char *dosbox, *dosbox_core;
 } options;
 
 static options parse(int argc, char **argv) {
-    options o = {{0, 1600, 900, 0, NULL}, 0, NULL, 0, NULL, 0.5f, getenv("DXM_DOSBOX"),
+    options o = {{0, 1600, 900, 0, NULL},  NULL, 0, NULL, 0.5f, getenv("DXM_DOSBOX"),
                  getenv("DXM_DOSBOX_CORE")};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump-audio") && i + 1 < argc)
             o.app.audio_dump = argv[++i];
         else if (!strcmp(argv[i], "--windowed"))
             o.app.windowed = 1;
-        else if (!strcmp(argv[i], "--selftest")) {
-            o.selftest = 1;
-            o.app.windowed = 1;
-        } else if (!strcmp(argv[i], "--shot") && i + 1 < argc)
+        else if (!strcmp(argv[i], "--shot") && i + 1 < argc)
             o.shot = argv[++i]; /* honours fullscreen */
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
             o.shot_frames = atoi(argv[++i]);
@@ -69,7 +60,7 @@ static options parse(int argc, char **argv) {
     return o;
 }
 
-/* The shipped look: a machine that has been used, tuned by eye on the F1
+/* The shipped look: a machine that has been used, tuned by eye on the
  * panel and copied from its crt.cfg.  The imperfections are all small -
  * h-sync and RGB shift in particular are kept low, since past a point they
  * put every character at a different sub-pixel phase and the same glyph
@@ -86,28 +77,7 @@ static gpu_knobs shipped_knobs(float ambient) {
     return k;
 }
 
-/* The machine's own contents: what is installed, and what could be. */
-static void scan_library(void) {
-    /* What DXM can run is whatever is installed, not what it was built
-     * with.  Scanning here means the prompt and the navigator agree about
-     * the machine's contents from the first frame. */
-    lib_scan();
-    dxm_log("library scanned: %d installed", lib_count());
-    /* The cached catalogue first, so the navigator is populated instantly
-     * and works with no network at all; then a refresh in the background. */
-    cat_load_cached();
-    cat_refresh_begin();
-    dxm_log("catalogue: cache read, refresh started");
-    for (int i = 0; i < lib_count(); i++) {
-        const lib_game *lg = lib_at(i);
-        dxm_log("game %-12s %s", lg->id,
-                lg->ready ? "ready" : (lg->note[0] ? lg->note : "not ready"));
-    }
-    if (lib_count() == 0)
-        dxm_log("no games installed - %sgames", lib_root());
-}
-
-/* The knobs show the live values - turned by hand, by the F1 panel, or
+/* The knobs show the live values - turned by hand, by the panel, or
  * loaded from the file - and only a knob that moved is redrawn. */
 static void show_knobs(gpu *g, const gpu_knobs *k, float *last_b, float *last_c) {
     if (k->brightness != *last_b) {
@@ -126,6 +96,18 @@ static void show_knobs(gpu *g, const gpu_knobs *k, float *last_b, float *last_c)
     }
 }
 
+/* The machine's own C: drive: a directory in the preferences, created the
+ * first time and never touched by anything but the DOS that runs on it.
+ * --dosbox DIR points the machine at another one. */
+static const char *c_drive(const options *o, const app *a) {
+    static char path[1200];
+    if (o->dosbox)
+        return o->dosbox;
+    snprintf(path, sizeof path, "%sC", a->pref ? a->pref : "./");
+    SDL_CreateDirectory(path);
+    return path;
+}
+
 int main(int argc, char **argv) {
     options o = parse(argc, argv);
     app a;
@@ -134,13 +116,11 @@ int main(int argc, char **argv) {
 
     chassis_job job;
     SDL_Thread *cth = chassis_build_begin(&job, a.W, a.H);
-    int quit = 0;
-    if (!o.selftest)
-        quit = splash_show(&a, &job);
+    int quit = splash_show(&a, &job);
     if (a.deterministic)
         app_fixed_step();
     theatre th;
-    theatre_power_on(&th, o.selftest, a.deterministic);
+    theatre_power_on(&th, a.deterministic);
     chassis_build_join(cth, &job);
     dxm_layout L = job.L;
     uint8_t *chas = job.px;
@@ -162,24 +142,28 @@ int main(int argc, char **argv) {
     snprintf(cfgpath, sizeof cfgpath, "%scrt.cfg", a.pref ? a.pref : "./");
     if (!a.deterministic)
         ui_load(cfgpath);
-    scan_library();
     dos_init();
-    /* The real DOS boots now, unseen, so it is at its prompt long before
-     * the POST is done.  If it cannot, the machine's own DOS carries on. */
+    /* The DOS boots now, unseen, so it is at its prompt long before the
+     * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
-    if (o.dosbox && dosbox_start(o.dosbox_core, o.dosbox, a.pref) == 0)
-        dos_handover_mode();
-    dxm_log("dos ready, entering the frame loop");
+    if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
+        const char *msg = "DOS ex Machina could not start its DOS.\n\n"
+                          "The DOSBox core (dosbox_pure_libretro) was not found beside the "
+                          "program, or could not be loaded. dxm.log in the preferences "
+                          "directory says which.";
+        dxm_log("no DOS: giving up");
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "DOS ex Machina", msg, a.win);
+        app_shutdown(&a);
+        return 1;
+    }
+    dxm_log("dos booting, entering the frame loop");
 
     Uint64 t_start = app_now_ns();
-    int frame = 0, core_started = 0;
+    int frame = 0;
     /* the turbo display's reading: frames counted over half a second of
      * the machine's clock, so under --deterministic it reads a steady 60 */
     Uint64 fps_t0 = t_start;
     int fps_n = 0;
-    /* the running game, by id: lib_scan rebuilds the library array in
-     * place, so a pointer into it would not survive a rescan */
-    char core_id[32] = "";
     input_state in;
     input_init(&in, &a);
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
@@ -193,8 +177,7 @@ int main(int argc, char **argv) {
             else if (r == INPUT_BUTTON) {
                 theatre_button(&th, in.button);
                 dosbox_set_cycles(theatre_cycles(&th));
-            }
-            else if (r == INPUT_RESIZED) {
+            } else if (r == INPUT_RESIZED) {
                 app_measure(&a);
                 gpu_resize(a.gpu, a.W, a.H);
                 L = chassis_layout(a.W, a.H);
@@ -205,45 +188,7 @@ int main(int argc, char **argv) {
             }
         }
         double t = (app_now_ns() - t_start) / 1e9;
-        if (o.selftest && selftest_step(t))
-            quit = 1;
 
-        /* core lifecycle */
-        /* Only return to the prompt if a core was ACTUALLY started and has
-         * since exited.  DOS_RUNNING also covers the loading pause before a
-         * launch, and testing the state alone aborted the launch instantly. */
-        if (core_started && !corehost_running()) {
-            core_started = 0;
-            /* The run is over: let go of the module so the next launch opens
-             * a fresh copy with its globals at their initial values
-             * (PORTING.md 3.2).  corehost_stop() joins the core thread and
-             * fences the audio callback first, so nothing is still inside
-             * the image when it goes. */
-            corehost_stop();
-            corehost_use_module(NULL);
-            lib_unload(lib_find(core_id));
-            dos_core_exited();
-        }
-        const char *req = dos_launch_request();
-        if (req) {
-            const lib_game *lg = lib_find(req);
-            const dxm_module *m = lg ? lib_module(lg) : NULL;
-            if (m) {
-                theatre_drive(&th, 2.2, t); /* the drive works while it loads */
-                corehost_use_module(m);
-                /* DXM_DATA still overrides, for working on a port without
-                 * installing it first. */
-                const char *dd = getenv("DXM_DATA");
-                if (corehost_start(m->info, dd ? dd : lg->data) == 0) {
-                    core_started = 1;
-                    snprintf(core_id, sizeof core_id, "%s", lg->id);
-                    lib_touch_played(lg);
-                    input_capture(&in, &a, 1);
-                }
-            }
-            if (!core_started)
-                dos_core_failed();
-        }
         if (dos_take_beep())
             snd_beep(240.0); /* after the RAM check */
         {
@@ -251,15 +196,10 @@ int main(int argc, char **argv) {
             if (f > 0.0)
                 theatre_drive(&th, f, t);
         }
-        /* Once per frame.  It used to be twice while a --type command was
-         * pending, which took the first step of the memory count a frame
-         * early in exactly those runs; the readme golden frame was
-         * re-blessed when this became one call. */
         dos_state st = dos_update(t);
-        /* --type takes a ';'-separated list, typed one per return to the
-         * prompt - so a sequence like "CD GAMES;DIR" can be driven.  A real
-         * DOS has no prompt state to wait on, so there each command goes
-         * in a second after the last. */
+        /* --type takes a ';'-separated list, typed one a second once the
+         * DOS has the tube - so a sequence like "CD GAMES;DIR" can be
+         * driven. */
         static double type_at = -1.0;
         if (autocmd && dosbox_shown()) {
             if (type_at < 0.0)
@@ -273,13 +213,6 @@ int main(int argc, char **argv) {
                 autocmd = semi ? semi + 1 : NULL;
                 type_at = t + 1.0;
             }
-        } else if (autocmd && *autocmd && st == DOS_PROMPT) {
-            const char *semi = strchr(autocmd, ';');
-            const char *end = semi ? semi : autocmd + strlen(autocmd);
-            for (const char *q = autocmd; q < end; q++)
-                dos_key(*q, 0);
-            dos_key('\r', 0);
-            autocmd = semi ? semi + 1 : NULL;
         }
         /* The handover: the BIOS screen has cleared and DOSBox, at its
          * prompt since before the memory count, takes the tube. */
@@ -287,22 +220,21 @@ int main(int argc, char **argv) {
             dosbox_show();
             dxm_log("dosbox: has the tube");
         }
-        if ((st == DOS_OFF || dosbox_exited()) && th.off_t0 < 0.0)
+        if (dosbox_exited() && th.off_t0 < 0.0)
             theatre_power_off(&th, t);
         if (theatre_frame(&th, a.gpu, &L, a.W, a.H, t))
             quit = 1;
 
-        /* pick the tube source: DOSBox once it has the tube, else the
-         * running core, else the DOS text screen */
+        /* the tube's source: DOSBox once it has the tube, else the BIOS
+         * screen */
         int cw, ch, cl, held = 0;
         const uint8_t *src = NULL;
         if (dosbox_shown()) {
             held = (src = dosbox_frame(&cw, &ch, &cl)) != NULL;
             /* A change of picture size is a program starting or ending, and
-             * on this machine a program starting means the drive reads it -
-             * the fiction the simulated DOS already keeps when a game is
-             * typed at its prompt.  The first size seen is the prompt's
-             * own, and a drive already running is not restarted. */
+             * on this machine a program starting means the drive reads it.
+             * The first size seen is the prompt's own, and a drive already
+             * running is not restarted. */
             static int last_w = -1, last_h = -1;
             if (held && (cw != last_w || ch != last_h)) {
                 if (last_w >= 0 && t >= th.drive_until)
@@ -310,16 +242,14 @@ int main(int argc, char **argv) {
                 last_w = cw;
                 last_h = ch;
             }
-        } else if (corehost_running())
-            src = corehost_frame(&cw, &ch, &cl);
+        }
         if (src) {
             gpu_set_tube(a.gpu, src, cw, ch);
             k.crt_lines = cl;
             k.crt_cols = cw;
-            /* game art: hard pixels; a real DOS's text, even strokes */
-            k.sharp_text = (held && dosbox_text_mode()) ? 1.0f : 0.0f;
-        }
-        else {
+            /* game art: hard pixels; the DOS's text, even strokes */
+            k.sharp_text = dosbox_text_mode() ? 1.0f : 0.0f;
+        } else {
             gpu_set_tube(a.gpu, dos_render(), DOS_W, DOS_H);
             /* one scanline per texture row, border included - the beam
              * swept the overscan at the same pitch as the 400 lines of
@@ -327,7 +257,7 @@ int main(int argc, char **argv) {
             k.crt_lines = DOS_H;
             k.crt_cols = DOS_W;
             k.sharp_text = 1.0f;
-        } /* text: even stroke weights */
+        }
 
         show_knobs(a.gpu, &k, &last_b, &last_c);
         k.aperture_r = L.aperture_r; /* match the chassis hole */

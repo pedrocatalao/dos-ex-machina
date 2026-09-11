@@ -2,7 +2,6 @@
 #include "app.h"
 #include "log.h"
 #include "sound.h"
-#include "corehost.h"
 #include "dosbox.h"
 #include "version.h"
 #include "gen/splash.h"
@@ -40,7 +39,7 @@ static void SDLCALL audio_cb(void *ud, SDL_AudioStream *st, int add, int total) 
     if (dosbox_running())
         dosbox_audio(buf, frames);
     else
-        corehost_audio(buf, frames);
+        memset(buf, 0, (size_t)frames * 4);
     snd_mix(buf, frames);
     if (g_audio_dump) {
         fwrite(buf, 4, (size_t)frames, g_audio_dump);
@@ -232,7 +231,6 @@ void app_screenshot(const app *a, const char *path) {
 }
 
 void app_shutdown(app *a) {
-    corehost_stop();
     if (g_audio_dump) {
         fclose(g_audio_dump);
         g_audio_dump = NULL;

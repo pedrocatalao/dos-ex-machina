@@ -1,8 +1,8 @@
 /* boot.c — the boot theatre: the BIOS banner, the RAM count that spins in
- * place, the disk lines, then AUTOEXEC's echoes, and the badge that sits
- * top-right through it all. */
+ * place, the disk lines, and the badge that sits top-right through it all.
+ * It ends on "Starting DXM-DOS...": what follows is the real DOS's own
+ * AUTOEXEC, printed by DOSBox on the screen it takes over. */
 #include "internal.h"
-#include "disk.h"
 #include "version.h" /* the BIOS banner carries the release */
 
 static const char *BOOT[] = {"DXM BIOS v" DXM_VERSION " (C) 2026 DOS ex Machina",
@@ -19,8 +19,6 @@ static const char *BOOT[] = {"DXM BIOS v" DXM_VERSION " (C) 2026 DOS ex Machina"
 
 static double t0, next_boot;
 static int boot_step;
-static char ax_lines[8][80];
-static int ax_n, ax_i;       /* AUTOEXEC's ECHOes */
 static int mem_counting;     /* the memory test is spinning          */
 static double mem_next;      /* next number update                   */
 static long mem_shown;       /* KB counted so far                    */
@@ -32,8 +30,6 @@ void boot_init(void) {
     next_boot = 0;
     mem_counting = 0;
     mem_shown = 0;
-    ax_n = disk_autoexec_echo(ax_lines, 8);
-    ax_i = 0;
 }
 void boot_skip(void) {
     next_boot = 0;
@@ -98,9 +94,6 @@ int boot_update(double t) {
                 return 0;
             }
             term_put('\n');
-            next_boot = t + 0.16;
-        } else if (ax_i < ax_n && !machine.handover) {
-            term_sayln(ax_lines[ax_i++]);
             next_boot = t + 0.16;
         } else
             return 1;

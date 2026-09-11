@@ -15,12 +15,11 @@ function(unit_test name)
     cmake_parse_arguments(T "" "" "SOURCES;LIBS" ${ARGN})
     add_executable(test_${name} unit/test_${name}.c ${T_SOURCES})
     target_include_directories(test_${name} PRIVATE ${CMAKE_SOURCE_DIR}/src
-                               ${CMAKE_SOURCE_DIR}/contract ${CMAKE_CURRENT_SOURCE_DIR}/unit)
+                               ${CMAKE_CURRENT_SOURCE_DIR}/unit)
     target_compile_options(test_${name} PRIVATE ${DXM_WARNINGS} ${DXM_SANITIZE_FLAGS})
     target_link_options(test_${name} PRIVATE ${DXM_SANITIZE_FLAGS})
     target_compile_definitions(test_${name} PRIVATE
         TEST_TMP="${UNIT_TMP}"
-        TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/unit/fixtures"
         TEST_ASSETS="${CMAKE_SOURCE_DIR}/assets"
         TEST_REPO="${CMAKE_SOURCE_DIR}")
     if(T_LIBS)
@@ -31,14 +30,7 @@ function(unit_test name)
 endfunction()
 
 set(SRC ${CMAKE_SOURCE_DIR}/src)
-unit_test(sha256  SOURCES ${SRC}/sha256.c)
 unit_test(font    SOURCES ${SRC}/font.c)
-unit_test(unzip   SOURCES ${SRC}/unzip.c ${SRC}/sha256.c LIBS ZLIB::ZLIB)
-unit_test(png     SOURCES ${SRC}/png.c ${SRC}/sha256.c   LIBS ZLIB::ZLIB)
-unit_test(disk    SOURCES ${SRC}/disk.c                  LIBS SDL3::SDL3)
-unit_test(catalogue SOURCES ${SRC}/catalogue.c ${SRC}/net.c ${SRC}/library.c
-                          ${SRC}/coreload.c ${SRC}/unzip.c
-                  LIBS SDL3::SDL3 CURL::libcurl ZLIB::ZLIB ${CMAKE_DL_LIBS})
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
