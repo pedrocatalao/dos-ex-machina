@@ -90,6 +90,7 @@ static int gl_load(void) {
 #    define glGenBuffers p_glGenBuffers
 #    define glGenFramebuffers p_glGenFramebuffers
 #    define glGenVertexArrays p_glGenVertexArrays
+#    define glGenerateMipmap p_glGenerateMipmap
 #    define glGetProgramInfoLog p_glGetProgramInfoLog
 #    define glGetProgramiv p_glGetProgramiv
 #    define glGetShaderInfoLog p_glGetShaderInfoLog

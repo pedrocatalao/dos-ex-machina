@@ -148,7 +148,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
          * rather than cuts.  The mode lights crossfade the same way. */
         int mask[3];
         seg_figures(th->mode ? th->fps : mhz_stops[th->mhz_stop], mask);
-        float dt = th->seg_t < 0.0 ? 1.0 : (float)(t - th->seg_t);
+        float dt = th->seg_t < 0.0 ? 1.0f : (float)(t - th->seg_t);
         th->seg_t = t;
         float k = 1.0f - expf(-dt / 0.22f);
         for (int i = 0; i < 21; i++) {
