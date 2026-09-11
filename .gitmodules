@@ -1,0 +1,4 @@
+[submodule "external/dosbox-pure"]
+	path = external/dosbox-pure
+	url = https://github.com/pedrocatalao/dosbox-pure.git
+	branch = dosexmachina

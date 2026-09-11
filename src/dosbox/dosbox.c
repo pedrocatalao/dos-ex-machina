@@ -546,10 +546,21 @@ static void write_autoexec(const char *c_drive) {
     dxm_log("dosbox: wrote %s", path);
 }
 
+/* Where the core is looked for: beside the program, which is where every
+ * release and every build puts it; in a macOS bundle, whose base path SDL
+ * gives as Contents/Resources, in Contents/Frameworks beside SDL3; and
+ * last in the preferences, for a core put there by hand. */
 static int find_core(char *out, size_t n, const char *pref_dir) {
     const char *base = SDL_GetBasePath();
-    const char *dirs[2] = {base ? base : "", pref_dir ? pref_dir : ""};
-    for (int i = 0; i < 2; i++) {
+    char frameworks[1100] = "";
+#ifdef __APPLE__
+    if (base)
+        snprintf(frameworks, sizeof frameworks, "%s../Frameworks/", base);
+#endif
+    const char *dirs[3] = {base ? base : "", frameworks, pref_dir ? pref_dir : ""};
+    for (int i = 0; i < 3; i++) {
+        if (!dirs[i][0] && i == 1)
+            continue;
         snprintf(out, n, "%sdosbox_pure_libretro" LIB_EXT, dirs[i]);
         FILE *f = fopen(out, "rb");
         if (f) {
