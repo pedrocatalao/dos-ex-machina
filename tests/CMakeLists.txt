@@ -1,11 +1,12 @@
-# Tests.  `ctest` from the build directory runs them all; `ctest -L unit`
-# or `-L golden` picks a group.
+# Tests.  `ctest` from the build directory runs them all; `ctest -L unit`,
+# `-L golden` or `-L boot` picks a group.
 #
 # The unit tests build each module from its own sources with exactly the
 # libraries that module needs, which is also a statement of what it
-# depends on.  They need no display.  The golden test drives the real
-# binary, so it needs a display and a GL 3.3 driver - a developer's
-# machine, or a CI runner with llvmpipe.
+# depends on.  They need no display.  The golden and boot tests drive the
+# real binary with the DOSBox core beside it, so they need a display and a
+# GL 3.3 driver - a developer's machine, or a CI runner with llvmpipe - and
+# a build that made the core.
 
 set(UNIT_TMP ${CMAKE_BINARY_DIR}/unit-tmp)
 file(MAKE_DIRECTORY ${UNIT_TMP})
@@ -33,11 +34,17 @@ set(SRC ${CMAKE_SOURCE_DIR}/src)
 unit_test(font    SOURCES ${SRC}/font.c)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND)
+if(NOT Python3_Interpreter_FOUND)
+    message(STATUS "Python 3 not found: the golden and boot tests are not registered")
+elseif(NOT TARGET dosbox_core)
+    message(STATUS "DXM_CORE is off: the golden and boot tests are not registered")
+else()
     add_test(NAME golden
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/golden/run.py
                      $<TARGET_FILE:dxm> --out ${CMAKE_BINARY_DIR}/golden)
     set_tests_properties(golden PROPERTIES LABELS golden TIMEOUT 600)
-else()
-    message(STATUS "Python 3 not found: the golden-frame test is not registered")
+    add_test(NAME boot
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/boot/run.py
+                     $<TARGET_FILE:dxm>)
+    set_tests_properties(boot PROPERTIES LABELS boot TIMEOUT 180)
 endif()

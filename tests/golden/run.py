@@ -30,12 +30,17 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# name, window size, frame to capture, --type input.  Frame numbers are in
-# sixtieths of a second of machine time: 1000 is well past the boot.
+# name, window size, frame to capture.  Frame numbers are in sixtieths of
+# a second of machine time.  Frame 205 is the end of the POST: the memory
+# count done, the drive lines printed and "Starting DXM-DOS..." on screen,
+# a few frames before the DOS takes the tube.  Everything up to that
+# handover is the machine's own drawing on the fixed clock, so it is the
+# same picture on every run; after it the picture is DOSBox's, which runs
+# on its own clock and cannot be compared frame for frame (tests/boot
+# checks that part instead).
 CASES = [
-    ("prompt-1280x800",  "1280x800", 1000, None),
-    ("readme-1280x800",  "1280x800", 1100, "TYPE README.1ST"),
-    ("prompt-1720x720",  "1720x720", 1000, None),
+    ("post-1280x800", "1280x800", 205),
+    ("post-1720x720", "1720x720", 205),
 ]
 
 
@@ -159,14 +164,12 @@ def main():
     os.makedirs(refdir, exist_ok=True)
 
     failed = 0
-    for name, size, frame, typed in CASES:
+    for name, size, frame in CASES:
         if only and name != only:
             continue
         bmp = os.path.join(out, name + ".bmp")
         cmd = [binary, "--windowed", "--deterministic", "--size", size,
                "--shot", bmp, "--frames", str(frame)]
-        if typed:
-            cmd += ["--type", typed]
         if os.path.exists(bmp):
             os.remove(bmp)
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,

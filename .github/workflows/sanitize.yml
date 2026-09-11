@@ -1,8 +1,9 @@
 # Not a build: a test run, and not a test OF a platform.  The three
 # platform workflows produce the release binaries and never execute them.
 # This one builds the machine with AddressSanitizer and
-# UndefinedBehaviorSanitizer and actually RUNS it - the unit tests and the
-# golden frames, booting the DOSBox core it builds alongside.
+# UndefinedBehaviorSanitizer and actually RUNS it - the unit tests, a boot
+# of the whole machine with the DOSBox core it builds alongside (the POST,
+# the handover, a DOS command, EXIT), and the golden frames.
 #
 # What it checks is the C, which is the same code everywhere: a buffer
 # overrun or an undefined operation found here is one on every platform.
@@ -102,6 +103,16 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=0
         run: ctest --test-dir build -L unit --output-on-failure
+
+      # The whole machine, once: the core boots, DOSBox takes the tube, MEM
+      # runs and EXIT powers it off (tests/boot/run.py).  The core itself is
+      # not sanitized; everything of DXM's that talks to it is.
+      - name: Boot
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          LIBGL_ALWAYS_SOFTWARE: 1
+          SDL_VIDEODRIVER: x11
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ctest --test-dir build -L boot --output-on-failure
 
       # Golden frames.  A reference set belongs to the renderer that drew
       # it - llvmpipe here, a real GPU on a developer's machine - which is

@@ -32,15 +32,25 @@ run that fails.
 
 ## When references change
 
-- Any change to the chassis, the tube pipeline, the font, the DOS text or
-  the boot sequence changes frames. That is the point: the test exists so
+- Any change to the chassis, the tube pipeline, the font or the POST
+  changes frames. That is the point: the test exists so
   such a change is a decision, not an accident. Look at the diff image the
   failed run leaves in the build directory, and if the new frame is the
   intended one, `--update` and commit the new reference with the change.
-- A version bump changes the BIOS banner and so the prompt frames. Update
+- A version bump changes the BIOS banner and so the POST frames. Update
   the references in the same commit as `project(... VERSION ...)`.
 - A refactor must not change them. A pixel-exact pass on every case is
   what "behaviour-neutral" means for this code base.
+
+## Why the frames are of the POST
+
+Every case is taken at the end of the POST, before DOSBox takes the tube.
+Up to that handover the machine draws everything itself on the fixed
+clock `--deterministic` gives it, so a frame is the same on every run.
+After it the tube shows DOSBox's picture, and DOSBox runs on its own clock
+on its own thread: which of its frames lands on which of the machine's is
+not reproducible.  That half is checked by `tests/boot` instead, which boots
+the machine through a DOS command and EXIT and reads the log.
 
 ## The floppy LED
 
