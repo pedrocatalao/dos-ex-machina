@@ -69,7 +69,13 @@ void cv_frame(int x, int y, int w, int h, uint8_t colour);
  * veil, n=4 is nearly solid.  `r` rounds the corners off. */
 void cv_scrim(int x, int y, int w, int h, int n, int r);
 void cv_round_frame(int x, int y, int w, int h, uint8_t colour, int r);
-void cv_text(int x, int y, const char *s, uint8_t fg, int bg); /* bg < 0: none */
+/* Text is proportional and hung off a baseline: `y` is the top of the line,
+ * the call returns how far the pen moved, and bg < 0 leaves what is under
+ * it alone. */
+#define CV_LINE 16 /* ascent and descent of the face, as a row */
+int cv_text(int x, int y, const char *s, uint8_t fg, int bg);
+int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg);
+int cv_width(const char *s); /* what it will take, without drawing it */
 void cv_pointer(int x, int y);
 const uint8_t *cv_rgb(void); /* the canvas as SCR_W x SCR_H RGB8 */
 int cv_banner_count(void);

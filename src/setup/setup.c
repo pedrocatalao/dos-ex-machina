@@ -138,8 +138,9 @@ const uint8_t *setup_render(int *w, int *h) {
     cv_round_frame(WIN_X, WIN_Y, WIN_W, WIN_H, C_DGREY, WIN_R);
 
     /* the head: the machine's name, and a rule under it */
-    cv_text(WIN_X + 12, WIN_Y + 10, "DOS ex Machina", C_WHITE, -1);
-    cv_text(WIN_X + 12 + 15 * 8, WIN_Y + 10, "SYSTEM SETUP", C_YELLOW, -1);
+    int pen = WIN_X + 12;
+    pen += cv_text_bold(pen, WIN_Y + 8, "DOS ex Machina", C_WHITE, -1);
+    cv_text(pen + 10, WIN_Y + 8, "SYSTEM SETUP", C_YELLOW, -1);
     cv_rect(WIN_X + 12, WIN_Y + BAR_H + 8, WIN_W - 24, 1, C_DGREY);
 
     /* the sections, marked rather than boxed */
@@ -148,23 +149,28 @@ const uint8_t *setup_render(int *w, int *h) {
         int on = i == S.section;
         if (on)
             cv_text(LIST_X, y, "\x10", C_YELLOW, -1); /* the pointing mark */
-        cv_text(LIST_X + 16, y, SECTION[i].name, on ? C_WHITE : C_GREY, -1);
+        if (on)
+            cv_text_bold(LIST_X + 16, y, SECTION[i].name, C_WHITE, -1);
+        else
+            cv_text(LIST_X + 16, y, SECTION[i].name, C_GREY, -1);
     }
 
     /* the rule between the sections and what they hold */
     cv_rect(PANE_X - 16, LIST_Y, 1, PANE_H, C_DGREY);
 
-    cv_text(PANE_X, PANE_Y, SECTION[S.section].name, C_YELLOW, -1);
+    cv_text_bold(PANE_X, PANE_Y, SECTION[S.section].name, C_YELLOW, -1);
     cv_text(PANE_X, PANE_Y + 24, SECTION[S.section].about, C_GREY, -1);
 
-    /* the keys, along the foot under their own rule */
+    /* the keys, along the foot under their own rule: each pair placed after
+     * the last rather than in a column, since the face is proportional */
     cv_rect(WIN_X + 12, FOOT_Y - 8, WIN_W - 24, 1, C_DGREY);
-    cv_text(WIN_X + 12, FOOT_Y, "\x18\x19", C_YELLOW, -1);
-    cv_text(WIN_X + 12 + 3 * 8, FOOT_Y, "SECTION", C_GREY, -1);
-    cv_text(WIN_X + 12 + 12 * 8, FOOT_Y, "ENTER", C_YELLOW, -1);
-    cv_text(WIN_X + 12 + 18 * 8, FOOT_Y, "CHANGE", C_GREY, -1);
-    cv_text(WIN_X + 12 + 26 * 8, FOOT_Y, "ESC", C_YELLOW, -1);
-    cv_text(WIN_X + 12 + 30 * 8, FOOT_Y, "LEAVE SETUP", C_GREY, -1);
+    static const char *const KEYS[][2] = {
+        {"\x18\x19", "Section"}, {"ENTER", "Change"}, {"ESC", "Leave setup"}};
+    pen = WIN_X + 12;
+    for (int i = 0; i < 3; i++) {
+        pen += cv_text_bold(pen, FOOT_Y, KEYS[i][0], C_YELLOW, -1) + 6;
+        pen += cv_text(pen, FOOT_Y, KEYS[i][1], C_GREY, -1) + 18;
+    }
 
     cv_pointer(S.mx, S.my);
 

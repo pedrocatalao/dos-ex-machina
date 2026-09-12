@@ -233,6 +233,9 @@ were MIT licensed, and remain so.
 - **`src/dosbox/libretro.h`** is the libretro API header, vendored as it
   ships, under the MIT licence.
 - **The VGA font** is FreeBSD's `cp437-8x16`, under the BSD licence.
+- **The interface font** is X11's Adobe Helvetica bitmap, copyright
+  1984-1989, 1994 Adobe Systems and 1988, 1994 Digital Equipment
+  Corporation, redistributable under the notice in the `.bdf` files.
 - **`src/third_party/stb_image.h`** is Sean Barrett's image loader, vendored
   as it ships, in the public domain (MIT at your option).
 - **SDL3** is linked, not vendored, under the zlib licence.

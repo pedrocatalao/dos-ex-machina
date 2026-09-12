@@ -10,6 +10,8 @@
  * which is the only place colour actually happens. */
 #include "internal.h"
 #include "font.h"
+#include "gen/uifont.h"
+#include "gen/uifont_bold.h"
 #include <string.h>
 
 /* the 16 VGA text colours, as the DAC actually produced them */
@@ -112,20 +114,89 @@ void cv_round_frame(int x, int y, int w, int h, uint8_t colour, int r) {
         }
 }
 
-/* The VGA character generator's own 8x16 face, the one the POST and DOS
- * draw with, so the machine speaks in one typeface throughout. */
-void cv_text(int x, int y, const char *s, uint8_t fg, int bg) {
-    for (int n = 0; s[n]; n++) {
-        const uint8_t *g = font_glyph16((unsigned char)s[n]);
-        int cx = x + n * 8;
-        for (int j = 0; j < 16; j++)
-            for (int i = 0; i < 8; i++) {
-                if (g[j] & (0x80 >> i))
-                    put(cx + i, y + j, fg);
-                else if (bg >= 0)
-                    put(cx + i, y + j, (uint8_t)bg);
-            }
+/* How wide a VGA glyph actually is: the character generator gives every one
+ * eight columns whether it needs them or not.  Only the few characters the
+ * proportional face has not got are drawn from it now. */
+static void ink(const uint8_t *g, int *x0, int *x1) {
+    uint8_t m = 0;
+    for (int j = 0; j < 16; j++)
+        m |= g[j];
+    if (!m) { /* a space: give it a word's worth and no more */
+        *x0 = 0;
+        *x1 = 2;
+        return;
     }
+    int a = 0, b = 7;
+    while (!(m & (0x80 >> a)))
+        a++;
+    while (!(m & (0x80 >> b)))
+        b--;
+    *x0 = a;
+    *x1 = b;
+}
+
+/* One glyph of the proportional face, hung off the baseline: the box BDF
+ * gives sits with its bottom left corner at (xoff, yoff) from the origin,
+ * which is what lets a comma drop below the line and a quote ride above it. */
+static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, uint8_t fg) {
+    int stride = (g->w + 7) / 8;
+    for (int j = 0; j < g->h; j++)
+        for (int i = 0; i < g->w; i++)
+            if (bits[g->at + j * stride + i / 8] & (0x80 >> (i & 7)))
+                put(pen + g->xoff + i, base - g->yoff - g->h + j, fg);
+}
+
+/* The machine's own programs are set in Helvetica, the face the workstations
+ * of the day put their interfaces in; the arrows and the marks it has no
+ * glyph for come from the VGA font, which is where the rest of the machine
+ * speaks from.  Returns how far the pen moved, so a caller can put the next
+ * word after it without counting cells. */
+static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold) {
+    const dxm_glyph *G = bold ? dxm_uib_glyphs : dxm_ui_glyphs;
+    const uint8_t *B = bold ? dxm_uib_bits : dxm_ui_bits;
+    int pen = x, base = y + DXM_UI_ASCENT;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST) {
+            const dxm_glyph *g = &G[c - DXM_UI_FIRST];
+            if (bg >= 0)
+                cv_rect(pen, y, g->adv, CV_LINE, (uint8_t)bg);
+            glyph(g, B, pen, base, fg);
+            pen += g->adv;
+        } else {
+            const uint8_t *v = font_glyph16(c);
+            int x0, x1;
+            ink(v, &x0, &x1);
+            for (int j = 0; j < 16; j++)
+                for (int i = x0; i <= x1; i++)
+                    if (v[j] & (0x80 >> i))
+                        put(pen + i - x0, y + j, fg);
+            pen += x1 - x0 + 2;
+        }
+    }
+    return pen - x;
+}
+
+int cv_text(int x, int y, const char *s, uint8_t fg, int bg) {
+    return text(x, y, s, fg, bg, 0);
+}
+int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg) {
+    return text(x, y, s, fg, bg, 1);
+}
+
+int cv_width(const char *s) {
+    int w = 0;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
+            w += dxm_ui_glyphs[c - DXM_UI_FIRST].adv;
+        else {
+            int x0, x1;
+            ink(font_glyph16(c), &x0, &x1);
+            w += x1 - x0 + 2;
+        }
+    }
+    return w;
 }
 
 /* The arrow the machine's own programs drew: a white wedge with a black
