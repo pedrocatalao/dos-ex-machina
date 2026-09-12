@@ -81,7 +81,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * is one size; when the pod cannot hold it, it is not there. */
             {
                 float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
-                multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 1.0f * mm,
+                multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 2.0f * mm,
                                    pw * 0.80f, (y1 - y0) / 1.30f);
             }
             /* The monitor's two knobs, brightness and contrast, in the
