@@ -114,6 +114,12 @@ int main(int argc, char **argv) {
     if (app_init(&a, &o.app) != 0)
         return 1;
 
+    /* The machine takes the mouse before anything is on screen: the splash
+     * is the machine warming up, and a desktop arrow sitting over it is the
+     * one thing in the way.  Ctrl+F10 hands it back. */
+    input_state in;
+    input_init(&in, &a);
+
     chassis_job job;
     SDL_Thread *cth = chassis_build_begin(&job, a.W, a.H);
     int quit = splash_show(&a, &job);
@@ -165,8 +171,6 @@ int main(int argc, char **argv) {
      * the machine's clock, so under --deterministic it reads a steady 60 */
     Uint64 fps_t0 = t_start;
     int fps_n = 0;
-    input_state in;
-    input_init(&in, &a);
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
     const char *autocmd = o.autocmd;
     while (!quit) {
