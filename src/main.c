@@ -177,6 +177,7 @@ int main(int argc, char **argv) {
      * keyboard is fixed once DOS is up */
     dosbox_set_option("dosbox_pure_memory_size", setup_memory());
     dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
+    dosbox_set_midi(setup_midi());
     if (o.keyboard)
         dosbox_set_layout(o.keyboard); /* the flag wins over everything */
     else if (strcmp(setup_keyboard(), "auto"))

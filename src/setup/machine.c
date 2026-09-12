@@ -37,6 +37,13 @@ static const char *const CPU_NAME[] = {"Auto", "Dynamic (fast)", "Normal (interp
 
 static const char *const BOOT_NAME[] = {"The DOS prompt", "The catalogue"};
 
+/* What can be offered for MIDI depends on what is on C:, so the list is
+ * built when SETUP asks rather than written out here.  Auto and None are
+ * always there; a device appears when its ROMs do. */
+#define MIDI_MAX 5
+static const char *midi_code[MIDI_MAX], *midi_name[MIDI_MAX];
+static int midi_n;
+
 /* The recompiler needs to write instructions and then run them, which is
  * exactly what Apple Silicon refuses a program that has not asked in the
  * way only Apple's own toolchain asks.  Until the fork does (see the
@@ -50,9 +57,47 @@ static const char *const BOOT_NAME[] = {"The DOS prompt", "The catalogue"};
 
 /* what it is set to: an index into each list above */
 static struct {
-    int kb, mem, cpu, boot;
+    int kb, mem, cpu, boot, midi;
     char c_drive[1024];
 } M = {.mem = 2, .cpu = CPU_FIXED ? 2 : 0}; /* 16 MB, and the core the machine can run */
+
+static int on_c(const char *name) {
+    char path[1200];
+    snprintf(path, sizeof path, "%s/%s", M.c_drive, name);
+    FILE *f = fopen(path, "rb");
+    if (f)
+        fclose(f);
+    return f != NULL;
+}
+
+/* Auto, None, and whichever of the three the ROMs on C: allow. */
+static void midi_scan(void) {
+    midi_n = 0;
+    midi_code[midi_n] = "auto";
+    midi_name[midi_n++] = "Auto (what is on C:)";
+    midi_code[midi_n] = "off";
+    midi_name[midi_n++] = "None";
+    if (on_c("MT32_CONTROL.ROM") && on_c("MT32_PCM.ROM")) {
+        midi_code[midi_n] = "mt32";
+        midi_name[midi_n++] = "Roland MT-32";
+    }
+    if (on_c("ROM1.BIN")) {
+        midi_code[midi_n] = "sc55";
+        midi_name[midi_n++] = "Roland SC-55";
+    }
+    if (on_c("DOSBOX.SF2")) {
+        midi_code[midi_n] = "sf2";
+        midi_name[midi_n++] = "SoundFont";
+    }
+    if (M.midi >= midi_n)
+        M.midi = 0;
+}
+
+const char *machine_midi(void) {
+    if (!midi_n)
+        midi_scan();
+    return midi_code[M.midi];
+}
 
 void machine_where(const char *c_drive) {
     snprintf(M.c_drive, sizeof M.c_drive, "%s", c_drive ? c_drive : "");
@@ -107,6 +152,19 @@ int machine_settings(int section, setting *out, int max) {
                        .note = CPU_FIXED
                                    ? "This machine interprets: the recompiler cannot run here."
                                    : "Normal is slower and keeps better time."}));
+    } else if (section == SEC_SOUND) {
+        midi_scan(); /* the ROMs may have arrived since it was last looked at */
+        PUT(((setting){.name = "MIDI device",
+                       .kind = SET_CHOICE,
+                       .pick = &M.midi,
+                       .opts = midi_name,
+                       .nopts = midi_n,
+                       .next_boot = 1,
+                       .note = !strcmp(midi_code[M.midi], "sc55")
+                                   ? "The SC-55 emulates its own processor, playing or not."
+                                   : (midi_n > 2
+                                          ? "Put the ROMs in the root of C: to add a device."
+                                          : "No ROMs on C:, so there is nothing to play them.")}));
     } else if (section == SEC_BOOT) {
         PUT(((setting){.name = "Boot to",
                        .kind = SET_CHOICE,
@@ -149,12 +207,16 @@ void machine_load(const char *path) {
         else if (!strcmp(name, "cpu_core"))
             at = find(CPU_CODE, (int)(sizeof CPU_CODE / sizeof CPU_CODE[0]), value),
             M.cpu = at < 0 ? M.cpu : at;
-        else if (!strcmp(name, "boot"))
+        else if (!strcmp(name, "midi")) {
+            midi_scan();
+            at = find(midi_code, midi_n, value);
+            M.midi = at < 0 ? M.midi : at;
+        } else if (!strcmp(name, "boot"))
             M.boot = !strcmp(value, "catalogue");
     }
     fclose(f);
-    dxm_log("setup: keyboard %s, memory %s MB, core %s", machine_keyboard(), machine_memory(),
-            machine_cpu_core());
+    dxm_log("setup: keyboard %s, memory %s MB, core %s, midi %s", machine_keyboard(),
+            machine_memory(), machine_cpu_core(), machine_midi());
 }
 
 void machine_save(const char *path) {
@@ -168,6 +230,7 @@ void machine_save(const char *path) {
     fprintf(f, "keyboard = %s\n", machine_keyboard());
     fprintf(f, "memory = %s\n", machine_memory());
     fprintf(f, "cpu_core = %s\n", machine_cpu_core());
+    fprintf(f, "midi = %s\n", machine_midi());
     fprintf(f, "boot = %s\n", M.boot ? "catalogue" : "dos");
     fclose(f);
     dxm_log("setup: wrote %s", path);

@@ -24,6 +24,7 @@ void setup_load(void);
 const char *setup_keyboard(void); /* "auto", or a DOS keyboard layout */
 const char *setup_memory(void);   /* megabytes, as the core wants it */
 const char *setup_cpu_core(void);
+const char *setup_midi(void); /* which MIDI device, or none */
 int setup_boot_catalogue(void);
 
 void setup_open(void);

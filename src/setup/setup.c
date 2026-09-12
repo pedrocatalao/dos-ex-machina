@@ -104,6 +104,9 @@ const char *setup_memory(void) {
 const char *setup_cpu_core(void) {
     return machine_cpu_core();
 }
+const char *setup_midi(void) {
+    return machine_midi();
+}
 int setup_boot_catalogue(void) {
     return machine_boot_catalogue();
 }

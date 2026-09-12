@@ -70,6 +70,7 @@ void machine_where(const char *c_drive); /* where to look for MIDI ROMs */
 const char *machine_keyboard(void);      /* "auto", or a DOS layout */
 const char *machine_memory(void);        /* as the core wants it: "16" */
 const char *machine_cpu_core(void);
+const char *machine_midi(void); /* auto | off | mt32 | sc55 | sf2 */
 int machine_boot_catalogue(void);
 
 /* banner.c — the artwork, opened from the file it was made as and fitted

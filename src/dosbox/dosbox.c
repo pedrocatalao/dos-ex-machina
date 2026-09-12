@@ -140,7 +140,14 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_MHZ (RETRO_ENVIRONMENT_PRIVATE | 2)
 #define DXM_ENV_SHOWN (RETRO_ENVIRONMENT_PRIVATE | 3)
 #define DXM_ENV_DRIVE (RETRO_ENVIRONMENT_PRIVATE | 4)
+#define DXM_ENV_MIDI (RETRO_ENVIRONMENT_PRIVATE | 5)
+static char g_midi[16] = "auto";
 static SDL_AtomicInt g_mhz, g_floppy;
+
+void dosbox_set_midi(const char *device) {
+    snprintf(g_midi, sizeof g_midi, "%s", device ? device : "auto");
+    dxm_log("dosbox: midi %s", g_midi);
+}
 
 void dosbox_set_mhz(int mhz) {
     SDL_SetAtomicInt(&g_mhz, mhz);
@@ -300,6 +307,9 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
         return true;
     case DXM_ENV_DRIVE:
         SDL_SetAtomicInt(&g_floppy, (int)*(const unsigned *)data);
+        return true;
+    case DXM_ENV_MIDI:
+        *(const char **)data = g_midi;
         return true;
     case RETRO_ENVIRONMENT_SHUTDOWN:
         /* DOS was told EXIT.  The core wants to stop; the machine wants
