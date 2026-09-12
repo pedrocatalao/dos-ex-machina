@@ -25,11 +25,18 @@ typedef struct {
      * --dosbox-core names the core library instead of the one beside the
      * program.  Both also read from the environment. */
     const char *dosbox, *dosbox_core;
+    const char *keyboard; /* --keyboard: the DOS layout, instead of the guess */
 } options;
 
 static options parse(int argc, char **argv) {
-    options o = {{0, 1600, 900, 0, NULL},  NULL, 0, NULL, 0.5f, getenv("DXM_DOSBOX"),
-                 getenv("DXM_DOSBOX_CORE")};
+    options o = {{0, 1600, 900, 0, NULL},
+                 NULL,
+                 0,
+                 NULL,
+                 0.5f,
+                 getenv("DXM_DOSBOX"),
+                 getenv("DXM_DOSBOX_CORE"),
+                 getenv("DXM_KEYBOARD")};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump-audio") && i + 1 < argc)
             o.app.audio_dump = argv[++i];
@@ -49,6 +56,8 @@ static options parse(int argc, char **argv) {
             o.dosbox = argv[++i];
         else if (!strcmp(argv[i], "--dosbox-core") && i + 1 < argc)
             o.dosbox_core = argv[++i];
+        else if (!strcmp(argv[i], "--keyboard") && i + 1 < argc)
+            o.keyboard = argv[++i];
         else if (!strcmp(argv[i], "--ambient") && i + 1 < argc) {
             o.ambient = (float)atof(argv[++i]);
             if (o.ambient < 0)
@@ -153,6 +162,8 @@ int main(int argc, char **argv) {
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
     dosbox_set_mhz(theatre_mhz(&th));       /* the same, as the BIOS screen prints it */
+    if (o.keyboard)
+        dosbox_set_layout(o.keyboard); /* else the host's own, guessed */
     if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
         const char *msg = "DOS ex Machina could not start its DOS.\n\n"
                           "The DOSBox core (dosbox_pure_libretro) was not found beside the "

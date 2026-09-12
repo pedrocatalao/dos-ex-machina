@@ -146,6 +146,7 @@ static struct {
     SDL_Mutex *amu; /* the audio ring */
     volatile int running, quit_req, exited, shown;
     char c_drive[1024], sys_dir[1024], save_dir[1024];
+    char layout[16]; /* the DOS keyboard layout, detected or forced */
     retro_keyboard_event_t key_cb;
     double fps; /* what the core says the picture refreshes at */
 
@@ -225,6 +226,13 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
                 dxm_log("dosbox: cycles %d", cy); /* the core took the new speed */
             }
             return v->value != NULL;
+        }
+        if (!strcmp(v->key, "dosbox_pure_keyboard_layout")) {
+            /* the host's own keyboard, unless --keyboard said otherwise */
+            if (!db.layout[0])
+                snprintf(db.layout, sizeof db.layout, "%s", dosbox_layout_detect());
+            v->value = db.layout;
+            return true;
         }
         for (size_t i = 0; i < sizeof OPTIONS / sizeof OPTIONS[0]; i++)
             if (!strcmp(OPTIONS[i].key, v->key))
@@ -711,6 +719,11 @@ int dosbox_running(void) {
 int dosbox_exited(void) {
     return db.exited;
 }
+void dosbox_set_layout(const char *code) {
+    snprintf(db.layout, sizeof db.layout, "%s", code ? code : "");
+    dxm_log("keyboard: DOS layout %s, asked for on the command line", db.layout);
+}
+
 void dosbox_show(void) {
     db.shown = 1;
 }

@@ -129,6 +129,14 @@ own does the same.
 **The two knobs** under the right speaker are brightness and contrast: grab
 one and drag up or down.
 
+**The keyboard** is the one you already have: the machine reads what your
+keys produce and gives DOS the matching national layout, so a Portuguese
+board types `ç` at the prompt and a French one is AZERTY. It is a guess
+from a handful of keys, and an unfamiliar board falls back to US;
+`--keyboard CODE` (or `DXM_KEYBOARD`) forces one — `us`, `uk`, `fr`, `gr`,
+`it`, `sp`, `po`, `br`, `sv`, `dk`, `no` and the rest of DOSBox's set. The
+log says which it chose.
+
 **The turbo display** beside the power button shows the CPU clock in MHz.
 Its **−** and **+** buttons step it through 33, 40, 50, 66, 80 and 100 MHz,
 which set DOSBox's speed from a 386DX to a 486DX4; 66 is the default. A game
@@ -150,7 +158,7 @@ Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"` (typed at the DOS
 prompt, one a second), `--shot out.bmp --frames N`, `--deterministic` (a
 fixed 60 Hz clock and the shipped CRT defaults, so a given frame is the same
 picture on every run), `--ambient N`, `--dump-audio FILE`,
-`--dosbox DIR`, `--dosbox-core PATH`.
+`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`.
 
 ## Requirements
 

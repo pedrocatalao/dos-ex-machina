@@ -46,6 +46,7 @@ dos-ex-machina/
 │   │   │                   mouse, audio, options, DOSBOX.BAT
 │   │   ├── keys.c          SDL scancodes to libretro keys
 │   │   ├── motd.c          the message of the day under the greeting
+│   │   ├── layout.c        the host's keyboard, as a DOS keyboard layout
 │   │   ├── libretro.h      the libretro API, vendored as it ships (MIT)
 │   │   └── internal.h
 │   ├── segdisp.h           the turbo display's digit geometry and clock stops, shared
@@ -151,7 +152,10 @@ things: the latest frame, the audio, and whether DOS has said EXIT.
 - **Keys, mouse and typing.** Keys go in as libretro key events with the
   lock-key state; the mouse as relative motion and buttons, polled by the
   core. `dosbox_type` queues a string that the core's thread types a key a
-  frame, for `--type` and the tests.
+  frame, for `--type` and the tests. Which national layout DOS translates
+  those keys through is `layout.c`'s guess from what SDL says the host's
+  keys produce, answered to the core as its keyboard-layout option;
+  `--keyboard CODE` forces one.
 - **Sound.** The core's samples go into a ring the audio callback pulls
   from, at 44.1 kHz so nothing is resampled; the machine's own sounds are
   mixed on top.

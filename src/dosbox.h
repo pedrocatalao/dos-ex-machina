@@ -51,6 +51,9 @@ void dosbox_set_cycles(int cycles);
 /* The same speed as the turbo display reads it, for the BIOS screen the
  * core draws after the handover. */
 void dosbox_set_mhz(int mhz);
+/* Force the DOS keyboard layout ("us", "po", "fr", ...) instead of the one
+ * guessed from the host's keyboard.  Set before dosbox_start(). */
+void dosbox_set_layout(const char *code);
 /* Seconds of drive the core's BIOS screen asked for, taken once. */
 double dosbox_take_floppy(void);
 
