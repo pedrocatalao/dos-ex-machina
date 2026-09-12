@@ -162,14 +162,25 @@ int main(int argc, char **argv) {
     snprintf(cfgpath, sizeof cfgpath, "%scrt.cfg", a.pref ? a.pref : "./");
     if (!a.deterministic)
         ui_load(cfgpath);
-    setup_bind(&k, cfgpath); /* what SETUP is allowed to change, and where it keeps it */
+    static char setpath[1024];
+    snprintf(setpath, sizeof setpath, "%sdxm.cfg", a.pref ? a.pref : "./");
+    setup_bind(&k, cfgpath, setpath, c_drive(&o, &a));
+    if (!a.deterministic)
+        setup_load(); /* what the machine is set to, before the DOS reads it */
     dos_init(theatre_mhz(&th), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
     dosbox_set_mhz(theatre_mhz(&th));       /* the same, as the BIOS screen prints it */
+    /* what SETUP says the machine is, told to the core while it will still
+     * listen: memory and the processor core are read as it starts, and the
+     * keyboard is fixed once DOS is up */
+    dosbox_set_option("dosbox_pure_memory_size", setup_memory());
+    dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
     if (o.keyboard)
-        dosbox_set_layout(o.keyboard); /* else the host's own, guessed */
+        dosbox_set_layout(o.keyboard); /* the flag wins over everything */
+    else if (strcmp(setup_keyboard(), "auto"))
+        dosbox_set_layout(setup_keyboard()); /* else SETUP, else the guess */
     if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
         const char *msg = "DOS ex Machina could not start its DOS.\n\n"
                           "The DOSBox core (dosbox_pure_libretro) was not found beside the "

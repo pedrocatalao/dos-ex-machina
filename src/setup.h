@@ -15,7 +15,16 @@
  * CRT parameters - the same struct the panel writes and the shader reads,
  * so a slider moved here shows on the glass at once - and where they are
  * kept between runs. */
-void setup_bind(gpu_knobs *knobs, const char *crt_cfg);
+void setup_bind(gpu_knobs *knobs, const char *crt_cfg, const char *dxm_cfg, const char *c_drive);
+
+/* What the machine is set to.  None of it can change under a running DOS,
+ * so main.c reads it before the core starts and tells the core then; SETUP
+ * only says what it will be the next time the machine is switched on. */
+void setup_load(void);
+const char *setup_keyboard(void); /* "auto", or a DOS keyboard layout */
+const char *setup_memory(void);   /* megabytes, as the core wants it */
+const char *setup_cpu_core(void);
+int setup_boot_catalogue(void);
 
 void setup_open(void);
 void setup_close(void);

@@ -45,6 +45,33 @@ enum {
     C_WHITE
 };
 
+/* One thing that can be changed: a value with two ends, or one of a short
+ * list.  Some of them the machine can act on at once; the rest are read
+ * when it powers on, and say so. */
+typedef enum { SET_SLIDER, SET_CHOICE } set_kind;
+typedef struct {
+    const char *name;
+    set_kind kind;
+    float *val, lo, hi;      /* SET_SLIDER: where the value lives */
+    int *pick;               /* SET_CHOICE: which one is chosen */
+    const char *const *opts; /* and what they are called */
+    int nopts;
+    int next_boot;    /* takes effect when the machine is switched on again */
+    int fixed;        /* this machine cannot do otherwise */
+    const char *note; /* the line under it, when the eye is on it */
+} setting;
+
+/* machine.c — what the machine is set to, as against how the tube looks:
+ * kept in its own file next to the preferences, read before DOS boots. */
+int machine_settings(int section, setting *out, int max);
+void machine_load(const char *path);
+void machine_save(const char *path);
+void machine_where(const char *c_drive); /* where to look for MIDI ROMs */
+const char *machine_keyboard(void);      /* "auto", or a DOS layout */
+const char *machine_memory(void);        /* as the core wants it: "16" */
+const char *machine_cpu_core(void);
+int machine_boot_catalogue(void);
+
 /* banner.c — the artwork, opened from the file it was made as and fitted
  * to the palette entries the interface leaves it */
 #define BANNER_FIRST 16 /* the first palette entry the artwork owns */

@@ -30,12 +30,6 @@ static const struct {
 #define SECTIONS ((int)(sizeof SECTION / sizeof SECTION[0]))
 enum { SEC_MONITOR = 0, SEC_SAVE = SECTIONS - 1 };
 
-/* One thing that can be changed.  For now every one of them is a float
- * somewhere in the machine that takes effect the moment it moves. */
-typedef struct {
-    const char *name;
-    float *val, lo, hi;
-} setting;
 #define MAXSET 24
 static setting SET[MAXSET];
 static int nset;
@@ -54,7 +48,7 @@ enum {
     PANE_X = LIST_X + LIST_W + 16,
     PANE_Y = LIST_Y,
     PANE_W = WIN_X + WIN_W - 12 - PANE_X,
-    PANE_H = WIN_Y + WIN_H - 34 - PANE_Y,
+    PANE_H = WIN_Y + WIN_H - 52 - PANE_Y, /* the last line is the note's */
     FOOT_Y = WIN_Y + WIN_H - 26,
     ROWS = PANE_H / ROW_H,  /* settings on screen at once */
     TRACK_X = PANE_X + 148, /* where a slider's groove starts */
@@ -72,7 +66,7 @@ enum {
 /* What the machine does while SETUP is coming up: the program says what it
  * is, works (the artwork really is being opened and fitted behind this),
  * and then the screen comes up out of black on the palette. */
-#define LOAD_MS 750
+#define LOAD_MS 500
 #define FADE_MS 350
 
 static struct {
@@ -83,18 +77,40 @@ static struct {
     Uint64 open_t0;           /* when it was asked for */
     int in_pane, row, scroll; /* where the eye is, and what it can see */
     int mx, my, held;         /* the pointer, and the button */
+    int touched;              /* something changed that waits for a power cycle */
     gpu_knobs *knobs;
-    const char *crt_cfg;
+    const char *crt_cfg, *dxm_cfg;
 } S = {.mx = SCR_W / 2, .my = SCR_H / 2};
 
-void setup_bind(gpu_knobs *knobs, const char *crt_cfg) {
+void setup_bind(gpu_knobs *knobs, const char *crt_cfg, const char *dxm_cfg, const char *c_drive) {
     S.knobs = knobs;
     S.crt_cfg = crt_cfg;
+    S.dxm_cfg = dxm_cfg;
+    machine_where(c_drive);
+}
+
+/* What the machine is set to, read before DOS boots: main.c asks for these
+ * and tells the core, since none of them can be changed once it is up. */
+void setup_load(void) {
+    if (S.dxm_cfg)
+        machine_load(S.dxm_cfg);
+}
+const char *setup_keyboard(void) {
+    return machine_keyboard();
+}
+const char *setup_memory(void) {
+    return machine_memory();
+}
+const char *setup_cpu_core(void) {
+    return machine_cpu_core();
+}
+int setup_boot_catalogue(void) {
+    return machine_boot_catalogue();
 }
 
 static void add(const char *name, float *val, float lo, float hi) {
     if (nset < MAXSET)
-        SET[nset++] = (setting){name, val, lo, hi};
+        SET[nset++] = (setting){.name = name, .kind = SET_SLIDER, .val = val, .lo = lo, .hi = hi};
 }
 
 /* What the chosen section has to offer.  MONITOR is the tube, and its
@@ -102,7 +118,11 @@ static void add(const char *name, float *val, float lo, float hi) {
  * come. */
 static void fill(int section) {
     nset = 0;
-    if (section != SEC_MONITOR || !S.knobs)
+    if (section != SEC_MONITOR) {
+        nset = machine_settings(section, SET, MAXSET);
+        return;
+    }
+    if (!S.knobs)
         return;
     gpu_knobs *k = S.knobs;
     add("Brightness", &k->brightness, 0.0f, 1.0f);
@@ -174,11 +194,19 @@ static void show_row(int r) {
         S.scroll = r - ROWS + 1;
 }
 
-/* one step of a value, or ten of them with shift held */
+/* one step of a value, or ten of them with shift held; a choice steps to
+ * the next of its list */
 static void nudge(int by, int shift) {
     if (!nset)
         return;
     setting *s = &SET[S.row];
+    if (s->fixed)
+        return;
+    if (s->kind == SET_CHOICE) {
+        *s->pick = (*s->pick + by + s->nopts) % s->nopts;
+        S.touched |= s->next_boot;
+        return;
+    }
     float step = (s->hi - s->lo) / (shift ? 10.0f : 50.0f);
     float v = *s->val + step * (float)by;
     *s->val = v < s->lo ? s->lo : (v > s->hi ? s->hi : v);
@@ -249,6 +277,8 @@ void setup_key(int sdl_scancode, int shift) {
 void setup_save(void) {
     if (S.crt_cfg)
         ui_save(S.crt_cfg);
+    if (S.dxm_cfg)
+        machine_save(S.dxm_cfg);
     dxm_log("setup: kept");
 }
 
@@ -327,11 +357,32 @@ static void pane_rows(void) {
     for (int i = 0; i < ROWS && S.scroll + i < nset; i++) {
         setting *s = &SET[S.scroll + i];
         int y = PANE_Y + i * ROW_H, on = S.in_pane && S.scroll + i == S.row;
-        cv_text(PANE_X, y, s->name, on ? C_WHITE : C_GREY, -1);
-        cv_slider(TRACK_X, y + 2, TRACK_W, (*s->val - s->lo) / (s->hi - s->lo), on);
-        char v[16];
-        snprintf(v, sizeof v, "%.2f", (double)*s->val);
-        cv_text(TRACK_X + TRACK_W + 12, y, v, on ? C_WHITE : C_GREY, -1);
+        uint8_t ink = s->fixed ? C_DGREY : (on ? C_WHITE : C_GREY);
+        cv_text(PANE_X, y, s->name, ink, -1);
+        if (s->kind == SET_SLIDER) {
+            cv_slider(TRACK_X, y + 2, TRACK_W, (*s->val - s->lo) / (s->hi - s->lo), on);
+            char v[16];
+            snprintf(v, sizeof v, "%.2f", (double)*s->val);
+            cv_text(TRACK_X + TRACK_W + 12, y, v, ink, -1);
+        } else {
+            /* a choice: what it is set to, between the marks that change it */
+            if (on && !s->fixed)
+                cv_text(TRACK_X - 12, y, "\x1B", C_YELLOW, -1);
+            int wide = cv_text(TRACK_X, y, s->opts[*s->pick], ink, -1);
+            if (on && !s->fixed)
+                cv_text(TRACK_X + wide + 6, y, "\x1A", C_YELLOW, -1);
+            if (s->next_boot && !s->fixed)
+                cv_text(TRACK_X + TRACK_W + 12, y, "\x07", on ? C_YELLOW : C_DGREY, -1);
+        }
+    }
+    /* what the row the eye is on has to say for itself */
+    if (S.in_pane && S.row < nset) {
+        const setting *s = &SET[S.row];
+        int y = PANE_Y + PANE_H + 2;
+        if (s->note)
+            cv_text(PANE_X, y, s->note, C_DGREY, -1);
+        if (s->next_boot && !s->fixed)
+            cv_text(LIST_X, y, "\x07 at next power-on", C_DGREY, -1);
     }
     /* how much of the list is showing, if it does not all fit */
     if (nset > ROWS) {

@@ -108,6 +108,30 @@ void dosbox_set_cycles(int cycles) {
     SDL_SetAtomicInt(&g_cycles_dirty, 1);
 }
 
+/* What SETUP has to say about the core's own settings, which is only ever a
+ * handful: looked at before the table of defaults. */
+#define OVERRIDES 8
+static struct {
+    char key[48], value[24];
+} over[OVERRIDES];
+static int nover;
+
+void dosbox_set_option(const char *key, const char *value) {
+    if (!key || !value)
+        return;
+    for (int i = 0; i < nover; i++)
+        if (!strcmp(over[i].key, key)) {
+            snprintf(over[i].value, sizeof over[i].value, "%s", value);
+            return;
+        }
+    if (nover < OVERRIDES) {
+        snprintf(over[nover].key, sizeof over[nover].key, "%s", key);
+        snprintf(over[nover].value, sizeof over[nover].value, "%s", value);
+        nover++;
+    }
+    dxm_log("dosbox: %s = %s", key, value);
+}
+
 /* The machine's own channel to the core, in libretro's private range.  The
  * other side of it is external/dosbox-pure/dosbox_pure_dxm.h, which holds
  * the same four numbers and the BIOS program that calls them; a core built
@@ -234,6 +258,11 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
             v->value = db.layout;
             return true;
         }
+        for (int i = 0; i < nover; i++) /* what SETUP asked for comes first */
+            if (!strcmp(over[i].key, v->key)) {
+                v->value = over[i].value;
+                return true;
+            }
         for (size_t i = 0; i < sizeof OPTIONS / sizeof OPTIONS[0]; i++)
             if (!strcmp(OPTIONS[i].key, v->key))
                 v->value = OPTIONS[i].value;
