@@ -179,6 +179,7 @@ int main(int argc, char **argv) {
     static char setpath[1024];
     snprintf(setpath, sizeof setpath, "%sdxm.cfg", a.pref ? a.pref : "./");
     setup_bind(&k, cfgpath, setpath, c_drive(&o, &a));
+    setup_fixed_clock(a.deterministic);
     if (!a.deterministic)
         setup_load(); /* what the machine is set to, before the DOS reads it */
     dos_init(theatre_mhz(&th), a.deterministic);

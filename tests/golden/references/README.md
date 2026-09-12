@@ -42,11 +42,15 @@ run that fails.
 - A refactor must not change them. A pixel-exact pass on every case is
   what "behaviour-neutral" means for this code base.
 
-## Why the frames are of the POST
+## Why the frames are what they are
 
-Every case is taken at the end of the POST, before DOSBox takes the tube.
-Up to that handover the machine draws everything itself on the fixed
+Every case is of something the machine draws itself: the end of the POST,
+and SETUP's own screen.  The POST ones are taken before DOSBox takes the
+tube.  Up to that handover the machine draws everything itself on the fixed
 clock `--deterministic` gives it, so a frame is the same on every run.
+SETUP is the same kind of thing - its screen is the machine's, not DOS's -
+and under that clock it opens on the first banner with no loading screen and
+no fade, both of which are timed by the wall clock.
 After it the tube shows DOSBox's picture, and DOSBox runs on its own clock
 on its own thread: which of its frames lands on which of the machine's is
 not reproducible.  That half is checked by `tests/boot` instead, which boots

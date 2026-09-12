@@ -81,6 +81,7 @@ static struct {
     int in_pane, row, scroll; /* where the eye is, and what it can see */
     int mx, my, held;         /* the pointer, and the button */
     int reboot;               /* SAVE & REBOOT: the machine is to start again */
+    int fixed_clock;          /* a golden frame has to be the same every time */
     gpu_knobs *knobs;
     const char *crt_cfg, *dxm_cfg;
 } S = {.mx = SCR_W / 2, .my = SCR_H / 2};
@@ -90,6 +91,10 @@ void setup_bind(gpu_knobs *knobs, const char *crt_cfg, const char *dxm_cfg, cons
     S.crt_cfg = crt_cfg;
     S.dxm_cfg = dxm_cfg;
     machine_where(c_drive);
+}
+
+void setup_fixed_clock(int fixed) {
+    S.fixed_clock = fixed;
 }
 
 /* What the machine is set to, read before DOS boots: main.c asks for these
@@ -152,6 +157,8 @@ static void fill(int section) {
 /* Which artwork this time: drawn afresh at each opening, off the counter
  * rather than the clock, so opening it twice in a second is twice. */
 static int draw_banner(void) {
+    if (S.fixed_clock)
+        return 0; /* always the first, so the picture is the picture */
     Uint64 s = SDL_GetPerformanceCounter();
     s ^= s >> 33;
     s *= 0xff51afd7ed558ccdULL;
@@ -391,7 +398,7 @@ static void pane_rows(void) {
         const setting *s = &SET[S.row];
         int y = PANE_Y + PANE_H + 2;
         if (s->note)
-            cv_text(PANE_X, y, s->note, C_DGREY, -1);
+            cv_text_wrap(PANE_X, y, PANE_W, s->note, C_DGREY);
     }
     /* how much of the list is showing, if it does not all fit */
     if (nset > ROWS) {
@@ -440,7 +447,7 @@ static const uint8_t *loading(Uint64 since, int *w, int *h) {
 }
 
 const uint8_t *setup_render(int *w, int *h) {
-    Uint64 since = SDL_GetTicks() - S.open_t0;
+    Uint64 since = S.fixed_clock ? LOAD_MS + FADE_MS : SDL_GetTicks() - S.open_t0;
     if (since < LOAD_MS)
         return loading(since, w, h);
     /* and then up out of black, on the palette */
@@ -478,7 +485,7 @@ const uint8_t *setup_render(int *w, int *h) {
         pane_rows();
     else {
         cv_text_bold(PANE_X, PANE_Y, SECTION[S.section].name, C_YELLOW, -1);
-        cv_text(PANE_X, PANE_Y + 24, SECTION[S.section].about, C_GREY, -1);
+        cv_text_wrap(PANE_X, PANE_Y + 24, PANE_W, SECTION[S.section].about, C_GREY);
         if (S.section != SEC_SAVE)
             cv_text(PANE_X, PANE_Y + 48, "Nothing here yet.", C_DGREY, -1);
     }

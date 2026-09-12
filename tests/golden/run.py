@@ -30,19 +30,24 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# name, window size, frame to capture.  Frame numbers are in sixtieths of
-# a second of machine time.  Frame 290 is the end of the POST: the memory
-# count done, the drives detected, and the SETUP prompt and the clock along
-# the bottom, a few frames before the DOS takes the tube.  The BIOS's
-# second screen is not here: DOSBox draws that one (src/dosbox, and
-# dosbox_pure_dxm.h in the fork).  Everything up to that
-# handover is the machine's own drawing on the fixed clock, so it is the
-# same picture on every run; after it the picture is DOSBox's, which runs
-# on its own clock and cannot be compared frame for frame (tests/boot
-# checks that part instead).
+# A case is a name, a window size, the frame to capture, and any flags the
+# machine needs for the case to be showing what it is about.  Frame numbers
+# are in sixtieths of a second of machine time.
+#
+# Frame 290 is the end of the POST: the memory count done, the drives
+# detected, and the SETUP prompt and the clock along the bottom, a few
+# frames before the DOS takes the tube.  The BIOS's second screen is not
+# here, since DOSBox draws that one (src/dosbox, and dosbox_pure_dxm.h in
+# the fork), and neither is anything else of DOSBox's: its picture runs on
+# its own clock and cannot be compared frame for frame, which is what
+# tests/boot checks instead.  Everything up to the handover is the machine's
+# own drawing on the fixed clock, so it is the same picture every run.
 CASES = [
-    ("post-1280x800", "1280x800", 290),
-    ("post-1720x720", "1720x720", 290),
+    ("post-1280x800", "1280x800", 290, []),
+    ("post-1720x720", "1720x720", 290, []),
+    # SETUP draws its own screen, and under a fixed clock it draws the same
+    # one every time: the first banner, no loading screen, no fade.
+    ("setup-1280x800", "1280x800", 120, ["--setup"]),
 ]
 
 
@@ -166,12 +171,12 @@ def main():
     os.makedirs(refdir, exist_ok=True)
 
     failed = 0
-    for name, size, frame in CASES:
+    for name, size, frame, flags in CASES:
         if only and name != only:
             continue
         bmp = os.path.join(out, name + ".bmp")
         cmd = [binary, "--windowed", "--deterministic", "--size", size,
-               "--shot", bmp, "--frames", str(frame)]
+               "--shot", bmp, "--frames", str(frame)] + flags
         if os.path.exists(bmp):
             os.remove(bmp)
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,

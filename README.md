@@ -105,8 +105,11 @@ by its authors, and their own sites are the place to get it.
 
 **MIDI.** For a Roland MT-32 or a Sound Canvas SC-55, put the ROM files in
 the root of C:: `MT32_CONTROL.ROM` and `MT32_PCM.ROM` for the MT-32, the
-`.BIN` set for the SC-55. DOSBox finds them itself and puts the device on the
-MPU-401 at port 330h; set the program's music to that.
+`.BIN` set for the SC-55. SETUP's **Sound** section lists whichever it finds
+and lets you pick one, or none; set the program's music to General MIDI or
+Roland to hear it. The SC-55 is worth knowing about before switching on: it
+emulates the module's own processor continuously, so it costs the same
+whether anything is playing or not.
 
 ## Using it
 
@@ -144,6 +147,20 @@ that paces itself by the clock plays the same at any of them, and anything
 that runs flat out shows the difference. **MODE** switches the display to the
 frames per second the machine is drawing.
 
+**SETUP** is the machine's own configuration screen, in 640x400 and 256
+colours with a piece of artwork across the top. Press **SPACE** while the
+POST is on screen, as it says, or type `SETUP` at the DOS prompt. Arrows
+move, **TAB** crosses to the settings and back, **SPACE** changes the
+picture, **ESC** steps out.
+
+It holds the tube's own settings, which move as you drag them; the keyboard
+layout; how much memory the machine has and which processor core runs it;
+which MIDI device answers the MPU-401; and where the boot ends up. Only the
+tube is live - everything else is read as the machine starts, which is why
+the way out is **SAVE & REBOOT**: it keeps both files and starts the machine
+again so they take effect. Machine settings live in `dxm.cfg` beside the
+preferences, the tube's in `crt.cfg`.
+
 **Shift+F1** opens a panel over the tube with the rest of the CRT: bloom,
 burn-in, static, jitter, glow line, ambient light, flicker, h-sync, RGB
 shift, chassis glow, persistence, scanlines, pixel grid, curvature,
@@ -158,7 +175,7 @@ Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"` (typed at the DOS
 prompt, one a second), `--shot out.bmp --frames N`, `--deterministic` (a
 fixed 60 Hz clock and the shipped CRT defaults, so a given frame is the same
 picture on every run), `--ambient N`, `--dump-audio FILE`,
-`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`.
+`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`, `--setup`.
 
 ## Requirements
 

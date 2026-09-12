@@ -30,6 +30,10 @@ screen in front of it, no pointer over its glass while it holds the mouse.
 Controls that a real machine had are on the case: the power button, the
 brightness and contrast knobs, the turbo display and its buttons.
 
+SETUP (§6.9) is not an exception to this: a machine of the period had a
+setup screen of its own, reached from the POST, and this one is reached the
+same way and drawn as a program of its day.
+
 One exception is deliberate: the Shift+F1 panel, which exposes every CRT
 parameter as a slider. It is a tuning surface, outside the fiction, for the
 parameters a real set would have had behind a service door. It is opened by
@@ -302,12 +306,55 @@ rather than snapping.
 **The panel.** Shift+F1 opens every CRT parameter as a slider over the tube
 (§2.1). Its values, and the knobs', persist in `crt.cfg` in the preferences
 directory. Under `--deterministic` the file is neither read nor written, so
-a golden frame never measures somebody's contrast setting.
+a golden frame never measures somebody's contrast setting. It is a tuning
+surface, and SETUP (§6.9) has taken over what it is for; it goes when the
+OSD replaces it.
 
 **The mouse** is the machine's while it holds it: SDL's relative mode, no
 pointer, motion to DOSBox. Ctrl+F10 releases it to the desktop, as in
 DOSBox, where it wears a period arrow and works the knobs and buttons. On a
 Mac, whose F10 is a media key, a tap of Command alone does the same.
+
+### 6.9 SETUP
+
+The machine's own configuration, and a program in its own right rather than
+a panel over the tube: 640x400 in 256 colours, which is the geometry of the
+text screen, so the tube treats it exactly as it treats the POST and DOS.
+SPACE during the POST opens it, as the POST says; so does `SETUP` at the DOS
+prompt, which is a program the fork adds (§7) that stands still while the
+screen is up. The machine's clock stops with it - a BIOS setup halted the
+boot - but the tube's does not, since its noise and flicker belong to the
+glass.
+
+**Indexed, not RGB.** Entries 0..15 are the interface's, the VGA sixteen;
+16..255 belong to the artwork across the top, which brings its own palette.
+That constraint shapes the screen rather than being worked around: the panel
+is a dithered scrim because indices cannot be blended, the fade up is a
+palette ramp because that is the only fade such a screen has, and a change
+of picture comes in through blinds because two pictures on the glass at once
+have to share the 240 colours - which they are fitted to, as a pair, when
+the change begins.
+
+**The artwork** travels as the files it was drawn as and is opened when
+wanted (`src/setup/banner.c`, stb_image): a third of what the same pictures
+cost as pixels, and a decoder the catalogue will want anyway. Opening one
+means decoding it, shading it - bright to the waist, then away to black so
+it dissolves into the screen - and fitting it 240 colours by median cut,
+which is what the 750 ms of loading screen is actually doing.
+
+**Live, or at the next power-on.** The tube's settings are floats the shader
+reads every frame, so a slider moves the picture as it is dragged. Nothing
+else is: memory, the processor core, the keyboard layout and the MIDI device
+are all read once as the core starts, and cannot change under a running DOS
+any more than a real machine could be re-chipped while it was on. So the way
+out is SAVE & REBOOT, which keeps both files and restarts the machine: the
+core goes down, the POST runs again, DOS comes up on the new settings. It is
+a restart and not a power cycle - no relay, no degauss, no fade from black,
+and the turbo display keeps its clock.
+
+**What is kept.** The tube's settings in `crt.cfg`, the machine's in
+`dxm.cfg`, both in the preferences directory, and neither read under
+`--deterministic`.
 
 ## 7. The DOS
 

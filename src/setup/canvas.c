@@ -216,6 +216,34 @@ int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg) {
     return text(x, y, s, fg, bg, 1);
 }
 
+int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg) {
+    int lines = 0;
+    while (*s) {
+        /* as many words as fit, and at least one however long it is */
+        int take = 0, last = 0;
+        char line[128];
+        for (int n = 0; s[n] && n < (int)sizeof line - 1; n++) {
+            line[n] = s[n];
+            line[n + 1] = '\0';
+            if (cv_width(line) > w)
+                break;
+            take = n + 1;
+            if (s[n] == ' ')
+                last = n + 1;
+        }
+        if (s[take] && last)
+            take = last; /* break at the space rather than mid-word */
+        memcpy(line, s, (size_t)take);
+        line[take] = '\0';
+        cv_text(x, y + lines * CV_LINE, line, fg, -1);
+        lines++;
+        s += take;
+        while (*s == ' ')
+            s++;
+    }
+    return lines;
+}
+
 int cv_width(const char *s) {
     int w = 0;
     for (int n = 0; s[n]; n++) {

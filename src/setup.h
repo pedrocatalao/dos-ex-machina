@@ -16,6 +16,10 @@
  * so a slider moved here shows on the glass at once - and where they are
  * kept between runs. */
 void setup_bind(gpu_knobs *knobs, const char *crt_cfg, const char *dxm_cfg, const char *c_drive);
+/* Under --deterministic the screen has to be the same picture on every run:
+ * the first piece of artwork rather than one drawn at random, and no
+ * loading screen or fade, both of which are timed by the wall clock. */
+void setup_fixed_clock(int fixed);
 
 /* What the machine is set to.  None of it can change under a running DOS,
  * so main.c reads it before the core starts and tells the core then; SETUP

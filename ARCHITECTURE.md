@@ -45,6 +45,7 @@ dos-ex-machina/
 │   │   ├── setup.c         what it holds, what the keys do, the screen it draws
 │   │   ├── canvas.c        640x400 in 256 colours: the artwork, text, rules, the scrim
 │   │   ├── banner.c        opens a banner (stb_image), shades it, fits it a palette
+│   │   ├── machine.c       what the machine is set to, and dxm.cfg
 │   │   └── internal.h
 │   ├── dosbox.h            the public face of src/dosbox/
 │   ├── dosbox/             the DOS: DOSBox Pure as a libretro core
@@ -160,6 +161,10 @@ things: the latest frame, the audio, and whether DOS has said EXIT.
   and the handover does not move a pixel. The POST draws with the VGA 8x16
   font (`src/gen/font16.h`), glyph for glyph the one DOSBox draws with, so
   the BIOS lines and the prompt are the same shapes on the same glass.
+- **SETUP.** `Z:\SETUP.COM` is a program the fork adds: it asks the machine
+  to put its configuration screen up and then stands still, so DOS is doing
+  nothing behind a screen that is not DOS's. The machine answers whether it
+  is still up, and the command returns when it is not.
 - **Keys, mouse and typing.** Keys go in as libretro key events with the
   lock-key state; the mouse as relative motion and buttons, polled by the
   core. `dosbox_type` queues a string that the core's thread types a key a

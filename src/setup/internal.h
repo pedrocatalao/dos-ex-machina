@@ -114,6 +114,9 @@ void cv_slider(int x, int y, int w, float t, int on);
 int cv_text(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_width(const char *s); /* what it will take, without drawing it */
+/* The same, broken at spaces to fit `w`, one line every CV_LINE down from
+ * `y`.  Returns how many lines it took. */
+int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg);
 void cv_pointer(int x, int y);
 /* How bright the palette is on its way out, 0 black to 1 full: the fade a
  * program of the day did by ramping the DAC rather than by touching a
