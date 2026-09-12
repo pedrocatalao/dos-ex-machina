@@ -10,11 +10,12 @@
 #   python3 -m pip install clang-format==18.1.8
 #
 # Set CLANG_FORMAT to use another binary.  Generated data under src/gen is
-# excluded by its own .clang-format; the shaders are GLSL and not touched.
+# excluded by its own .clang-format; libretro.h is vendored as it ships and
+# is not ours to reflow; the shaders are GLSL and not touched.
 set -eu
 cd "$(dirname "$0")/.."
 CF=${CLANG_FORMAT:-clang-format}
-files=$(find src contract tests/unit -name '*.c' -o -name '*.h' | grep -v '^src/gen/' | sort)
+files=$(find src tests/unit -name '*.c' -o -name '*.h' | grep -v '^src/gen/\|libretro\.h$' | sort)
 if [ "${1:-}" = "--check" ]; then
     # shellcheck disable=SC2086
     $CF --dry-run --Werror $files && echo "formatting: clean"

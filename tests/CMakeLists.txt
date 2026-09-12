@@ -1,11 +1,12 @@
-# Tests.  `ctest` from the build directory runs them all; `ctest -L unit`
-# or `-L golden` picks a group.
+# Tests.  `ctest` from the build directory runs them all; `ctest -L unit`,
+# `-L golden` or `-L boot` picks a group.
 #
 # The unit tests build each module from its own sources with exactly the
 # libraries that module needs, which is also a statement of what it
-# depends on.  They need no display.  The golden test drives the real
-# binary, so it needs a display and a GL 3.3 driver - a developer's
-# machine, or a CI runner with llvmpipe.
+# depends on.  They need no display.  The golden and boot tests drive the
+# real binary with the DOSBox core beside it, so they need a display and a
+# GL 3.3 driver - a developer's machine, or a CI runner with llvmpipe - and
+# a build that made the core.
 
 set(UNIT_TMP ${CMAKE_BINARY_DIR}/unit-tmp)
 file(MAKE_DIRECTORY ${UNIT_TMP})
@@ -15,12 +16,11 @@ function(unit_test name)
     cmake_parse_arguments(T "" "" "SOURCES;LIBS" ${ARGN})
     add_executable(test_${name} unit/test_${name}.c ${T_SOURCES})
     target_include_directories(test_${name} PRIVATE ${CMAKE_SOURCE_DIR}/src
-                               ${CMAKE_SOURCE_DIR}/contract ${CMAKE_CURRENT_SOURCE_DIR}/unit)
+                               ${CMAKE_CURRENT_SOURCE_DIR}/unit)
     target_compile_options(test_${name} PRIVATE ${DXM_WARNINGS} ${DXM_SANITIZE_FLAGS})
     target_link_options(test_${name} PRIVATE ${DXM_SANITIZE_FLAGS})
     target_compile_definitions(test_${name} PRIVATE
         TEST_TMP="${UNIT_TMP}"
-        TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/unit/fixtures"
         TEST_ASSETS="${CMAKE_SOURCE_DIR}/assets"
         TEST_REPO="${CMAKE_SOURCE_DIR}")
     if(T_LIBS)
@@ -31,21 +31,20 @@ function(unit_test name)
 endfunction()
 
 set(SRC ${CMAKE_SOURCE_DIR}/src)
-unit_test(sha256  SOURCES ${SRC}/sha256.c)
 unit_test(font    SOURCES ${SRC}/font.c)
-unit_test(unzip   SOURCES ${SRC}/unzip.c ${SRC}/sha256.c LIBS ZLIB::ZLIB)
-unit_test(png     SOURCES ${SRC}/png.c ${SRC}/sha256.c   LIBS ZLIB::ZLIB)
-unit_test(disk    SOURCES ${SRC}/disk.c                  LIBS SDL3::SDL3)
-unit_test(catalogue SOURCES ${SRC}/catalogue.c ${SRC}/net.c ${SRC}/library.c
-                          ${SRC}/coreload.c ${SRC}/unzip.c
-                  LIBS SDL3::SDL3 CURL::libcurl ZLIB::ZLIB ${CMAKE_DL_LIBS})
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND)
+if(NOT Python3_Interpreter_FOUND)
+    message(STATUS "Python 3 not found: the golden and boot tests are not registered")
+elseif(NOT TARGET dosbox_core)
+    message(STATUS "DXM_CORE is off: the golden and boot tests are not registered")
+else()
     add_test(NAME golden
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/golden/run.py
                      $<TARGET_FILE:dxm> --out ${CMAKE_BINARY_DIR}/golden)
     set_tests_properties(golden PROPERTIES LABELS golden TIMEOUT 600)
-else()
-    message(STATUS "Python 3 not found: the golden-frame test is not registered")
+    add_test(NAME boot
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/boot/run.py
+                     $<TARGET_FILE:dxm>)
+    set_tests_properties(boot PROPERTIES LABELS boot TIMEOUT 180)
 endif()

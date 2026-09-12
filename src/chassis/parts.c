@@ -1,6 +1,7 @@
 /* parts.c — the moulded parts: LEDs, the power button, vents, the
  * speaker grilles and the floppy drive. */
 #include "internal.h"
+#include "segdisp.h"
 
 static void led(canvas *c, float cx, float cy, float rad, int r, int g, int b) {
     /* Matched to the reference PNG's LEDs at 16x magnification:
@@ -143,9 +144,15 @@ static void power_symbol(canvas *c, float cx, float cy, float size) {
  * tall slot gets the same short overhang shadow at its top that a wide one
  * gets, instead of having its whole upper half in shade. */
 void vent_slot(canvas *c, float x, float y, float w, float h) {
+    vent_slot_r(c, x, y, w, h, fminf(w, h) * 0.46f, 1.0f, 1.0f); /* the ends are rounded */
+}
+
+/* The same slot with its own corner radius (0 is a square-ended cut), how
+ * deep it reads (1 = the foot vent's black trough, less = a shallower cut
+ * whose floor takes light) and how strongly its rims are modelled. */
+void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float deep, float rim) {
     float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float th = fminf(w, h); /* the narrow dimension */
-    float rad = th * 0.46f; /* the ends are rounded */
     float lip = fmaxf(1.2f, th * 0.70f);
     for (int j2 = (int)(y - lip - 1); j2 <= (int)(y + h + lip + 1); j2++)
         for (int i2 = (int)(x - lip - 1); i2 <= (int)(x + w + lip + 1); i2++) {
@@ -161,6 +168,7 @@ void vent_slot(canvas *c, float x, float y, float w, float h) {
                 float db = ((y + h) - ((float)j2 + 0.5f)) / fmaxf(th * 1.8f, 1.0f);
                 if (db < 1.0f)
                     v += 0.15f * (1.0f - db);
+                v = 1.0f + (v - 1.0f) * deep;
                 px_shade(c, i2, j2, 1.0f + (v - 1.0f) * cov, 0.0f);
             } else if (sd < lip) {
                 /* Which rim catches the light is a question about the NORMAL,
@@ -176,7 +184,51 @@ void vent_slot(canvas *c, float x, float y, float w, float h) {
                 float lam = (gx * LIGHT_X + gy * LIGHT_Y) / gl; /* outward . light */
                 float e = 1.0f - sd / lip;
                 e *= e;
-                px_shade(c, i2, j2, 1.0f - lam * 0.17f * e, fmaxf(-lam, 0.0f) * e * 0.05f);
+                px_shade(c, i2, j2, 1.0f - lam * 0.17f * rim * e,
+                         fmaxf(-lam, 0.0f) * e * 0.05f * rim);
+            }
+        }
+}
+
+/* A louvre: a horizontal slot in the shell with a slat behind it.  What
+ * reads as the OPENING is the black under the upper edge, where the
+ * overhang shadows the hole; below that the slat's top face shows through,
+ * angled at the light and brightening toward the lower lip until it is
+ * lighter than the case around it.  The rims are modelled from the
+ * distance field's normal, as the vent's are, only harder. */
+void louvre_slot(canvas *c, float x, float y, float w, float h, float rad) {
+    float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
+    float lip = fmaxf(1.5f, h * 0.75f);
+    for (int j2 = (int)(y - lip - 1); j2 <= (int)(y + h + lip + 1); j2++)
+        for (int i2 = (int)(x - lip - 1); i2 <= (int)(x + w + lip + 1); i2++) {
+            float sd = rr_sd((float)i2, (float)j2, cx, cy, hw, hh, rad);
+            if (sd <= 0.5f) {
+                float cov = fminf(1.0f, 0.5f - sd);
+                float t = ((float)j2 + 0.5f - y) / h; /* 0 top .. 1 bottom */
+                float v;
+                if (t < 0.50f)
+                    v = 0.10f + 0.14f * (t / 0.50f); /* the hole, in the overhang's shadow */
+                else {
+                    float u = (t - 0.50f) / 0.50f; /* the slat's face, lit */
+                    v = 0.34f + 0.90f * u * u;
+                }
+                /* the end wall inside the cut, turned from the light */
+                float de = fminf((float)i2 + 0.5f - x, x + w - ((float)i2 + 0.5f)) / fmaxf(h, 1.0f);
+                if (de < 0.8f)
+                    v *= 0.55f + 0.45f * (de / 0.8f);
+                px_shade(c, i2, j2, 1.0f + (v - 1.0f) * cov, 0.0f);
+            } else if (sd < lip) {
+                float gx = rr_sd((float)i2 + 1, (float)j2, cx, cy, hw, hh, rad) -
+                           rr_sd((float)i2 - 1, (float)j2, cx, cy, hw, hh, rad);
+                float gy = rr_sd((float)i2, (float)j2 + 1, cx, cy, hw, hh, rad) -
+                           rr_sd((float)i2, (float)j2 - 1, cx, cy, hw, hh, rad);
+                float gl = sqrtf(gx * gx + gy * gy);
+                if (gl < 1e-4f)
+                    continue;
+                float lam = (gx * LIGHT_X + gy * LIGHT_Y) / gl;
+                float e = 1.0f - sd / lip;
+                e *= e;
+                px_shade(c, i2, j2, 1.0f - lam * 0.30f * e, fmaxf(-lam, 0.0f) * e * 0.09f);
             }
         }
 }
@@ -254,13 +306,13 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     /* the drive is a separate moulding: darker and greyer than the case */
     int pr = (int)(PLASTIC_R * 0.74f), pg = (int)(PLASTIC_G * 0.72f), pb = (int)(PLASTIC_B * 0.76f);
     /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
-    rrect(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 2.2f * mm,
+    rrect(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
           (int)(PLASTIC_R * 0.38f), (int)(PLASTIC_G * 0.38f), (int)(PLASTIC_B * 0.38f), 0.92f,
           1.04f);
-    chamfer_ring(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 2.2f * mm,
+    chamfer_ring(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
                  0.5f * mm);
-    rrect(c, x, y, fw, h, 2.0f * mm, pr, pg, pb, 0.97f, 1.01f);
-    housing_edge(c, x, y, fw, h, 2.0f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
+    rrect(c, x, y, fw, h, 1.3f * mm, pr, pg, pb, 0.97f, 1.01f);
+    housing_edge(c, x, y, fw, h, 1.3f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
 
     float sly = y + 8.6f * mm, slh = 4.8f * mm;
     float slx = x + 5.0f * mm, slw = fw - 10.0f * mm;
@@ -554,4 +606,175 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
         L->pwr_led[3] = lr * 2.0f;
         L->pwr_shelf = cap_lo;
     }
+}
+
+/* ---- the turbo display ---------------------------------------------------- */
+
+/* Signed distance from p to the segment a-b: a bar of half-thickness t with
+ * 45-degree pointed ends, its tips at a and b, stood back by m all round
+ * the ends (the shader draws the same shape). */
+static float seg_sd(float px, float py, float ax, float ay, float bx, float by, float t, float m) {
+    float cx = (ax + bx) * 0.5f, cy = (ay + by) * 0.5f;
+    float dx = bx - ax, dy = by - ay, L = sqrtf(dx * dx + dy * dy) * 0.5f;
+    dx /= 2.0f * L;
+    dy /= 2.0f * L;
+    float u = fabsf((px - cx) * dx + (py - cy) * dy), v = fabsf(-(px - cx) * dy + (py - cy) * dx);
+    float bar = v - t, tip = (u + v - L) * 0.70710678f + m;
+    return bar > tip ? bar : tip;
+}
+
+/* Coverage of the seven UNLIT segments of the three digits at window point
+ * (qx, qy), in window-height units with y up; A is the window's aspect. */
+static float seg_ghost(float qx, float qy, float A) {
+    static const float ends[7][4] = SEG_ENDS;
+    float dh = SEG_DH, dw = dh * SEG_WR, pitch = dw * SEG_PITCH, th = dh * SEG_T;
+    float m = th * SEG_GAP, best = 1e9f;
+    for (int k = 0; k < 3; k++) {
+        float lx = qx - (A * 0.5f + (float)(k - 1) * pitch), ly = qy - 0.5f;
+        lx -= ly * SEG_SLANT; /* take the lean out */
+        for (int s = 0; s < 7; s++) {
+            float ax = ends[s][0] * dw * 0.5f, ay = ends[s][1] * dh * 0.5f;
+            float bx = ends[s][2] * dw * 0.5f, by = ends[s][3] * dh * 0.5f;
+            float d = seg_sd(lx, ly, ax, ay, bx, by, th * 0.5f, m);
+            if (d < best)
+                best = d;
+        }
+        /* the decimal point, at the digit's lower right, never lit */
+        float px2 = lx - (dw * 0.5f + th * 0.95f), py2 = ly + dh * 0.5f - th * 0.45f;
+        float dp = sqrtf(px2 * px2 + py2 * py2) - th * 0.42f;
+        if (dp < best)
+            best = dp;
+    }
+    return best;
+}
+
+/* The turbo display's glass: a smoked acrylic window with the three dark
+ * digits showing through it the way an unlit LED display does.  The
+ * digits are LIT by the shader; here they are only the shadows of
+ * themselves.  Records the window in out. */
+static void turbo_glass(canvas *c, float x, float y, float w, float h, float out[4]) {
+    float rad = h * 0.08f;
+    float A = w / h, cx = x + w * 0.5f, cy = y + h * 0.5f;
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    for (int j2 = (int)y - 1; j2 <= (int)(y + h) + 1; j2++)
+        for (int i2 = (int)x - 1; i2 <= (int)(x + w) + 1; i2++) {
+            float sd = rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, cx, cy, w * 0.5f, h * 0.5f, rad);
+            if (sd > 0.5f)
+                continue;
+            float a = fminf(1.0f, 0.5f - sd);
+            /* the window, in its own units: x across, y UP */
+            float qx = ((float)i2 + 0.5f - x) / h, qy = (y + h - ((float)j2 + 0.5f)) / h;
+            /* smoked acrylic over a black board: near-black with the red
+             * of the LEDs' own plastic in it, darker under the top lip
+             * where the well shades it, and a faint sheen down the face */
+            /* a black epoxy face, the way a bare LED display module is,
+             * with the red of the diffusers only in the segments */
+            float r = 21.0f, g = 15.0f, b = 14.0f;
+            float lip = 1.0f - 0.45f * expf(-(1.0f - qy) / 0.10f);
+            float sheen = 1.0f + 0.20f * expf(-((qy - 0.72f) * (qy - 0.72f)) / 0.06f);
+            float f = lip * sheen;
+            /* the unlit segments: the frosted light pipes are a pale
+             * pinkish grey against the face, plainly there, as they are on
+             * a real module - the shadows of the digits, not a hint */
+            float gd = seg_ghost(qx, qy, A);
+            float pxu = 1.0f / h; /* one pixel, in window units */
+            float ghost = 1.0f - fminf(1.0f, fmaxf(0.0f, (gd + pxu * 0.5f) / pxu));
+            r = r * f + (96.0f - r * f) * ghost * 0.80f;
+            g = g * f + (74.0f - g * f) * ghost * 0.80f;
+            b = b * f + (70.0f - b * f) * ghost * 0.80f;
+            /* the frosted grain a moulded light pipe carries */
+            float n = (hash2(i2, j2, 11) - 0.5f) * 5.0f;
+            px_blend(c, i2, j2, (int)(r + n), (int)(g + n), (int)(b + n), a);
+        }
+    /* the glass's own edge catches a line along the top, under the lip */
+    for (int i2 = (int)(x + rad); i2 < (int)(x + w - rad); i2++)
+        px_blend(c, i2, (int)y, 255, 255, 255, 0.09f);
+    canvas_grain = saved;
+    out[0] = x;
+    out[1] = y;
+    out[2] = w;
+    out[3] = h;
+}
+
+/* One cap of the button cluster: the power cap's construction at a
+ * fraction of the size - cap, bevel, the shadow it throws on the plate
+ * below - with its function painted on it.  Records its outline in out,
+ * for the mouse. */
+static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm, const char *label,
+                        float out[4]) {
+    float rad = h * 0.12f;
+    rrect(c, x, y, w, h, rad, (int)(PLASTIC_R * 0.74f), (int)(PLASTIC_G * 0.72f),
+          (int)(PLASTIC_B * 0.76f), 1.16f, 0.84f);
+    bevel(c, x, y, w, h, fmaxf(1.0f, 0.45f * mm), 1);
+    {
+        int saved = canvas_grain;
+        canvas_grain = 0;
+        float sw = 1.0f * mm, cb = y + h;
+        for (int j2 = (int)cb; j2 <= (int)(cb + sw) + 1; j2++) {
+            float t = ((float)j2 + 0.5f - cb) / sw;
+            if (t < 0.0f || t >= 1.0f)
+                continue;
+            float f = (1.0f - t) * (1.0f - t);
+            for (int i2 = (int)x; i2 < (int)(x + w); i2++)
+                px_shade(c, i2, j2, 1.0f - 0.30f * f, 0.0f);
+        }
+        canvas_grain = saved;
+    }
+    {
+        float ls = fmaxf(0.5f, canvas_lbl * 0.62f);
+        float tw3 = (float)strlen(label) * 8.0f * ls;
+        text_smooth(c, x + (w - tw3) * 0.5f, y + (h - 8.0f * ls) * 0.5f - 0.5f, label, ls, 196, 190,
+                    176);
+    }
+    out[0] = x;
+    out[1] = y;
+    out[2] = w;
+    out[3] = h;
+}
+
+/* The turbo module, one part: a single well in the case beside the power
+ * cap, level with it, holding a dark plate that carries, left to right,
+ * the legend - FPS over MHz, printed, with an LED against each for the
+ * shader to light whichever is showing - the glass, and the three keys,
+ * MODE across the top, - and + under it, parted only by the plate showing
+ * between them.  The way a case carried its display and its buttons: one
+ * moulded unit, not a hole for each.  Records the window in seg, each
+ * key's outline in btn[] and the two LEDs in mode_led[]. */
+void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
+                  float mode_led[2][4]) {
+    /* The module is drawn four millimetres taller than the power cap's
+     * height would make it, and everything in it scales with that; its
+     * top edge is two millimetres above the cap's top line. */
+    float k = (pw * 0.78f + 1.4f * mm + 4.0f * mm) / (pw * 0.78f + 1.4f * mm);
+    float lip = 0.7f * mm * k, gap = 0.8f * mm * k, part = 1.1f * mm * k;
+    float gh = pw * 0.78f * k, gw = SEG_WIN_W_MM * mm * k, kw = 13.5f * mm * k;
+    /* the legend strip: an LED and a printed word, FPS over MHz, in the
+     * VGA face at a 2.2 mm cell - a silk-screened legend, not moulding */
+    float ls = 2.2f * mm * k / 16.0f, lr = 1.0f * mm * k;
+    float sw = (1.2f * mm + 1.0f * mm + 0.6f * mm) * k + lr * 2.0f + 3.0f * 8.0f * ls;
+    float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
+    float y = mid - pw * 0.39f - 2.0f * mm, rad = h * 0.09f;
+    well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
+    rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
+    {
+        const char *words[2] = {"FPS", "MHz"};
+        float pitch = gh * 0.40f, lcx = x + lip + 1.2f * mm * k + lr;
+        float tx = lcx + lr + 1.0f * mm * k;
+        for (int i = 0; i < 2; i++) {
+            float cy = y + h * 0.5f + (i ? 0.5f : -0.5f) * pitch;
+            led(c, lcx, cy, lr, 44, 18, 14); /* UNLIT, red */
+            mode_led[i][0] = lcx - lr;
+            mode_led[i][1] = cy - lr;
+            mode_led[i][2] = lr * 2.0f;
+            mode_led[i][3] = lr * 2.0f;
+            text_smooth16(c, tx, cy - 8.0f * ls, words[i], ls, 196, 190, 176);
+        }
+    }
+    turbo_glass(c, x + lip + sw, y + lip, gw, gh, seg);
+    float kx = x + lip + sw + gw + part, ky = y + lip;
+    float ch = (gh - gap) * 0.5f, cw = (kw - gap) * 0.5f;
+    cluster_cap(c, kx, ky, kw, ch, mm, "MODE", btn[0]);
+    cluster_cap(c, kx, ky + ch + gap, cw, ch, mm, "-", btn[1]);
+    cluster_cap(c, kx + cw + gap, ky + ch + gap, cw, ch, mm, "+", btn[2]);
 }

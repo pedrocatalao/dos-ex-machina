@@ -22,10 +22,16 @@ fi
 #  source                  symbol       output                      width
 $PY tools/mklogo.py  assets/dxm-badge.png   dxm_mark   "$out/mark.h"   320
 $PY tools/mksplash.py assets/splash-src.png dxm_splash "$out/splash.c" "$out/splash.h" 1024
+$PY tools/mkfont.py   assets/cp437-8x16.fnt.uu dxm_font16 "$out/font16.h"
+$PY tools/mklogo.py  assets/multimedia-sticker.png dxm_multimedia "$out/multimedia.h"
+$PY tools/mkbanners.py "$out/banners.c" "$out/banners.h" assets/banners/*.jpg
+$PY tools/mkbdf.py   assets/fonts/helvR14.bdf dxm_ui  "$out/uifont.h"      >/dev/null
+$PY tools/mkbdf.py   assets/fonts/helvB14.bdf dxm_uib "$out/uifont_bold.h" >/dev/null
 
 if [ "$mode" = "--check" ]; then
     rc=0
-    for f in mark.h splash.c splash.h; do
+    for f in mark.h splash.c splash.h font16.h multimedia.h banners.c banners.h \
+             uifont.h uifont_bold.h; do
         if ! cmp -s "$out/$f" "src/gen/$f"; then
             echo "src/gen/$f is not what tools/regen.sh produces" >&2; rc=1
         fi
@@ -33,4 +39,5 @@ if [ "$mode" = "--check" ]; then
     [ $rc -eq 0 ] && echo "src/gen: reproducible files match"
     exit $rc
 fi
-echo "src/gen: regenerated mark.h splash.c splash.h"
+echo "src/gen: regenerated mark.h splash.c splash.h font16.h multimedia.h banners.c" \
+     "banners.h uifont.h uifont_bold.h"

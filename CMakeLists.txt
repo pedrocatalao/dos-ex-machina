@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(dos_ex_machina VERSION 1.0.0 LANGUAGES C)
+project(dos_ex_machina VERSION 2.0.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 # Optimisation belongs to the build type, and a plain `cmake -S . -B build`
 # should not hand out an unoptimised chassis render by accident.
@@ -18,14 +18,9 @@ if(DXM_SANITIZE)
 endif()
 
 find_package(SDL3 REQUIRED CONFIG)
-# libcurl for downloads (TLS, and GitHub's release URLs redirect), and zlib
-# to inflate the game data archives.  Both are system libraries everywhere
-# DXM runs, and curl already depends on zlib - so neither is a new burden.
-find_package(CURL REQUIRED)
-find_package(ZLIB REQUIRED)
-# DXM links no game.  A game is a .dxm module in the games directory, opened
-# at run time - so the shell builds and ships on its own, and adding a game
-# is a download rather than a rebuild.
+# DXM links no emulator.  DOSBox Pure is a libretro core opened at run time
+# from beside the program (src/dosbox/); it is built below, from its own
+# tree and with its own Makefile, into the same directory as dxm.
 # Windows carries its icon as a compiled-in resource, not a file beside the
 # binary.  The .ico is generated once by tools/mkico.py and committed, so no
 # image tooling has to exist on the runner.
@@ -35,25 +30,21 @@ if(WIN32)
 endif()
 
 add_executable(dxm
-    src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/selftest.c
-    src/gpu.c src/font.c src/sound.c
-    src/dos/dos.c src/dos/term.c src/dos/shell.c src/dos/boot.c src/dos/nc.c
+    src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/cursor.c
+    src/gpu.c src/font.c src/sound.c src/ui.c src/gen/splash.c src/gen/banners.c
+    src/dos/dos.c src/dos/term.c src/dos/boot.c
+    src/setup/setup.c src/setup/canvas.c src/setup/banner.c src/setup/machine.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
-    src/corehost.c src/coreload.c src/library.c src/ui.c src/gen/splash.c
-    src/sha256.c src/net.c src/catalogue.c src/unzip.c src/install.c
-    src/png.c src/art.c src/disk.c ${DXM_WIN_RC})
-# contract/ is what a port vendors: dxm_core.h, the interface both sides
-# compile against, and dxm_platform.c, the shared adapter.  The adapter is
-# deliberately NOT built here - it is compiled INTO each core, because a
-# module cannot reach back into this executable for the plat_* symbols it
-# needs.  The host only includes the header.
-target_include_directories(dxm PRIVATE src contract ${CMAKE_BINARY_DIR}/generated)
+    src/dosbox/dosbox.c src/dosbox/keys.c src/dosbox/motd.c src/dosbox/layout.c
+    ${DXM_WIN_RC})
+target_include_directories(dxm PRIVATE src src/third_party ${CMAKE_BINARY_DIR}/generated)
 # The shaders are GLSL files under shaders/, baked into one header at build
 # time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.
 set(DXM_SHADERS
     shaders/quad.vert shaders/persist.frag shaders/blur.frag shaders/composite.frag
-    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag)
+    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag
+    shaders/edge.frag shaders/ease.frag shaders/glow.frag)
 list(TRANSFORM DXM_SHADERS PREPEND ${CMAKE_SOURCE_DIR}/)
 # The list crosses a command line, where ';' would split it into separate
 # arguments; it travels comma-joined and the script splits it again.
@@ -87,7 +78,7 @@ target_link_options(dxm PRIVATE ${DXM_SANITIZE_FLAGS})
 # step picks it up.
 target_compile_definitions(dxm PRIVATE DXM_VERSION="${PROJECT_VERSION}")
 configure_file(packaging/macos/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist @ONLY)
-target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_DL_LIBS})
+target_link_libraries(dxm PRIVATE SDL3::SDL3 m ${CMAKE_DL_LIBS})
 # GL 1.1 is exported by the system library and has to be LINKED; everything
 # past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,
 # hence the framework; everywhere else CMake finds libGL / opengl32.
@@ -113,6 +104,81 @@ if(APPLE)
 else()
     find_package(OpenGL REQUIRED)
     target_link_libraries(dxm PRIVATE OpenGL::GL)
+endif()
+
+# The DOS: DOSBox Pure, from the fork pinned as a submodule in
+# external/dosbox-pure, built with its own Makefile and copied beside dxm,
+# where the machine looks for it.  The objects stay in the submodule's own
+# (ignored) build/ directory, one per architecture, so a universal macOS
+# build compiles it once for each and joins them with lipo.  The compiler is
+# the C++ one CMake finds, so the core is built by the same toolchain as the
+# machine.  -DDXM_CORE=OFF skips all of it, for a machine run with
+# --dosbox-core.
+option(DXM_CORE "Build the DOSBox Pure core from external/dosbox-pure" ON)
+if(DXM_CORE)
+    set(DXM_CORE_SRC ${CMAKE_SOURCE_DIR}/external/dosbox-pure)
+    if(NOT EXISTS ${DXM_CORE_SRC}/Makefile)
+        message(FATAL_ERROR "external/dosbox-pure is empty - run: git submodule update --init")
+    endif()
+    enable_language(CXX)
+    find_program(DXM_MAKE NAMES gmake make mingw32-make REQUIRED)
+    cmake_host_system_information(RESULT DXM_JOBS QUERY NUMBER_OF_LOGICAL_CORES)
+    set(DXM_CORE_CXX ${CMAKE_CXX_COMPILER})
+    set(DXM_CORE_ARGS "")
+    if(WIN32)
+        set(DXM_CORE_NAME dosbox_pure_libretro.dll)
+        # The Makefile's own Windows test looks for a drive letter in the
+        # path, which MSYS2's make does not give it.  -static puts the C++
+        # runtime inside the DLL, so it needs nothing beside it.
+        list(APPEND DXM_CORE_ARGS platform=windows)
+        set(DXM_CORE_CXX "${CMAKE_CXX_COMPILER} -static")
+    elseif(APPLE)
+        set(DXM_CORE_NAME dosbox_pure_libretro.dylib)
+    else()
+        set(DXM_CORE_NAME dosbox_pure_libretro.so)
+    endif()
+    set(DXM_CORE_ARCHS native)
+    if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+        set(DXM_CORE_ARCHS ${CMAKE_OSX_ARCHITECTURES})
+    endif()
+    file(GLOB_RECURSE DXM_CORE_DEPS CONFIGURE_DEPENDS
+         ${DXM_CORE_SRC}/*.cpp ${DXM_CORE_SRC}/*.h ${DXM_CORE_SRC}/*.c)
+    list(APPEND DXM_CORE_DEPS ${DXM_CORE_SRC}/Makefile)
+    set(DXM_CORE_SLICES "")
+    set(DXM_CORE_COMMANDS "")
+    foreach(arch IN LISTS DXM_CORE_ARCHS)
+        set(flags "")
+        if(NOT arch STREQUAL "native")
+            set(flags "-arch ${arch}")
+        endif()
+        if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET)
+            string(APPEND flags " -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+        endif()
+        # OUTNAME and BUILDDIR are relative to the submodule: a Windows
+        # absolute path carries a drive letter, whose colon make reads as a
+        # rule separator.
+        set(slice build/dxm-${arch}/${DXM_CORE_NAME})
+        list(APPEND DXM_CORE_SLICES ${DXM_CORE_SRC}/${slice})
+        list(APPEND DXM_CORE_COMMANDS
+             COMMAND ${DXM_MAKE} -C ${DXM_CORE_SRC} -j${DXM_JOBS} BUILDDIR=dxm-${arch}
+                     OUTNAME=${slice} "CXX=${DXM_CORE_CXX}" "ARCHFLAGS=${flags}" ${DXM_CORE_ARGS})
+    endforeach()
+    list(LENGTH DXM_CORE_SLICES nslices)
+    if(nslices GREATER 1)
+        set(DXM_CORE_JOIN COMMAND lipo -create -output ${CMAKE_BINARY_DIR}/${DXM_CORE_NAME}
+                          ${DXM_CORE_SLICES})
+    else()
+        set(DXM_CORE_JOIN COMMAND ${CMAKE_COMMAND} -E copy ${DXM_CORE_SLICES}
+                          ${CMAKE_BINARY_DIR}/${DXM_CORE_NAME})
+    endif()
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/${DXM_CORE_NAME}
+        ${DXM_CORE_COMMANDS}
+        ${DXM_CORE_JOIN}
+        DEPENDS ${DXM_CORE_DEPS}
+        COMMENT "Building DOSBox Pure (${DXM_CORE_ARCHS})"
+        VERBATIM)
+    add_custom_target(dosbox_core ALL DEPENDS ${CMAKE_BINARY_DIR}/${DXM_CORE_NAME})
 endif()
 
 # Tests are on by default and cost nothing to configure; a packaging build

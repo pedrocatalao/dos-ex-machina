@@ -17,11 +17,12 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       # Homebrew's SDL3 is arm64-only, so it cannot link a universal binary.
       # Build it from source for both architectures instead, and cache it -
-      # SDL is the slow part here, not DXM.  curl and zlib come from the SDK
-      # and are already universal.
+      # SDL is the slow part here, not DXM.
       - name: Cache SDL3
         id: sdl3-cache
         uses: actions/cache@v4
@@ -41,6 +42,25 @@ jobs:
           cmake --build sdl3-build -j3
           cmake --install sdl3-build
 
+      # The core is the slow part of the build and changes only when the
+      # submodule moves: its objects are kept per pinned commit, and touched
+      # after the restore so make trusts them over the fresh checkout.
+      - name: Core commit
+        id: core
+        run: echo "sha=$(git rev-parse HEAD:external/dosbox-pure)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the core's objects
+        uses: actions/cache@v4
+        with:
+          path: external/dosbox-pure/build
+          key: core-macos-universal-${{ steps.core.outputs.sha }}-v1
+
+      - name: Trust the cached objects
+        run: |
+          if [ -d external/dosbox-pure/build ]; then
+            find external/dosbox-pure/build -type f -exec touch {} +
+          fi
+
       - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDXM_WERROR=ON \
@@ -55,7 +75,10 @@ jobs:
         run: |
           lipo -archs build/dxm | grep -q "x86_64 arm64"
           otool -L build/dxm | grep -q SDL3
-          echo "universal, links SDL3"
+          lipo -archs build/dosbox_pure_libretro.dylib | grep -q x86_64
+          lipo -archs build/dosbox_pure_libretro.dylib | grep -q arm64
+          nm -gU build/dosbox_pure_libretro.dylib | grep -q " _retro_run$"
+          echo "universal, links SDL3; the core is universal and exports retro_run"
 
       # A .app, not a bare binary.  Two reasons: a folder of loose files is
       # not how anyone expects to be handed a Mac program, and Gatekeeper's
@@ -70,9 +93,14 @@ jobs:
           ./tools/make_icns.sh assets/icon-src.png "$APP/Contents/Resources/dxm.icns"
           cp build/dxm "$APP/Contents/MacOS/"
           # SDL3 travels with it - it is built from source here, so a user
-          # would have nowhere to get it.  curl, zlib and OpenGL are system
+          # would have nowhere to get it.  OpenGL and the C++ runtime are system
           # libraries and must stay that way.
           cp -L "$HOME"/sdl3-install/lib/libSDL3*.dylib "$APP/Contents/Frameworks/"
+          # The DOS: the core beside SDL3, where the machine looks for it in
+          # a bundle, and its licence with the resources - it is GPL, and
+          # travels with the notice that says where its source is.
+          cp build/dosbox_pure_libretro.dylib "$APP/Contents/Frameworks/"
+          cp external/dosbox-pure/LICENSE "$APP/Contents/Resources/LICENSE-dosbox-pure.txt"
           chmod u+w "$APP/Contents/Frameworks/"*.dylib
           for dylib in "$APP/Contents/Frameworks/"*.dylib; do
             install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"

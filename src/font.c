@@ -2,12 +2,13 @@
  * fontconfig and GDI disagree on hinting and there is no way to make them
  * agree, which SPEC 6.2 forbids.
  *
- * The whole of code page 437, 8x8, rendered row-doubled to 8x16 - the way
- * CGA/EGA text modes looked.  MSB = leftmost pixel.  The letterforms are
+ * The 8x8 face here is the whole of code page 437 for the lettering on
+ * the case; the text screen's 8x16 is in gen/font16.h.  The letterforms are
  * the IBM ROM family; the single-line box set is drawn 2px thick so it
  * meets cleanly after the row doubling, and the double-line set uses the
  * same two-pixel uprights.  Nothing is folded: lowercase is lowercase. */
 #include "font.h"
+#include "gen/font16.h"
 
 static const uint8_t CP437[256][8] = {
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, /* 00 */
@@ -270,4 +271,8 @@ static const uint8_t CP437[256][8] = {
 
 const uint8_t *font_glyph(int ch) {
     return CP437[ch & 0xFF];
+}
+
+const uint8_t *font_glyph16(int ch) {
+    return dxm_font16[(unsigned char)ch];
 }

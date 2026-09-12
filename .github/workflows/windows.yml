@@ -26,19 +26,38 @@ jobs:
         shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - uses: msys2/setup-msys2@v2
         with:
           msystem: ${{ matrix.msystem }}
           update: false
           install: >-
-            git zip
+            git zip make
             ${{ matrix.prefix }}-cc
             ${{ matrix.prefix }}-cmake
             ${{ matrix.prefix }}-ninja
             ${{ matrix.prefix }}-sdl3
-            ${{ matrix.prefix }}-curl
-            ${{ matrix.prefix }}-zlib
+
+      # The core is the slow part of the build and changes only when the
+      # submodule moves: its objects are kept per pinned commit, and touched
+      # after the restore so make trusts them over the fresh checkout.
+      - name: Core commit
+        id: core
+        run: echo "sha=$(git rev-parse HEAD:external/dosbox-pure)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the core's objects
+        uses: actions/cache@v4
+        with:
+          path: external/dosbox-pure/build
+          key: core-windows-${{ matrix.arch }}-${{ steps.core.outputs.sha }}-v1
+
+      - name: Trust the cached objects
+        run: |
+          if [ -d external/dosbox-pure/build ]; then
+            find external/dosbox-pure/build -type f -exec touch {} +
+          fi
 
       - name: Build
         run: |
@@ -51,7 +70,8 @@ jobs:
       - name: Verify
         run: |
           test -f build/dxm.exe
-          echo "built dxm.exe"
+          test -f build/dosbox_pure_libretro.dll
+          echo "built dxm.exe and the core"
 
       # The DLLs the binary actually loaded, rather than a guessed list - the
       # toolchain's runtime differs between UCRT64 and CLANGARM64.
@@ -59,13 +79,18 @@ jobs:
         run: |
           mkdir -p dist/dxm
           cp build/dxm.exe dist/dxm/
+          # the DOS beside the program, with its licence
+          cp build/dosbox_pure_libretro.dll dist/dxm/
+          cp external/dosbox-pure/LICENSE dist/dxm/LICENSE-dosbox-pure.txt
           # ldd already reports the FULL transitive closure, so one pass gets
           # everything - SDL3's own dependencies included.  The recursive
           # version this replaces walked the tree by hand for no benefit, and
           # hung on the arm64 runner, where the MSYS2 runtime is x86_64 under
           # emulation and every process spawn is expensive.
           # Only DLLs from the MSYS2 environment are copied; system ones stay.
-          ldd build/dxm.exe | awk '{print $3}' \
+          # The core is linked -static, so it should add nothing; it is
+          # asked anyway, so a DLL it does need is never left behind.
+          ldd build/dxm.exe build/dosbox_pure_libretro.dll | awk '{print $3}' \
             | grep -iE "/(ucrt64|clangarm64|clang64|mingw64)/" \
             | sort -u | while read -r dll; do cp "$dll" dist/dxm/; done
           ls -la dist/dxm/
