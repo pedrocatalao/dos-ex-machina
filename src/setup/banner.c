@@ -44,14 +44,18 @@
 #define DARK 12         /* a row this dim at the top is the artwork's border */
 #define CELLS (32 * 32 * 32)
 
-static banner B;
-static uint8_t px[DXM_BANNER_W * DXM_BANNER_H];
-static uint16_t cellbuf[DXM_BANNER_W * DXM_BANNER_H]; /* the cell each pixel fell in */
+/* Two of them, because a change of picture shows both at once: the slats
+ * reveal the new one over the old, and on an indexed screen that can only
+ * happen if the pair shares a palette. */
+static banner B[2];
+static uint8_t px[2][DXM_BANNER_W * DXM_BANNER_H];
+static uint16_t cellbuf[2][DXM_BANNER_W * DXM_BANNER_H]; /* the cell each pixel fell in */
 static uint8_t pal[BANNER_COLOURS * 3];
 
 /* the histogram, and the boxes median cut carves it into */
 static int count[CELLS];
 static int cell[CELLS]; /* the populated ones, in box order */
+static int ncell;
 static uint8_t cmap[CELLS];
 
 typedef struct {
@@ -150,26 +154,21 @@ static void median_cut(int cells, int want) {
     free(boxes);
 }
 
-const banner *banner_open(int which) {
-    if (dxm_banner_count <= 0)
-        return NULL;
-    which %= dxm_banner_count;
-    /* the screen is drawn every frame; the artwork is opened once */
-    static int loaded = -1;
-    if (which == loaded)
-        return &B;
-    clock_t t0 = clock();
+/* Decode one into `slot`, shade it, and leave every pixel as the cell of
+ * the histogram it fell in; the palette is fitted afterwards, over as many
+ * pictures as are going to be on screen together. */
+static int decode(int which, int slot) {
     const dxm_banner *b = &dxm_banners[which];
     int w, h, comp;
     stbi_uc *rgb = stbi_load_from_memory(b->file, (int)b->len, &w, &h, &comp, 3);
     if (!rgb) {
         dxm_log("setup: %s will not open: %s", b->name, stbi_failure_reason());
-        return NULL;
+        return 0;
     }
     if (w != DXM_BANNER_W || h > DXM_BANNER_H) {
         dxm_log("setup: %s is %dx%d, not %dx%d", b->name, w, h, DXM_BANNER_W, DXM_BANNER_H);
         stbi_image_free(rgb);
-        return NULL;
+        return 0;
     }
 
     /* off the top, the black band the artwork was drawn with: on screen it
@@ -188,8 +187,6 @@ const banner *banner_open(int which) {
 
     /* bright to the waist, then away to black by the bottom edge, so the
      * artwork dissolves into the screen instead of being washed all over */
-    memset(count, 0, sizeof count);
-    int cells = 0;
     for (int y = 0; y < hh; y++) {
         float f = ((float)y / (float)(hh - 1) - FADE_FROM) / (1.0f - FADE_FROM);
         float keep = f <= 0.0f ? 1.0f : powf(1.0f - f, 1.4f);
@@ -202,26 +199,67 @@ const banner *banner_open(int which) {
             }
             int c = cell_of(v[0], v[1], v[2]);
             if (!count[c])
-                cell[cells++] = c;
+                cell[ncell++] = c;
             count[c]++;
-            cellbuf[(size_t)y * w + x] = (uint16_t)c;
+            cellbuf[slot][(size_t)y * w + x] = (uint16_t)c;
         }
     }
     stbi_image_free(rgb);
 
-    median_cut(cells, BANNER_COLOURS);
-    for (int i = 0; i < hh * w; i++)
-        px[i] = cmap[cellbuf[i]];
+    B[slot].w = w;
+    B[slot].h = hh;
+    B[slot].px = px[slot];
+    B[slot].pal = pal;
+    B[slot].name = b->name;
+    return 1;
+}
 
-    B.w = w;
-    B.h = hh;
-    B.px = px;
-    B.pal = pal;
-    B.name = b->name;
+/* Turn the cells each slot's pixels fell in into colours, now that the
+ * histogram holds everything that will be on screen. */
+static void fit(int slots) {
+    median_cut(ncell, BANNER_COLOURS);
+    for (int s = 0; s < slots; s++)
+        for (int i = 0; i < B[s].h * B[s].w; i++)
+            px[s][i] = cmap[cellbuf[s][i]];
+}
+
+const banner *banner_open(int which) {
+    if (dxm_banner_count <= 0)
+        return NULL;
+    which %= dxm_banner_count;
+    /* the screen is drawn every frame; the artwork is opened once */
+    static int loaded = -1;
+    if (which == loaded)
+        return &B[0];
+    clock_t t0 = clock();
+    memset(count, 0, sizeof count);
+    ncell = 0;
+    if (!decode(which, 0))
+        return NULL;
+    fit(1);
     loaded = which;
-    dxm_log("setup: %s opened, %d colours fitted in %.0f ms", b->name, BANNER_COLOURS,
+    dxm_log("setup: %s opened in %.0f ms", dxm_banners[which].name,
             (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC);
-    return &B;
+    return &B[0];
+}
+
+/* Both at once, sharing the 240 colours between them: what the slats need,
+ * since the one being uncovered and the one being covered are on the glass
+ * together and an index means whatever the single palette says it means. */
+int banner_open_pair(int from, int to, const banner **a, const banner **b) {
+    if (dxm_banner_count <= 0)
+        return 0;
+    clock_t t0 = clock();
+    memset(count, 0, sizeof count);
+    ncell = 0;
+    if (!decode(from % dxm_banner_count, 0) || !decode(to % dxm_banner_count, 1))
+        return 0;
+    fit(2);
+    *a = &B[0];
+    *b = &B[1];
+    dxm_log("setup: %s and %s share %d colours, fitted in %.0f ms", B[0].name, B[1].name,
+            BANNER_COLOURS, (double)(clock() - t0) * 1000.0 / CLOCKS_PER_SEC);
+    return 1;
 }
 
 int banner_count(void) {

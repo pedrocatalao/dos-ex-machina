@@ -162,6 +162,7 @@ int main(int argc, char **argv) {
     snprintf(cfgpath, sizeof cfgpath, "%scrt.cfg", a.pref ? a.pref : "./");
     if (!a.deterministic)
         ui_load(cfgpath);
+    setup_bind(&k, cfgpath); /* what SETUP is allowed to change, and where it keeps it */
     dos_init(theatre_mhz(&th), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */

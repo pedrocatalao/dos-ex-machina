@@ -97,7 +97,7 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
     } else if (setup_visible()) {
         /* SETUP has the machine while it is up: the keys are its own */
         if (down)
-            setup_key(e->key.scancode);
+            setup_key(e->key.scancode, (e->key.mod & SDL_KMOD_SHIFT) != 0);
     } else if (dosbox_shown()) {
         dosbox_key(e->key.scancode, down);
     } else if (down) {
@@ -128,7 +128,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         int kn = (!in->captured && !ui_visible()) ? knob_at(L, mx, my) : -1;
         int bt = (!in->captured && !ui_visible()) ? button_at(L, mx, my) : -1;
         if (setup_visible())
-            setup_mouse(0, 0, e->button.button == SDL_BUTTON_LEFT ? 1 : 2);
+            setup_click(e->button.button == SDL_BUTTON_LEFT);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
         else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
@@ -144,7 +144,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP:
-        if (in->captured && dosbox_shown())
+        if (setup_visible())
+            setup_click(0);
+        else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 0);
         else if (in->knob_drag >= 0)
             in->knob_drag = -1;
@@ -152,10 +154,22 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             ui_mouse((int)(e->button.x * a->W / a->win_wf), (int)(e->button.y * a->H / a->win_hf),
                      0, 0);
         break;
+    case SDL_EVENT_MOUSE_WHEEL:
+        /* A trackpad sends fractions of a notch, so they are added up until
+         * they make one: otherwise a slow drag scrolls nothing at all. */
+        if (setup_visible()) {
+            static float notch = 0.0f;
+            notch += e->wheel.y;
+            int n = (int)notch;
+            notch -= (float)n;
+            if (n)
+                setup_wheel(n);
+        }
+        break;
     case SDL_EVENT_MOUSE_MOTION: {
         float mx = e->motion.x * a->W / a->win_wf, my = e->motion.y * a->H / a->win_hf;
         if (setup_visible())
-            setup_mouse((int)e->motion.xrel, (int)e->motion.yrel, 0);
+            setup_mouse((int)e->motion.xrel, (int)e->motion.yrel);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_move((int)e->motion.xrel, (int)e->motion.yrel);
         else if (in->knob_drag >= 0)

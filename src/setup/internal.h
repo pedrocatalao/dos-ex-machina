@@ -56,11 +56,17 @@ typedef struct {
     const uint8_t *pal; /* BANNER_COLOURS RGB triples */
 } banner;
 const banner *banner_open(int which); /* NULL if the file will not open */
+/* Both of a change of picture, fitted to one palette so they can be on the
+ * glass at the same time.  0 if either will not open. */
+int banner_open_pair(int from, int to, const banner **a, const banner **b);
 int banner_count(void);
 
 /* canvas.c — the surface and what can be put on it */
 void cv_clear(uint8_t colour);
 void cv_banner(int which); /* the artwork at the top, and its palette */
+/* A change of picture, part way through: the new one showing in slats that
+ * grow down from each of `slats` bands, the old one in what is left. */
+void cv_banner_slats(const banner *from, const banner *to, float shut, int slats);
 void cv_rect(int x, int y, int w, int h, uint8_t colour);
 void cv_frame(int x, int y, int w, int h, uint8_t colour);
 /* Darken what is already there, leaving one pixel in `n` of it: the way a
@@ -69,6 +75,10 @@ void cv_frame(int x, int y, int w, int h, uint8_t colour);
  * veil, n=4 is nearly solid.  `r` rounds the corners off. */
 void cv_scrim(int x, int y, int w, int h, int n, int r);
 void cv_round_frame(int x, int y, int w, int h, uint8_t colour, int r);
+/* A value between its ends: the groove, how much of it is filled, and the
+ * handle.  `on` is the row the eye is on. */
+void cv_slider(int x, int y, int w, float t, int on);
+#define CV_SLIDER_H 12
 /* Text is proportional and hung off a baseline: `y` is the top of the line,
  * the call returns how far the pen moved, and bg < 0 leaves what is under
  * it alone. */
@@ -77,6 +87,10 @@ int cv_text(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_width(const char *s); /* what it will take, without drawing it */
 void cv_pointer(int x, int y);
+/* How bright the palette is on its way out, 0 black to 1 full: the fade a
+ * program of the day did by ramping the DAC rather than by touching a
+ * single pixel, which is also the only fade an indexed screen has. */
+void cv_fade(float f);
 const uint8_t *cv_rgb(void); /* the canvas as SCR_W x SCR_H RGB8 */
 int cv_banner_count(void);
 #endif

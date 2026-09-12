@@ -61,6 +61,27 @@ void cv_banner(int which) {
             put(x, y, (uint8_t)(BANNER_FIRST + b->px[y * b->w + x]));
 }
 
+/* one picture's rows, from `y0` down to `y1`, wherever it has any */
+static void banner_rows(const banner *b, int y0, int y1) {
+    for (int y = y0; y < y1 && y < b->h && y < SCR_H; y++)
+        for (int x = 0; x < b->w && x < SCR_W; x++)
+            put(x, y, (uint8_t)(BANNER_FIRST + b->px[y * b->w + x]));
+}
+
+void cv_banner_slats(const banner *from, const banner *to, float shut, int slats) {
+    if (!from || !to || slats < 1)
+        return;
+    for (int i = 0; i < BANNER_COLOURS; i++)
+        memcpy(pal[BANNER_FIRST + i], to->pal + i * 3, 3); /* the pair's own */
+    int band = (SCR_H + slats - 1) / slats;
+    int open = (int)((float)band * shut + 0.5f);
+    for (int i = 0; i < slats; i++) {
+        int y0 = i * band;
+        banner_rows(to, y0, y0 + open);          /* what the slat has let through */
+        banner_rows(from, y0 + open, y0 + band); /* and what it still covers */
+    }
+}
+
 void cv_rect(int x, int y, int w, int h, uint8_t colour) {
     for (int j = y; j < y + h; j++)
         for (int i = x; i < x + w; i++)
@@ -95,6 +116,17 @@ void cv_scrim(int x, int y, int w, int h, int n, int r) {
             if (!keep)
                 put(i, j, C_BLACK);
         }
+}
+
+void cv_slider(int x, int y, int w, float t, int on) {
+    if (t < 0.0f)
+        t = 0.0f;
+    if (t > 1.0f)
+        t = 1.0f;
+    int mid = y + CV_SLIDER_H / 2, fill = (int)(t * (float)(w - 1) + 0.5f);
+    cv_rect(x, mid, w, 1, C_DGREY);                   /* the groove */
+    cv_rect(x, mid, fill, 1, on ? C_YELLOW : C_GREY); /* how far along */
+    cv_rect(x + fill - 1, y + 2, 3, CV_SLIDER_H - 4, on ? C_YELLOW : C_GREY);
 }
 
 void cv_round_frame(int x, int y, int w, int h, uint8_t colour, int r) {
@@ -215,9 +247,19 @@ void cv_pointer(int x, int y) {
         }
 }
 
+static float fade = 1.0f;
+
+void cv_fade(float f) {
+    fade = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+}
+
 const uint8_t *cv_rgb(void) {
+    uint8_t ramp[256][3];
+    for (int i = 0; i < 256; i++)
+        for (int k = 0; k < 3; k++)
+            ramp[i][k] = (uint8_t)((float)pal[i][k] * fade + 0.5f);
     for (int i = 0; i < CANVAS_W * CANVAS_H; i++) {
-        const uint8_t *c = pal[canvas[i]];
+        const uint8_t *c = ramp[canvas[i]];
         rgb[i * 3] = c[0];
         rgb[i * 3 + 1] = c[1];
         rgb[i * 3 + 2] = c[2];
