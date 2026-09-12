@@ -35,7 +35,7 @@ add_executable(dxm
     src/dos/dos.c src/dos/term.c src/dos/boot.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
-    src/dosbox/dosbox.c src/dosbox/keys.c
+    src/dosbox/dosbox.c src/dosbox/keys.c src/dosbox/motd.c
     ${DXM_WIN_RC})
 target_include_directories(dxm PRIVATE src ${CMAKE_BINARY_DIR}/generated)
 # The shaders are GLSL files under shaders/, baked into one header at build

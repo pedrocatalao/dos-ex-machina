@@ -45,6 +45,7 @@ dos-ex-machina/
 │   │   ├── dosbox.c        opens the core, runs it on its own thread; frames, keys,
 │   │   │                   mouse, audio, options, DOSBOX.BAT
 │   │   ├── keys.c          SDL scancodes to libretro keys
+│   │   ├── motd.c          the message of the day under the greeting
 │   │   ├── libretro.h      the libretro API, vendored as it ships (MIT)
 │   │   └── internal.h
 │   ├── segdisp.h           the turbo display's digit geometry and clock stops, shared
@@ -134,9 +135,12 @@ things: the latest frame, the audio, and whether DOS has said EXIT.
   nothing that takes no time reads as loading.
 - **DOSBOX.BAT.** DOSBox Pure runs a `DOSBOX.BAT` it finds in the root in
   place of its own start menu. The machine writes one that prints the
-  greeting under that screen, and rewrites it at each boot for as long as it
+  message of the day and the greeting under that screen, and rewrites it at
+  each boot - the message is drawn again every time - for as long as it
   starts with the machine's marker line; a file somebody replaced is left
   alone.
+  The message comes from `motd.c`: the shipped set, or a `MOTD.TXT` in the
+  root of C: if the user put one there.
 - **The picture.** Frames come out as XRGB8888 and are converted to RGB8 on
   the core's thread, into a triple buffer the main loop reads without
   waiting. Text modes wear a border in the same proportion as the POST's

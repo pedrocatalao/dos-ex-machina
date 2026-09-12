@@ -88,11 +88,12 @@ static const struct {
 
 /* What the DOS prints when it reaches its prompt: the ECHO lines of the
  * DOSBOX.BAT the machine writes into C:.  DOSBox Pure runs that file in
- * place of its own start menu when it finds one in the root. */
+ * place of its own start menu when it finds one in the root.  The message
+ * of the day (motd.c) goes above these, and the blank line after them. */
 static const char *const GREETING[] = {
-    "For a list of available commands, type HELP.",
-    "If you know, you know.",
-    "",
+    /* HELP in bright white: DOS's CON device reads the ANSI escapes, the
+     * way ANSI.SYS did, and ECHO passes them straight through */
+    "For a list of available commands, type \033[1;37mHELP\033[0m.",
 };
 
 /* The one option that changes while the machine runs: the CPU speed, from
@@ -547,15 +548,13 @@ static int SDLCALL thread_main(void *ud) {
 /* ---- the public face ------------------------------------------------- */
 
 /* The autoexec of the mounted drive.  DOSBox Pure runs a DOSBOX.BAT it
- * finds in the root instead of its own start menu, and it is the DOS
- * side of the handover: it clears the screen the BIOS drew on and prints
- * what the machine's own AUTOEXEC.BAT prints - the ECHO lines, nothing
- * that names a driver this drive does not have - so the prompt arrives
- * the way it always has.  A file the machine wrote is rewritten each
- * boot; one somebody else put there is theirs and is kept. */
-/* DOSBOX.BAT in the root of C:.  Written the first time, and again only
- * while it still starts with the marker - a file the user has replaced
- * with their own is theirs and is left alone. */
+ * finds in the root instead of its own start menu, and it is the DOS side
+ * of the boot: the BIOS program in the core has just printed the machine's
+ * second screen, and this prints the greeting and the message of the day
+ * under it, so the prompt arrives the way it always has.  Written the
+ * first time, and again each boot - the message of the day changes - while
+ * it still starts with the marker; a file the user has replaced with their
+ * own is theirs and is left alone. */
 static void write_autoexec(const char *c_drive) {
     static const char MARK[] = "@REM DOS ex Machina writes this file; "
                                "replace it with your own to keep it.";
@@ -577,8 +576,12 @@ static void write_autoexec(const char *c_drive) {
     /* No CLS: the BIOS program in the core has just printed the machine's
      * second screen, and the greeting belongs under it. */
     fprintf(f, "%s\r\n@ECHO OFF\r\n", MARK);
+    char motd[160];
+    motd_today(c_drive, motd, sizeof motd);
+    fprintf(f, "ECHO %s\r\n", motd);
     for (size_t i = 0; i < sizeof GREETING / sizeof GREETING[0]; i++)
         fprintf(f, GREETING[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", GREETING[i]);
+    fprintf(f, "ECHO.\r\n");
     fclose(f);
     dxm_log("dosbox: wrote %s", path);
 }

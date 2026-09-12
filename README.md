@@ -93,6 +93,10 @@ machine writes one file there, `DOSBOX.BAT`, which DOSBox runs at boot to
 print the greeting under the BIOS's second screen. Replace it with your own
 and the machine leaves it alone.
 
+Above the greeting is a message of the day, drawn afresh at each boot. Put
+a `MOTD.TXT` in the root of C:, one message a line, and the machine reads
+yours instead of its own; a line starting with `;` is a comment.
+
 `--dosbox DIR` mounts another folder as C: instead, and so does the
 `DXM_DOSBOX` environment variable.
 
