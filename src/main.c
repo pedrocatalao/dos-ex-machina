@@ -8,6 +8,7 @@
 #include "dos.h"
 #include "chassis.h"
 #include "dosbox.h"
+#include "setup.h"
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
@@ -26,6 +27,7 @@ typedef struct {
      * program.  Both also read from the environment. */
     const char *dosbox, *dosbox_core;
     const char *keyboard; /* --keyboard: the DOS layout, instead of the guess */
+    int setup;            /* --setup: open SETUP at once, for shots and tests */
 } options;
 
 static options parse(int argc, char **argv) {
@@ -36,7 +38,8 @@ static options parse(int argc, char **argv) {
                  0.5f,
                  getenv("DXM_DOSBOX"),
                  getenv("DXM_DOSBOX_CORE"),
-                 getenv("DXM_KEYBOARD")};
+                 getenv("DXM_KEYBOARD"),
+                 0};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump-audio") && i + 1 < argc)
             o.app.audio_dump = argv[++i];
@@ -58,6 +61,8 @@ static options parse(int argc, char **argv) {
             o.dosbox_core = argv[++i];
         else if (!strcmp(argv[i], "--keyboard") && i + 1 < argc)
             o.keyboard = argv[++i];
+        else if (!strcmp(argv[i], "--setup"))
+            o.setup = 1;
         else if (!strcmp(argv[i], "--ambient") && i + 1 < argc) {
             o.ambient = (float)atof(argv[++i]);
             if (o.ambient < 0)
@@ -174,6 +179,8 @@ int main(int argc, char **argv) {
         app_shutdown(&a);
         return 1;
     }
+    if (o.setup)
+        setup_open();
     dxm_log("dos booting, entering the frame loop");
 
     Uint64 t_start = app_now_ns();
@@ -204,7 +211,17 @@ int main(int argc, char **argv) {
                 last_b = last_c = -1.0f;
             }
         }
-        double t = (app_now_ns() - t_start) / 1e9;
+        /* SETUP stops the machine's clock: a BIOS setup halted the boot, so
+         * the POST waits where it stood and the theatre holds its pose. */
+        double raw = (app_now_ns() - t_start) / 1e9;
+        static double held_at = -1.0, held_for = 0.0;
+        if (setup_visible() && held_at < 0.0)
+            held_at = raw;
+        else if (!setup_visible() && held_at >= 0.0) {
+            held_for += raw - held_at;
+            held_at = -1.0;
+        }
+        double t = (held_at >= 0.0 ? held_at : raw) - held_for;
 
         if (dos_take_beep())
             snd_beep(240.0); /* after the RAM check */
@@ -262,7 +279,15 @@ int main(int argc, char **argv) {
                 last_h = ch;
             }
         }
-        if (src) {
+        if (setup_visible()) {
+            /* the machine's own program has the tube, in its own mode */
+            int sw, sh;
+            const uint8_t *px = setup_render(&sw, &sh);
+            gpu_set_tube(a.gpu, px, sw, sh);
+            k.crt_lines = sh; /* a 400-line mode, like the text screen's */
+            k.crt_cols = sw;
+            k.sharp_text = 0.0f; /* graphics, not a character generator */
+        } else if (src) {
             gpu_set_tube(a.gpu, src, cw, ch);
             k.crt_lines = cl;
             k.crt_cols = cw;
@@ -280,8 +305,10 @@ int main(int argc, char **argv) {
 
         show_knobs(a.gpu, &k, &last_b, &last_c);
         k.aperture_r = L.aperture_r; /* match the chassis hole */
+        /* the wall clock, not the machine's: SETUP stops the boot, not the
+         * tube - its noise, flicker and jitter are the glass's own */
         gpu_draw(a.gpu, L.tube_x / a.W, 1.0f - (L.tube_y + L.tube_h) / a.H, L.tube_w / a.W,
-                 L.tube_h / a.H, &k, t);
+                 L.tube_h / a.H, &k, raw);
         if (held)
             dosbox_frame_done();
         {

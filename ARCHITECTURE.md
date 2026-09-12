@@ -40,6 +40,11 @@ dos-ex-machina/
 │   │   ├── term.c/.h       the 80x25 text screen the POST is drawn on
 │   │   ├── boot.c          the BIOS lines, the RAM count, the badge
 │   │   └── internal.h
+│   ├── setup.h             the public face of src/setup/
+│   ├── setup/              the machine's own configuration program
+│   │   ├── setup.c         what it holds, what the keys do, the screen it draws
+│   │   ├── canvas.c        640x400 in 256 colours: the artwork, text, rules, the scrim
+│   │   └── internal.h
 │   ├── dosbox.h            the public face of src/dosbox/
 │   ├── dosbox/             the DOS: DOSBox Pure as a libretro core
 │   │   ├── dosbox.c        opens the core, runs it on its own thread; frames, keys,
@@ -99,9 +104,12 @@ files are over the first line and due a split: `chassis/parts.c`,
    unlit digits, and the shader lights the segments of the clock or the
    frame rate (`segdisp.h` holds the geometry both sides draw from). A DOS
    that has run EXIT starts the power-off.
-6. **The tube source** is DOSBox's latest frame once it has the tube, else
-   the POST's text screen (`dos_render`): an RGB8 image, with its line count
-   and column count. A change in DOSBox's picture size is a program
+6. **The tube source** is SETUP's own screen while it is up (`setup_render`,
+   640x400 in 256 colours), else DOSBox's latest frame once it has the tube,
+   else the POST's text screen (`dos_render`): an RGB8 image, with its line
+   count and column count. SETUP stops the machine's clock while it is
+   open - the POST waits where it stood - but not the tube's, whose noise
+   and flicker belong to the glass. A change in DOSBox's picture size is a program
    starting or ending, and runs the floppy drive.
 7. **The knobs** that moved are redrawn into the chassis texture
    (`chassis_knob_set`, `gpu_patch_chassis`).

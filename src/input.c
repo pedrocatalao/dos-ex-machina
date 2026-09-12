@@ -4,6 +4,7 @@
 #include "log.h"
 #include "dos.h"
 #include "dosbox.h"
+#include "setup.h"
 #include "ui.h"
 
 /* Which of the display's buttons, if any, is under a point in drawable
@@ -93,6 +94,10 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
         in->knob_drag = -1;
     } else if (panel) {
         ui_toggle();
+    } else if (setup_visible()) {
+        /* SETUP has the machine while it is up: the keys are its own */
+        if (down)
+            setup_key(e->key.scancode);
     } else if (dosbox_shown()) {
         dosbox_key(e->key.scancode, down);
     } else if (down) {
@@ -106,8 +111,10 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
             if (k->ambient > 1)
                 k->ambient = 1;
             dxm_log("ambient = %.2f", (double)k->ambient);
-        } else
-            dos_skip(); /* any key hurries the POST along */
+        } else if (e->key.scancode == SDL_SCANCODE_SPACE)
+            setup_open(); /* what the POST screen says the key does */
+        else
+            dos_skip(); /* any other key hurries the POST along */
     }
 }
 
@@ -120,7 +127,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         float mx = e->button.x * a->W / a->win_wf, my = e->button.y * a->H / a->win_hf;
         int kn = (!in->captured && !ui_visible()) ? knob_at(L, mx, my) : -1;
         int bt = (!in->captured && !ui_visible()) ? button_at(L, mx, my) : -1;
-        if (in->captured && dosbox_shown())
+        if (setup_visible())
+            setup_mouse(0, 0, e->button.button == SDL_BUTTON_LEFT ? 1 : 2);
+        else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
         else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             in->button = bt;
@@ -145,7 +154,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         break;
     case SDL_EVENT_MOUSE_MOTION: {
         float mx = e->motion.x * a->W / a->win_wf, my = e->motion.y * a->H / a->win_hf;
-        if (in->captured && dosbox_shown())
+        if (setup_visible())
+            setup_mouse((int)e->motion.xrel, (int)e->motion.yrel, 0);
+        else if (in->captured && dosbox_shown())
             dosbox_mouse_move((int)e->motion.xrel, (int)e->motion.yrel);
         else if (in->knob_drag >= 0)
             knob_turn(in, a, k, my);

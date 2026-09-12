@@ -31,8 +31,9 @@ endif()
 
 add_executable(dxm
     src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/cursor.c
-    src/gpu.c src/font.c src/sound.c src/ui.c src/gen/splash.c
+    src/gpu.c src/font.c src/sound.c src/ui.c src/gen/splash.c src/gen/banners.c
     src/dos/dos.c src/dos/term.c src/dos/boot.c
+    src/setup/setup.c src/setup/canvas.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
     src/dosbox/dosbox.c src/dosbox/keys.c src/dosbox/motd.c src/dosbox/layout.c

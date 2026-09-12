@@ -12,6 +12,7 @@ if a reproducible file drifts from what its tool produces.
 | `mark.h` | the DXM mark engraved on the case | `mklogo.py`, width 320 | `assets/dxm-badge.png` | reproducible |
 | `font16.h` | the VGA 8x16 CP437 font the text screen draws with | `mkfont.py` | `assets/cp437-8x16.fnt.uu` (3) | reproducible |
 | `multimedia.h` | the MULTIMEDIA sticker on the right speaker pod | `mklogo.py`, full size | `assets/multimedia-sticker.png` | reproducible |
+| `banners.c`, `banners.h` | the artwork across the top of SETUP, one palette each | `mkbanners.py` | `assets/banners/*.png` | reproducible |
 | `logo.h` | the POST-screen wordmark | `mklogo.py` | `assets/logo-src.png` | frozen (1) |
 | `icon.h` | window icon, 128 px | `mklogo.py` | `assets/icon-src.png` | frozen (1) |
 | `corner_sticker.h` | the dotted mark engraved above the left speaker | `mklogo.py` | `assets/corner-sticker.png` | frozen (1) |
