@@ -10,7 +10,6 @@
  * which is the only place colour actually happens. */
 #include "internal.h"
 #include "font.h"
-#include "gen/banners.h"
 #include <string.h>
 
 /* the 16 VGA text colours, as the DAC actually produced them */
@@ -46,18 +45,18 @@ void cv_clear(uint8_t colour) {
 }
 
 int cv_banner_count(void) {
-    return dxm_banner_count;
+    return banner_count();
 }
 
 void cv_banner(int which) {
-    if (dxm_banner_count <= 0)
+    const banner *b = banner_open(which);
+    if (!b)
         return;
-    const dxm_banner *b = &dxm_banners[which % dxm_banner_count];
-    for (int i = 0; i < DXM_BANNER_COLOURS; i++)
-        memcpy(pal[DXM_BANNER_FIRST + i], b->pal + i * 3, 3);
+    for (int i = 0; i < BANNER_COLOURS; i++)
+        memcpy(pal[BANNER_FIRST + i], b->pal + i * 3, 3);
     for (int y = 0; y < b->h && y < SCR_H; y++)
-        for (int x = 0; x < DXM_BANNER_W && x < SCR_W; x++)
-            put(x, y, (uint8_t)(DXM_BANNER_FIRST + b->px[y * DXM_BANNER_W + x]));
+        for (int x = 0; x < b->w && x < SCR_W; x++)
+            put(x, y, (uint8_t)(BANNER_FIRST + b->px[y * b->w + x]));
 }
 
 void cv_rect(int x, int y, int w, int h, uint8_t colour) {

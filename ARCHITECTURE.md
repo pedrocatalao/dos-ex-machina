@@ -44,6 +44,7 @@ dos-ex-machina/
 │   ├── setup/              the machine's own configuration program
 │   │   ├── setup.c         what it holds, what the keys do, the screen it draws
 │   │   ├── canvas.c        640x400 in 256 colours: the artwork, text, rules, the scrim
+│   │   ├── banner.c        opens a banner (stb_image), shades it, fits it a palette
 │   │   └── internal.h
 │   ├── dosbox.h            the public face of src/dosbox/
 │   ├── dosbox/             the DOS: DOSBox Pure as a libretro core
@@ -62,6 +63,8 @@ dos-ex-machina/
 │   ├── crt.h               the barrel and bezel geometry, shared by the case and the shader
 │   ├── version.h
 │   └── gen/                generated data, committed; see its README
+├── src/third_party/        stb_image.h, vendored as it ships: the only
+│                           third-party code in the program besides SDL3
 ├── external/dosbox-pure/   the DOSBox Pure fork, a submodule, built by CMake
 ├── shaders/                one GLSL file per pass, baked into the binary at build time
 ├── tests/

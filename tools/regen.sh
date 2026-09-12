@@ -24,7 +24,7 @@ $PY tools/mklogo.py  assets/dxm-badge.png   dxm_mark   "$out/mark.h"   320
 $PY tools/mksplash.py assets/splash-src.png dxm_splash "$out/splash.c" "$out/splash.h" 1024
 $PY tools/mkfont.py   assets/cp437-8x16.fnt.uu dxm_font16 "$out/font16.h"
 $PY tools/mklogo.py  assets/multimedia-sticker.png dxm_multimedia "$out/multimedia.h"
-$PY tools/mkbanners.py "$out/banners.c" "$out/banners.h" assets/banners/*.png
+$PY tools/mkbanners.py "$out/banners.c" "$out/banners.h" assets/banners/*.jpg
 
 if [ "$mode" = "--check" ]; then
     rc=0

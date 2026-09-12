@@ -233,6 +233,8 @@ were MIT licensed, and remain so.
 - **`src/dosbox/libretro.h`** is the libretro API header, vendored as it
   ships, under the MIT licence.
 - **The VGA font** is FreeBSD's `cp437-8x16`, under the BSD licence.
+- **`src/third_party/stb_image.h`** is Sean Barrett's image loader, vendored
+  as it ships, in the public domain (MIT at your option).
 - **SDL3** is linked, not vendored, under the zlib licence.
 - **No software or data for DOS is in this repository or in its releases.**
 

@@ -45,6 +45,19 @@ enum {
     C_WHITE
 };
 
+/* banner.c — the artwork, opened from the file it was made as and fitted
+ * to the palette entries the interface leaves it */
+#define BANNER_FIRST 16 /* the first palette entry the artwork owns */
+#define BANNER_COLOURS (256 - BANNER_FIRST)
+typedef struct {
+    const char *name;
+    int w, h;
+    const uint8_t *px;  /* w*h indices, 0..BANNER_COLOURS-1 */
+    const uint8_t *pal; /* BANNER_COLOURS RGB triples */
+} banner;
+const banner *banner_open(int which); /* NULL if the file will not open */
+int banner_count(void);
+
 /* canvas.c — the surface and what can be put on it */
 void cv_clear(uint8_t colour);
 void cv_banner(int which); /* the artwork at the top, and its palette */
