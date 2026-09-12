@@ -122,6 +122,20 @@ static const char *c_drive(const options *o, const app *a) {
     return path;
 }
 
+/* What SETUP says the machine is, told to the core while it will still
+ * listen: memory, the processor core and the MIDI device are read as it
+ * starts, and the keyboard is fixed once DOS is up.  Said again before a
+ * restart, since that is the point of restarting. */
+static void tell_the_core(const options *o) {
+    dosbox_set_option("dosbox_pure_memory_size", setup_memory());
+    dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
+    dosbox_set_midi(setup_midi());
+    if (o->keyboard)
+        dosbox_set_layout(o->keyboard); /* the flag wins over everything */
+    else if (strcmp(setup_keyboard(), "auto"))
+        dosbox_set_layout(setup_keyboard()); /* else SETUP, else the guess */
+}
+
 int main(int argc, char **argv) {
     options o = parse(argc, argv);
     app a;
@@ -172,16 +186,7 @@ int main(int argc, char **argv) {
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
     dosbox_set_mhz(theatre_mhz(&th));       /* the same, as the BIOS screen prints it */
-    /* what SETUP says the machine is, told to the core while it will still
-     * listen: memory and the processor core are read as it starts, and the
-     * keyboard is fixed once DOS is up */
-    dosbox_set_option("dosbox_pure_memory_size", setup_memory());
-    dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
-    dosbox_set_midi(setup_midi());
-    if (o.keyboard)
-        dosbox_set_layout(o.keyboard); /* the flag wins over everything */
-    else if (strcmp(setup_keyboard(), "auto"))
-        dosbox_set_layout(setup_keyboard()); /* else SETUP, else the guess */
+    tell_the_core(&o);
     if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
         const char *msg = "DOS ex Machina could not start its DOS.\n\n"
                           "The DOSBox core (dosbox_pure_libretro) was not found beside the "
@@ -268,6 +273,32 @@ int main(int argc, char **argv) {
         if (st == DOS_HANDOVER && dosbox_running() && !dosbox_shown()) {
             dosbox_show();
             dxm_log("dosbox: has the tube");
+        }
+        /* SETUP, asked for from the DOS prompt: the command waits while it
+         * is up, so DOS does nothing behind it. */
+        if (dosbox_take_setup())
+            setup_open();
+        dosbox_setup_is_up(setup_visible());
+
+        /* SAVE & REBOOT: the settings it kept are read as the machine
+         * starts, so the machine starts - the core goes down, the POST runs
+         * again from the top, and DOS comes up on the new ones. */
+        if (setup_take_reboot()) {
+            /* The machine does not go off and on: the mains stayed on, so
+             * there is no relay, no degauss and no fade up out of black, and
+             * the clock the turbo display is showing stays where it was set.
+             * The tube simply has nothing to show until the POST starts
+             * again, which is what a restart looks like. */
+            dxm_log("machine: restarting");
+            dosbox_stop();
+            dos_init(theatre_mhz(&th), a.deterministic);
+            tell_the_core(&o);
+            dosbox_set_cycles(theatre_cycles(&th));
+            dosbox_set_mhz(theatre_mhz(&th));
+            if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
+                dxm_log("machine: it did not come back up");
+                quit = 1;
+            }
         }
         if (dosbox_exited() && th.off_t0 < 0.0)
             theatre_power_off(&th, t);

@@ -141,8 +141,19 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_SHOWN (RETRO_ENVIRONMENT_PRIVATE | 3)
 #define DXM_ENV_DRIVE (RETRO_ENVIRONMENT_PRIVATE | 4)
 #define DXM_ENV_MIDI (RETRO_ENVIRONMENT_PRIVATE | 5)
+#define DXM_ENV_SETUP (RETRO_ENVIRONMENT_PRIVATE | 6)
 static char g_midi[16] = "auto";
+/* SETUP, asked for at the DOS prompt: the core's thread asks, the frame
+ * loop answers, since the screen is the main thread's to open. */
+static SDL_AtomicInt g_setup_req, g_setup_up;
 static SDL_AtomicInt g_mhz, g_floppy;
+
+int dosbox_take_setup(void) {
+    return SDL_SetAtomicInt(&g_setup_req, 0);
+}
+void dosbox_setup_is_up(int up) {
+    SDL_SetAtomicInt(&g_setup_up, up);
+}
 
 void dosbox_set_midi(const char *device) {
     snprintf(g_midi, sizeof g_midi, "%s", device ? device : "auto");
@@ -310,6 +321,11 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
         return true;
     case DXM_ENV_MIDI:
         *(const char **)data = g_midi;
+        return true;
+    case DXM_ENV_SETUP:
+        if (*(const bool *)data)
+            SDL_SetAtomicInt(&g_setup_req, 1); /* put it up */
+        *(bool *)data = SDL_GetAtomicInt(&g_setup_up) != 0;
         return true;
     case RETRO_ENVIRONMENT_SHUTDOWN:
         /* DOS was told EXIT.  The core wants to stop; the machine wants

@@ -23,9 +23,12 @@
 static const struct {
     const char *name, *about;
 } SECTION[] = {
-    {"MONITOR", "The tube and its glass."},    {"KEYBOARD", "The layout DOS types in."},
-    {"MACHINE", "Memory and processor core."}, {"SOUND", "The MIDI device, and what it costs."},
-    {"BOOT", "Where the boot ends up."},       {"SAVE & EXIT", "Keep it, or leave it be."},
+    {"MONITOR", "The tube and its glass."},
+    {"KEYBOARD", "The layout DOS types in."},
+    {"MACHINE", "Memory and processor core."},
+    {"SOUND", "The MIDI device, and what it costs."},
+    {"BOOT", "Where the boot ends up."},
+    {"SAVE & REBOOT", "Keep it all, and start the machine again."},
 };
 #define SECTIONS ((int)(sizeof SECTION / sizeof SECTION[0]))
 enum { SEC_MONITOR = 0, SEC_SAVE = SECTIONS - 1 };
@@ -77,7 +80,7 @@ static struct {
     Uint64 open_t0;           /* when it was asked for */
     int in_pane, row, scroll; /* where the eye is, and what it can see */
     int mx, my, held;         /* the pointer, and the button */
-    int touched;              /* something changed that waits for a power cycle */
+    int reboot;               /* SAVE & REBOOT: the machine is to start again */
     gpu_knobs *knobs;
     const char *crt_cfg, *dxm_cfg;
 } S = {.mx = SCR_W / 2, .my = SCR_H / 2};
@@ -207,7 +210,6 @@ static void nudge(int by, int shift) {
         return;
     if (s->kind == SET_CHOICE) {
         *s->pick = (*s->pick + by + s->nopts) % s->nopts;
-        S.touched |= s->next_boot;
         return;
     }
     float step = (s->hi - s->lo) / (shift ? 10.0f : 50.0f);
@@ -260,6 +262,7 @@ void setup_key(int sdl_scancode, int shift) {
     case SDL_SCANCODE_KP_ENTER:
         if (S.section == SEC_SAVE) {
             setup_save();
+            S.reboot = 1; /* the settings below are read as the machine starts */
             setup_close();
         } else if (nset)
             S.in_pane = 1;
@@ -275,6 +278,13 @@ void setup_key(int sdl_scancode, int shift) {
     default:
         break;
     }
+}
+
+/* Taken by the frame loop, which is where a machine can be restarted. */
+int setup_take_reboot(void) {
+    int r = S.reboot;
+    S.reboot = 0;
+    return r;
 }
 
 void setup_save(void) {
@@ -374,8 +384,6 @@ static void pane_rows(void) {
             int wide = cv_text(TRACK_X, y, s->opts[*s->pick], ink, -1);
             if (on && !s->fixed)
                 cv_text(TRACK_X + wide + 6, y, "\x1A", C_YELLOW, -1);
-            if (s->next_boot && !s->fixed)
-                cv_text(TRACK_X + TRACK_W + 12, y, "\x07", on ? C_YELLOW : C_DGREY, -1);
         }
     }
     /* what the row the eye is on has to say for itself */
@@ -384,8 +392,6 @@ static void pane_rows(void) {
         int y = PANE_Y + PANE_H + 2;
         if (s->note)
             cv_text(PANE_X, y, s->note, C_DGREY, -1);
-        if (s->next_boot && !s->fixed)
-            cv_text(LIST_X, y, "\x07 at next power-on", C_DGREY, -1);
     }
     /* how much of the list is showing, if it does not all fit */
     if (nset > ROWS) {

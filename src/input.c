@@ -95,9 +95,15 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
     } else if (panel) {
         ui_toggle();
     } else if (setup_visible()) {
-        /* SETUP has the machine while it is up: the keys are its own */
+        /* SETUP has the keys while it is up - but not the releases of keys
+         * DOS is still holding down.  The RETURN that ran the SETUP command
+         * is let go while this screen is up, and a key DOS never sees come
+         * up is a key its BIOS goes on repeating: the prompt fills with
+         * newlines, and the next press of it does nothing at all. */
         if (down)
             setup_key(e->key.scancode, (e->key.mod & SDL_KMOD_SHIFT) != 0);
+        else
+            dosbox_key(e->key.scancode, 0);
     } else if (dosbox_shown()) {
         dosbox_key(e->key.scancode, down);
     } else if (down) {

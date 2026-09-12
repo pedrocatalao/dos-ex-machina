@@ -31,6 +31,9 @@ void setup_open(void);
 void setup_close(void);
 int setup_visible(void);
 void setup_save(void); /* keep what was changed, where it is kept */
+/* 1 once when SAVE & REBOOT was chosen: the settings it keeps are read
+ * as the machine starts, so the machine has to start again. */
+int setup_take_reboot(void);
 
 /* Input while it is up.  The key is an SDL scancode, with the shift state
  * for the coarse step; the mouse arrives as the relative motion the machine

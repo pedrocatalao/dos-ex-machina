@@ -61,6 +61,11 @@ void dosbox_set_midi(const char *device);
  * default - memory size, CPU core and the like, all of which the core reads
  * as it starts.  Set before dosbox_start(); later has no effect. */
 void dosbox_set_option(const char *key, const char *value);
+/* SETUP at the DOS prompt: 1 once when the command asked for the machine's
+ * own configuration screen, and the machine saying whether it is still up,
+ * which is what the command waits on. */
+int dosbox_take_setup(void);
+void dosbox_setup_is_up(int up);
 /* Seconds of drive the core's BIOS screen asked for, taken once. */
 double dosbox_take_floppy(void);
 
