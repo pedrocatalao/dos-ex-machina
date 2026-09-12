@@ -48,6 +48,11 @@ void dosbox_type(const char *s);
  * millisecond).  Takes effect on the core's next frame; set before
  * dosbox_start() it is what the machine boots with. */
 void dosbox_set_cycles(int cycles);
+/* The same speed as the turbo display reads it, for the BIOS screen the
+ * core draws after the handover. */
+void dosbox_set_mhz(int mhz);
+/* Seconds of drive the core's BIOS screen asked for, taken once. */
+double dosbox_take_floppy(void);
 
 /* Pull for the audio device: 16-bit stereo at DOSBOX_AUDIO_HZ.  Silent
  * until shown. */

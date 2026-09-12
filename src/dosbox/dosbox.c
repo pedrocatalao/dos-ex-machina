@@ -90,8 +90,8 @@ static const struct {
  * DOSBOX.BAT the machine writes into C:.  DOSBox Pure runs that file in
  * place of its own start menu when it finds one in the root. */
 static const char *const GREETING[] = {
-    "- For a list of available commands, type HELP.",
-    "- If you know, you know.",
+    "For a list of available commands, type HELP.",
+    "If you know, you know.",
     "",
 };
 
@@ -105,6 +105,24 @@ static char g_cycles_str[16];
 void dosbox_set_cycles(int cycles) {
     SDL_SetAtomicInt(&g_cycles, cycles);
     SDL_SetAtomicInt(&g_cycles_dirty, 1);
+}
+
+/* The machine's own channel to the core, in libretro's private range.  The
+ * other side of it is external/dosbox-pure/dosbox_pure_dxm.h, which holds
+ * the same four numbers and the BIOS program that calls them; a core built
+ * from upstream never asks. */
+#define DXM_ENV_HELLO (RETRO_ENVIRONMENT_PRIVATE | 1)
+#define DXM_ENV_MHZ (RETRO_ENVIRONMENT_PRIVATE | 2)
+#define DXM_ENV_SHOWN (RETRO_ENVIRONMENT_PRIVATE | 3)
+#define DXM_ENV_DRIVE (RETRO_ENVIRONMENT_PRIVATE | 4)
+static SDL_AtomicInt g_mhz, g_floppy;
+
+void dosbox_set_mhz(int mhz) {
+    SDL_SetAtomicInt(&g_mhz, mhz);
+}
+double dosbox_take_floppy(void) {
+    int ms = SDL_SetAtomicInt(&g_floppy, 0); /* returns what was there */
+    return ms > 0 ? ms / 1000.0 : 0.0;
 }
 
 #define FRAME_MAX_W 1280
@@ -227,6 +245,23 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
         return true;
     case RETRO_ENVIRONMENT_SET_MESSAGE_EXT:
         dxm_log("dosbox: %s", ((const struct retro_message_ext *)data)->msg);
+        return true;
+    /* The machine's own channel to the core, in libretro's private range;
+     * the other side is external/dosbox-pure/dosbox_pure_dxm.h.  The core's
+     * BIOS program asks who is in front of it, what the turbo display
+     * reads, whether the tube is showing its screen yet, and for the drive
+     * to run while it waits. */
+    case DXM_ENV_HELLO:
+        *(bool *)data = true;
+        return true;
+    case DXM_ENV_MHZ:
+        *(unsigned *)data = (unsigned)SDL_GetAtomicInt(&g_mhz);
+        return true;
+    case DXM_ENV_SHOWN:
+        *(bool *)data = db.shown != 0;
+        return true;
+    case DXM_ENV_DRIVE:
+        SDL_SetAtomicInt(&g_floppy, (int)*(const unsigned *)data);
         return true;
     case RETRO_ENVIRONMENT_SHUTDOWN:
         /* DOS was told EXIT.  The core wants to stop; the machine wants
@@ -539,7 +574,9 @@ static void write_autoexec(const char *c_drive) {
         dxm_log("dosbox: cannot write %s", path);
         return;
     }
-    fprintf(f, "%s\r\n@ECHO OFF\r\nCLS\r\n", MARK);
+    /* No CLS: the BIOS program in the core has just printed the machine's
+     * second screen, and the greeting belongs under it. */
+    fprintf(f, "%s\r\n@ECHO OFF\r\n", MARK);
     for (size_t i = 0; i < sizeof GREETING / sizeof GREETING[0]; i++)
         fprintf(f, GREETING[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", GREETING[i]);
     fclose(f);

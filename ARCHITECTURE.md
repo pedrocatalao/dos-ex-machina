@@ -125,9 +125,16 @@ things: the latest frame, the audio, and whether DOS has said EXIT.
 - **Boot.** The core starts before the POST is drawn, with the machine's C:
   drive mounted: `<prefs>/C`, or `--dosbox DIR`. It is at its prompt long
   before the memory count is done, hidden until the handover.
+- **The BIOS's second screen** is drawn inside the emulator, by
+  `Z:\DXMBIOS.COM`, a program the fork adds (`dosbox_pure_dxm.h`) and runs
+  as the first line of the boot. It prints nothing until the machine says
+  the tube is showing it, then puts up the System Configurations box, waits,
+  runs the drive, and prints "Starting DXM-DOS...". The pauses are why it
+  lives there: a batch file's lines print in a few milliseconds, and
+  nothing that takes no time reads as loading.
 - **DOSBOX.BAT.** DOSBox Pure runs a `DOSBOX.BAT` it finds in the root in
-  place of its own start menu. The machine writes one that clears the screen
-  and prints the greeting, and rewrites it at each boot for as long as it
+  place of its own start menu. The machine writes one that prints the
+  greeting under that screen, and rewrites it at each boot for as long as it
   starts with the machine's marker line; a file somebody replaced is left
   alone.
 - **The picture.** Frames come out as XRGB8888 and are converted to RGB8 on
@@ -157,7 +164,11 @@ The core is built from the fork in `external/dosbox-pure` by its own
 Makefile, driven from CMake (see the `DXM_CORE` block in `CMakeLists.txt`),
 with its objects in the submodule's own ignored build directory, one per
 architecture; a universal macOS build joins the two with lipo. The fork
-carries no changes of its own yet: it is upstream, pinned.
+carries one change of its own, `dosbox_pure_dxm.h`: the BIOS program above
+and the private libretro environment calls it talks to the machine
+through - who is in front of it, the turbo display's clock, whether the
+tube is showing this screen yet, and the drive. A core built from upstream
+never asks, and the machine copes.
 
 ## Verification
 

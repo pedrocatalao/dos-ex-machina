@@ -28,8 +28,9 @@ plastic around it.
 DOSBox runs DOS. DOS ex Machina is the machine it runs in: the case, the
 tube, the drive that spins when a program loads, the power switch. DOSBox's
 picture goes through the same CRT pipeline the machine draws its own POST
-with, and the handover between the two is invisible: the BIOS screen clears,
-and the next thing on the glass is DOS's own prompt, in the same VGA font.
+with, and the handover between the two is invisible: the BIOS clears its
+first screen, and the second one, the system configuration, is drawn by
+DOSBox itself, with DOS's prompt coming up under it in the same VGA font.
 
 Version 1 ran natively ported DOS games instead, loaded as modules and
 installed from a catalogue, with a simulated DOS prompt and a navigator in
@@ -89,8 +90,8 @@ created the first time it runs:
 
 Put your DOS software in it, as folders, the way it sat on a hard disk. The
 machine writes one file there, `DOSBOX.BAT`, which DOSBox runs at boot to
-print the greeting. Replace it with your own and the machine leaves it
-alone.
+print the greeting under the BIOS's second screen. Replace it with your own
+and the machine leaves it alone.
 
 `--dosbox DIR` mounts another folder as C: instead, and so does the
 `DXM_DOSBOX` environment variable.
@@ -110,8 +111,9 @@ no background around it. Extra width becomes more machine, never
 letterboxing.
 
 The machine powers on, degausses, warms up and runs its POST. By the time
-the memory count is done, DOSBox has booted behind it; the screen clears and
-the DOS prompt is there. `EXIT` powers the machine down properly: the raster
+the memory count is done, DOSBox has booted behind it; the screen clears,
+the system configuration comes up, the drive runs, and the DOS prompt
+arrives under it. `EXIT` powers the machine down properly: the raster
 collapses, the fans spin down, and the room goes dark.
 
 **The mouse** belongs to the machine: no pointer over the glass, and a DOS

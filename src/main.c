@@ -146,6 +146,7 @@ int main(int argc, char **argv) {
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
+    dosbox_set_mhz(theatre_mhz(&th));       /* the same, as the BIOS screen prints it */
     if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
         const char *msg = "DOS ex Machina could not start its DOS.\n\n"
                           "The DOSBox core (dosbox_pure_libretro) was not found beside the "
@@ -177,6 +178,7 @@ int main(int argc, char **argv) {
             else if (r == INPUT_BUTTON) {
                 theatre_button(&th, in.button);
                 dosbox_set_cycles(theatre_cycles(&th));
+                dosbox_set_mhz(theatre_mhz(&th));
             } else if (r == INPUT_RESIZED) {
                 app_measure(&a);
                 gpu_resize(a.gpu, a.W, a.H);
@@ -193,6 +195,8 @@ int main(int argc, char **argv) {
             snd_beep(240.0); /* after the RAM check */
         {
             double f = dos_take_floppy();
+            if (f <= 0.0)
+                f = dosbox_take_floppy(); /* the core's BIOS screen asking */
             if (f > 0.0)
                 theatre_drive(&th, f, t);
         }

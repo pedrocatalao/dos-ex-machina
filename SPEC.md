@@ -317,16 +317,27 @@ forks because it is a library by design, with no window, event loop or audio
 device of its own, and because it boots straight into a mounted folder.
 
 **Boot behind the POST.** The core is started before the POST is drawn and
-is at its prompt before the memory count finishes. The POST ends on a
-cleared screen, and at that moment DOSBox takes the tube: the next thing on
-the glass is DOS's own greeting and prompt. The POST's text screen and a
-DOSBox text mode are the same size, in the same font, with the same border,
-so nothing moves.
+is at its prompt before the memory count finishes. The POST draws the
+BIOS's first screen and clears it, and at that moment DOSBox takes the
+tube. The POST's text screen and a DOSBox text mode are the same size, in
+the same font, with the same border, so nothing moves.
+
+**The BIOS's second screen belongs to the emulator.** The System
+Configurations box, the pauses between it and the boot, the drive that runs
+in them and "Starting DXM-DOS..." are printed by `Z:\DXMBIOS.COM`, a
+program in the fork (`dosbox_pure_dxm.h`) that runs as the first line of
+the boot. Two reasons it is there rather than in a batch file on C:. A
+batch file prints its lines in a few milliseconds, so nothing takes any
+time and nothing reads as loading; and the boot should leave nothing lying
+on the user's disk. It prints only once the machine says the tube is
+showing it, since the emulator reaches its prompt seconds before the POST
+ends.
 
 **The greeting** is printed by `DOSBOX.BAT`, which the machine writes into
-the root of C: and DOSBox Pure runs instead of its start menu. The machine
-rewrites it at each boot for as long as it carries the machine's marker; a
-file somebody replaced is theirs.
+the root of C: and DOSBox Pure runs instead of its start menu, under that
+screen rather than clearing it. The machine rewrites it at each boot for as
+long as it carries the machine's marker; a file somebody replaced is
+theirs.
 
 **What the machine asks of the core**, through the libretro option
 callbacks: the device's sample rate, so nothing is resampled; no start

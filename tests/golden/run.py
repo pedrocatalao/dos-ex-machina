@@ -31,16 +31,18 @@ import zlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # name, window size, frame to capture.  Frame numbers are in sixtieths of
-# a second of machine time.  Frame 420 is the end of the POST: its second
-# screen, the System Configurations box with "Starting DXM-DOS..." under
-# it, a few frames before the DOS takes the tube.  Everything up to that
+# a second of machine time.  Frame 290 is the end of the POST: the memory
+# count done, the drives detected, and the SETUP prompt and the clock along
+# the bottom, a few frames before the DOS takes the tube.  The BIOS's
+# second screen is not here: DOSBox draws that one (src/dosbox, and
+# dosbox_pure_dxm.h in the fork).  Everything up to that
 # handover is the machine's own drawing on the fixed clock, so it is the
 # same picture on every run; after it the picture is DOSBox's, which runs
 # on its own clock and cannot be compared frame for frame (tests/boot
 # checks that part instead).
 CASES = [
-    ("post-1280x800", "1280x800", 420),
-    ("post-1720x720", "1720x720", 420),
+    ("post-1280x800", "1280x800", 290),
+    ("post-1720x720", "1720x720", 290),
 ]
 
 
