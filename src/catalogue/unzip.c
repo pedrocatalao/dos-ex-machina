@@ -13,6 +13,7 @@
 #include "unzip.h"
 #define ZLIB_CONST /* next_in is const, as our input is */
 #include <zlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
