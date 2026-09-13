@@ -21,7 +21,8 @@ static void title(char *out, size_t n, const char *replace_key, const char *with
         {"multiplayer", "false"},
         {"network", "false"},
         {"run", "\"KEEN4E.EXE\""},
-        {"download", "{ \"url\": \"https://x/keen4.zip\", \"size\": 1000, \"sha256\": \"" SHA "\" }"},
+        {"download",
+         "{ \"url\": \"https://x/keen4.zip\", \"size\": 1000, \"sha256\": \"" SHA "\" }"},
         {"video", "\"EGA\""},
         {"sound", "[\"pcspeaker\", \"adlib\"]"},
         {"setup", "\"SETUP.EXE\""},
@@ -85,11 +86,20 @@ int main(void) {
 
     /* each fault drops the title, with a note, and nothing else */
     const char *faults[][2] = {
-        {"id", NULL},          {"id", "\"keen4\""},        {"id", "\"TOOLONGID\""},
-        {"name", NULL},        {"creator", NULL},          {"year", NULL},
-        {"year", "\"1991\""},  {"category", "\"game\""},   {"category", "\"GAMES2\""},
-        {"multiplayer", NULL}, {"network", "\"no\""},      {"run", NULL},
-        {"download", NULL},    {"download", "{ \"url\": \"ftp://x\", \"size\": 1, \"sha256\": \"" SHA "\" }"},
+        {"id", NULL},
+        {"id", "\"keen4\""},
+        {"id", "\"TOOLONGID\""},
+        {"name", NULL},
+        {"creator", NULL},
+        {"year", NULL},
+        {"year", "\"1991\""},
+        {"category", "\"game\""},
+        {"category", "\"GAMES2\""},
+        {"multiplayer", NULL},
+        {"network", "\"no\""},
+        {"run", NULL},
+        {"download", NULL},
+        {"download", "{ \"url\": \"ftp://x\", \"size\": 1, \"sha256\": \"" SHA "\" }"},
         {"download", "{ \"url\": \"https://x\", \"size\": 1, \"sha256\": \"abc\" }"},
         {"download", "{ \"url\": \"https://x\", \"sha256\": \"" SHA "\" }"},
         {"video", "\"HERCULES\""},
@@ -134,11 +144,16 @@ int main(void) {
 
     /* the list */
     CHECK(cat_parse_list(&l, "{\"format\": 1, \"catalogues\": ["
-                             "{\"id\": \"A\", \"name\": \"A\", \"file\": \"a.cat\", \"origin\": \"bundled\", \"drive\": \"D\"},"
-                             "{\"id\": \"B\", \"name\": \"B\", \"file\": \"../b.cat\", \"origin\": \"bundled\", \"drive\": \"E\"},"
-                             "{\"id\": \"C\", \"name\": \"C\", \"file\": \"c.cat\", \"origin\": \"mine\", \"drive\": \"E\"},"
-                             "{\"id\": \"D\", \"name\": \"D\", \"file\": \"d.cat\", \"origin\": \"community\", \"drive\": \"A\"},"
-                             "{\"id\": \"A\", \"name\": \"A2\", \"file\": \"a2.cat\", \"origin\": \"community\", \"drive\": \"F\"}"
+                             "{\"id\": \"A\", \"name\": \"A\", \"file\": \"a.cat\", \"origin\": "
+                             "\"bundled\", \"drive\": \"D\"},"
+                             "{\"id\": \"B\", \"name\": \"B\", \"file\": \"../b.cat\", \"origin\": "
+                             "\"bundled\", \"drive\": \"E\"},"
+                             "{\"id\": \"C\", \"name\": \"C\", \"file\": \"c.cat\", \"origin\": "
+                             "\"mine\", \"drive\": \"E\"},"
+                             "{\"id\": \"D\", \"name\": \"D\", \"file\": \"d.cat\", \"origin\": "
+                             "\"community\", \"drive\": \"A\"},"
+                             "{\"id\": \"A\", \"name\": \"A2\", \"file\": \"a2.cat\", \"origin\": "
+                             "\"community\", \"drive\": \"F\"}"
                              "]}") == 1);
     CHECK(l.n_notes == 4);
     CHECK_STR(l.entries[0].file, "a.cat");

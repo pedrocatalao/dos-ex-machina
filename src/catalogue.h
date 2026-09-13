@@ -18,11 +18,11 @@
 #define CAT_NAME 65 /* a title's name */
 #define CAT_DESC 401
 #define CAT_URL 400
-#define CAT_LIST 8      /* catalogues in the list */
-#define CAT_TITLES 256  /* titles in one catalogue */
-#define CAT_WORDS 6     /* entries in a sound or controls list */
-#define CAT_WORD 12     /* one such entry */
-#define CAT_NOTES 16    /* dropped titles remembered for the log */
+#define CAT_LIST 8     /* catalogues in the list */
+#define CAT_TITLES 256 /* titles in one catalogue */
+#define CAT_WORDS 6    /* entries in a sound or controls list */
+#define CAT_WORD 12    /* one such entry */
+#define CAT_NOTES 16   /* dropped titles remembered for the log */
 
 typedef struct {
     char url[CAT_URL];
@@ -40,7 +40,7 @@ typedef struct {
     int multiplayer, network;
     char video[8]; /* CGA, EGA, VGA, SVGA, or empty */
     char sound[CAT_WORDS][CAT_WORD], controls[CAT_WORDS][CAT_WORD];
-    char run[64], setup[64]; /* setup is empty for a title without one */
+    char run[64], setup[64];    /* setup is empty for a title without one */
     cat_file download, artwork; /* artwork.url empty for a title without */
 } cat_title;
 
@@ -55,11 +55,11 @@ typedef struct {
 } cat_catalogue;
 
 typedef struct {
-    char id[CAT_ID];    /* the host folder, and the volume label */
+    char id[CAT_ID]; /* the host folder, and the volume label */
     char name[CAT_NAME];
-    char file[64];      /* the .cat, beside the list */
-    int community;      /* origin: bundled (0) or community (1) */
-    char drive;         /* the default letter, 'C'..'Z' */
+    char file[64]; /* the .cat, beside the list */
+    int community; /* origin: bundled (0) or community (1) */
+    char drive;    /* the default letter, 'C'..'Z' */
 } cat_entry;
 
 typedef struct {

@@ -12,7 +12,8 @@
 #include <string.h>
 #include <ctype.h>
 
-const char *const cat_categories[] = {"GAMES", "TOOLS", "EDUCATION", "MUSIC", "DEMOS", "MISC", NULL};
+const char *const cat_categories[] = {"GAMES", "TOOLS", "EDUCATION", "MUSIC",
+                                      "DEMOS", "MISC",  NULL};
 
 int cat_category_ok(const char *word) {
     for (int i = 0; cat_categories[i]; i++)

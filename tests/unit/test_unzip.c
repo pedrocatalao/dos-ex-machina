@@ -150,8 +150,8 @@ int main(void) {
     CHECK(file_says(path, "level one"));
 
     /* the names that must not be extracted, whatever else is in there */
-    const char *bad[] = {"../escape.txt", "game/../../x", "/etc/passwd", "C:\\x", "a/./b/../c",
-                         "..", "game/..\\up"};
+    const char *bad[] = {"../escape.txt", "game/../../x", "/etc/passwd", "C:\\x",
+                         "a/./b/../c",    "..",           "game/..\\up"};
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         zip_begin();
         zip_add("ok.txt", "fine");
@@ -189,7 +189,8 @@ int main(void) {
     sha256_final(&c, hex);
     CHECK_STR(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     snprintf(path, sizeof path, "%sgame/README.TXT", dir);
-    CHECK(sha256_matches(path, "8b1c2fbd4d8f9df6f0d6b6ed8d2b3e0c0000000000000000000000000000000000") == 0);
+    CHECK(sha256_matches(
+              path, "8b1c2fbd4d8f9df6f0d6b6ed8d2b3e0c0000000000000000000000000000000000") == 0);
     CHECK(sha256_file(path, hex) == 0);
     CHECK(sha256_matches(path, hex));
 

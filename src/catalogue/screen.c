@@ -21,8 +21,8 @@
 /* the layout, in the 640x400 */
 enum {
     MARGIN = 24,
-    HEAD_Y = 14,             /* the machine's name, and the count */
-    TAB_Y = HEAD_Y + 28,     /* the catalogues */
+    HEAD_Y = 14,         /* the machine's name, and the count */
+    TAB_Y = HEAD_Y + 28, /* the catalogues */
     RULE_Y = TAB_Y + CV_LINE + 8,
     LEFT_X = MARGIN,
     LEFT_W = 246,
@@ -120,11 +120,15 @@ void catalog_load(void) {
         }
         for (int k = 0; k < s->cat.n_notes; k++)
             dxm_log("catalog: %s: %s", s->entry.id, s->cat.notes[k]);
-        /* the folder that is its drive: C: is the machine's own */
+        /* the folder that is its drive: C: is the machine's own.  The id is
+         * copied out first: it lives in the same struct as the mount, and
+         * GCC will not have snprintf read from what it is writing into. */
+        char id[CAT_ID];
+        memcpy(id, s->entry.id, sizeof id);
         if (s->entry.drive == 'C')
             snprintf(s->mount, sizeof s->mount, "%s/", S.c_drive);
         else
-            snprintf(s->mount, sizeof s->mount, "%scatalogues/%s/", S.pref, s->entry.id);
+            snprintf(s->mount, sizeof s->mount, "%scatalogues/%s/", S.pref, id);
         SDL_CreateDirectory(s->mount);
         dxm_log("catalog: %s on %c: - %d titles", s->entry.name, s->entry.drive, s->cat.n);
         nshelves++;
