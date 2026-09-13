@@ -492,7 +492,8 @@ also what the mouse presses. Under the list, the count, and the download's
 progress while there is one. It comes up the way SETUP does, with a
 moment of loading screen, and then arrives in horizontal bands slid in
 from alternate sides - the same arrival, without the loading, when it
-comes back from an errand.
+comes back from an errand. Leaving, it fades to black on the palette, and
+DOS waits at `CATALOG` until it has, so the prompt never shows under it.
 
 **Artwork** is shown before a title is installed, fetched when the title is
 first selected and kept at `artwork/<catalogue>/<CATEGORY>/<ID>.png` in the

@@ -53,6 +53,9 @@ enum {
 #define LOAD_MS 400
 #define SLIDE_MS 450
 #define BANDS 16
+/* Leaving: the screen goes down to black on the palette, and only then is
+ * the program over and the prompt back. */
+#define CLOSE_MS 300
 
 static shelf shelves[CAT_LIST];
 static int nshelves;
@@ -66,6 +69,7 @@ static struct {
     int mx, my, held, hover;
     int fixed_clock;
     Uint64 open_t0, slide_t0, click_t0; /* open_t0 is 0 when there was no loading */
+    Uint64 close_t0;                    /* when the fade out began, or 0 */
     int click_row;
     char base[1024], pref[1024], c_drive[1024];
     /* what the pointer can land on this frame */
@@ -179,18 +183,29 @@ void catalog_open(void) {
     S.my = SCR_H / 2;
     S.open_t0 = SDL_GetTicks();
     S.slide_t0 = S.open_t0 + LOAD_MS;
+    S.close_t0 = 0;
     S.note[0] = 0;
     S.find[0] = 0;
     refilter();
     dxm_log("catalog: open");
 }
 
-void catalog_close(void) {
-    if (!S.running)
-        return;
+/* The fade out is still the program running: DOS waits at CATALOG until
+ * the screen is black, so the prompt does not appear under it. */
+static void closed(void) {
     S.running = 0;
     S.away = 0;
+    S.close_t0 = 0;
     dxm_log("catalog: closed");
+}
+
+void catalog_close(void) {
+    if (!S.running || S.close_t0)
+        return;
+    if (S.fixed_clock || S.away)
+        closed(); /* nothing on screen to fade */
+    else
+        S.close_t0 = SDL_GetTicks();
 }
 
 int catalog_running(void) {
@@ -293,7 +308,7 @@ static char typed(int sc, int shift) {
 }
 
 void catalog_key(int sdl_scancode, int shift) {
-    if (S.away)
+    if (S.away || S.close_t0)
         return;
     if (install_busy()) {
         if (sdl_scancode == SDL_SCANCODE_ESCAPE)
@@ -363,7 +378,7 @@ void catalog_key(int sdl_scancode, int shift) {
 }
 
 void catalog_wheel(int by) {
-    if (S.away || install_busy())
+    if (S.away || S.close_t0 || install_busy())
         return;
     int max = S.nshown > ROWS ? S.nshown - ROWS : 0;
     S.scroll -= by;
@@ -399,7 +414,7 @@ void catalog_mouse(int dx, int dy) {
 
 void catalog_click(int down) {
     S.held = down;
-    if (!down || S.away)
+    if (!down || S.away || S.close_t0)
         return;
     int h = hit_at(S.mx, S.my);
     if (h < 0)
@@ -646,9 +661,16 @@ const uint8_t *catalog_render(int *w, int *h) {
     }
     draw_foot(s, t);
 
-    /* the arrival: the bands slide in, eased so they settle rather than
-     * stop; the pointer is drawn once they have */
-    if (!S.fixed_clock && now >= S.slide_t0 && now - S.slide_t0 < SLIDE_MS) {
+    /* the way out: down to black on the palette, and then the program ends */
+    if (S.close_t0) {
+        float u = (float)(now - S.close_t0) / (float)CLOSE_MS;
+        cv_fade(1.0f - u);
+        S.nhit = 0;
+        if (u >= 1.0f)
+            closed();
+    } else if (!S.fixed_clock && now >= S.slide_t0 && now - S.slide_t0 < SLIDE_MS) {
+        /* the arrival: the bands slide in, eased so they settle rather than
+         * stop; the pointer is drawn once they have */
         float u = (float)(now - S.slide_t0) / (float)SLIDE_MS;
         cv_slide_bands(BANDS, u * u * (3.0f - 2.0f * u));
         S.nhit = 0; /* nothing is where it will be yet */
