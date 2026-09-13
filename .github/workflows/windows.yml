@@ -39,6 +39,8 @@ jobs:
             ${{ matrix.prefix }}-cmake
             ${{ matrix.prefix }}-ninja
             ${{ matrix.prefix }}-sdl3
+            ${{ matrix.prefix }}-curl
+            ${{ matrix.prefix }}-zlib
 
       # The core is the slow part of the build and changes only when the
       # submodule moves: its objects are kept per pinned commit, and touched

@@ -169,32 +169,48 @@ static void ink(const uint8_t *g, int *x0, int *x1) {
 
 /* One glyph of the proportional face, hung off the baseline: the box BDF
  * gives sits with its bottom left corner at (xoff, yoff) from the origin,
- * which is what lets a comma drop below the line and a quote ride above it. */
-static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, uint8_t fg) {
+ * which is what lets a comma drop below the line and a quote ride above it.
+ * `scale` doubles or trebles the pixels, the way a display face was made
+ * from a text one; `slant` shears the glyph a pixel to the right for every
+ * four rows above the baseline, which is how software of the day made an
+ * italic it had not got. */
+static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, uint8_t fg, int scale,
+                  int slant) {
     int stride = (g->w + 7) / 8;
-    for (int j = 0; j < g->h; j++)
+    for (int j = 0; j < g->h; j++) {
+        int row = g->yoff + g->h - 1 - j; /* rows above the baseline */
+        int shear = slant ? (row * scale) / 4 : 0;
         for (int i = 0; i < g->w; i++)
-            if (bits[g->at + j * stride + i / 8] & (0x80 >> (i & 7)))
-                put(pen + g->xoff + i, base - g->yoff - g->h + j, fg);
+            if (bits[g->at + j * stride + i / 8] & (0x80 >> (i & 7))) {
+                int px = pen + (g->xoff + i) * scale + shear, py = base - (row + 1) * scale;
+                for (int sy = 0; sy < scale; sy++)
+                    for (int sx = 0; sx < scale; sx++)
+                        put(px + sx, py + sy, fg);
+            }
+    }
 }
 
 /* The machine's own programs are set in Helvetica, the face the workstations
  * of the day put their interfaces in; the arrows and the marks it has no
  * glyph for come from the VGA font, which is where the rest of the machine
  * speaks from.  Returns how far the pen moved, so a caller can put the next
- * word after it without counting cells. */
-static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold) {
+ * word after it without counting cells.  `track` is extra space after every
+ * character, for capitals set wide. */
+static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold, int scale, int slant,
+                int track) {
     const dxm_glyph *G = bold ? dxm_uib_glyphs : dxm_ui_glyphs;
     const uint8_t *B = bold ? dxm_uib_bits : dxm_ui_bits;
-    int pen = x, base = y + DXM_UI_ASCENT;
+    if (scale < 1)
+        scale = 1;
+    int pen = x, base = y + DXM_UI_ASCENT * scale;
     for (int n = 0; s[n]; n++) {
         unsigned char c = (unsigned char)s[n];
         if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST) {
             const dxm_glyph *g = &G[c - DXM_UI_FIRST];
             if (bg >= 0)
-                cv_rect(pen, y, g->adv, CV_LINE, (uint8_t)bg);
-            glyph(g, B, pen, base, fg);
-            pen += g->adv;
+                cv_rect(pen, y, g->adv * scale + track, CV_LINE * scale, (uint8_t)bg);
+            glyph(g, B, pen, base, fg, scale, slant);
+            pen += g->adv * scale + track;
         } else {
             const uint8_t *v = font_glyph16(c);
             int x0, x1;
@@ -202,23 +218,97 @@ static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold) {
             for (int j = 0; j < 16; j++)
                 for (int i = x0; i <= x1; i++)
                     if (v[j] & (0x80 >> i))
-                        put(pen + i - x0, y + j, fg);
-            pen += x1 - x0 + 2;
+                        for (int sy = 0; sy < scale; sy++)
+                            for (int sx = 0; sx < scale; sx++)
+                                put(pen + (i - x0) * scale + sx, y + j * scale + sy, fg);
+            pen += (x1 - x0 + 2) * scale + track;
         }
     }
     return pen - x;
 }
 
 int cv_text(int x, int y, const char *s, uint8_t fg, int bg) {
-    return text(x, y, s, fg, bg, 0);
+    return text(x, y, s, fg, bg, 0, 1, 0, 0);
 }
 int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg) {
-    return text(x, y, s, fg, bg, 1);
+    return text(x, y, s, fg, bg, 1, 1, 0, 0);
+}
+int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int slant, int track) {
+    return text(x, y, s, fg, -1, bold, scale, slant, track);
+}
+int cv_width_ex(const char *s, int bold, int scale, int track) {
+    const dxm_glyph *G = bold ? dxm_uib_glyphs : dxm_ui_glyphs;
+    if (scale < 1)
+        scale = 1;
+    int w = 0;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
+            w += G[c - DXM_UI_FIRST].adv * scale + track;
+        else {
+            int x0, x1;
+            ink(font_glyph16(c), &x0, &x1);
+            w += (x1 - x0 + 2) * scale + track;
+        }
+    }
+    return w;
+}
+
+/* ---- for the programs that bring their own palette ------------------- */
+
+void cv_palette(int first, int n, const uint8_t *triples) {
+    for (int i = 0; i < n && first + i < 256; i++)
+        memcpy(pal[first + i], triples + i * 3, 3);
+}
+
+void cv_image(int x, int y, int w, int h, const uint8_t *px, int first) {
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            put(x + i, y + j, (uint8_t)(first + px[j * w + i]));
+}
+
+/* The screen in horizontal bands, each slid in from its own side - the
+ * first from the left, the next from the right, and so on - by `shut` of
+ * the way (0 nothing has arrived, 1 everything is in place).  Done to what
+ * is already on the canvas, so a screen is drawn as usual and then moved:
+ * the pixels of each band's rows shift by what is left of the journey and
+ * black takes the space behind them. */
+void cv_slide_bands(int bands, float shut) {
+    if (bands < 1)
+        bands = 1;
+    if (shut < 0.0f)
+        shut = 0.0f;
+    if (shut >= 1.0f)
+        return;
+    int off = (int)((float)SCR_W * (1.0f - shut) + 0.5f);
+    if (off <= 0)
+        return;
+    int band = (SCR_H + bands - 1) / bands;
+    for (int y = 0; y < SCR_H; y++) {
+        uint8_t *row = canvas + (y + SCR_PAD_Y) * CANVAS_W + SCR_PAD_X;
+        if (((y / band) & 1) == 0) { /* from the left: the row moves right */
+            memmove(row + off, row, (size_t)(SCR_W - off));
+            memset(row, C_BLACK, (size_t)off);
+        } else { /* from the right: the row moves left */
+            memmove(row, row + off, (size_t)(SCR_W - off));
+            memset(row + SCR_W - off, C_BLACK, (size_t)off);
+        }
+    }
+}
+
+uint8_t cv_at(int x, int y) {
+    if (x < 0 || x >= SCR_W || y < 0 || y >= SCR_H)
+        return 0;
+    return canvas[(y + SCR_PAD_Y) * CANVAS_W + (x + SCR_PAD_X)];
 }
 
 int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg) {
+    return cv_text_wrap_max(x, y, w, s, fg, 1 << 20);
+}
+
+int cv_text_wrap_max(int x, int y, int w, const char *s, uint8_t fg, int max_lines) {
     int lines = 0;
-    while (*s) {
+    while (*s && lines < max_lines) {
         /* as many words as fit, and at least one however long it is */
         int take = 0, last = 0;
         char line[128];

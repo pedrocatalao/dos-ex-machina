@@ -50,7 +50,10 @@ tube.  Up to that handover the machine draws everything itself on the fixed
 clock `--deterministic` gives it, so a frame is the same on every run.
 SETUP is the same kind of thing - its screen is the machine's, not DOS's -
 and under that clock it opens on the first banner with no loading screen and
-no fade, both of which are timed by the wall clock.
+no fade, both of which are timed by the wall clock.  CATALOG likewise, on the
+bundled catalogues, with no artwork at all: a picture would have to come off
+the network, and a frame that depends on whether it has arrived is not a
+reference.
 After it the tube shows DOSBox's picture, and DOSBox runs on its own clock
 on its own thread: which of its frames lands on which of the machine's is
 not reproducible.  That half is checked by `tests/boot` instead, which boots

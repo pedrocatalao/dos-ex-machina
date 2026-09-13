@@ -161,6 +161,21 @@ the way out is **SAVE & REBOOT**: it keeps both files and starts the machine
 again so they take effect. Machine settings live in `dxm.cfg` beside the
 preferences, the tube's in `crt.cfg`.
 
+**CATALOG** is the shop: type `CATALOG` at the DOS prompt. The catalogues the
+machine ships with are drives - the freeware one is C: - and each is a tab
+with its titles in a list. Just type to find one: the list narrows as you
+go. **Enter** (or a double-click) installs the chosen title - downloaded,
+checked against the hash the catalogue names, unpacked into `\GAMES\<ID>`
+or wherever its category says - or runs it once it is there; **F2** runs
+the title's own setup program when it has one; **F3** drops you at a DOS
+prompt in its directory (`EXIT` comes back); **Tab** changes catalogue;
+**Esc** clears the search, then leaves. The key hints along the foot do the
+same when clicked. Running, setting up and the prompt are errands: the catalogue is
+back as you left it when they return. Artwork is fetched as a title is
+looked at and kept in `artwork/` in the preferences, so the shelf works
+offline afterwards. Every title in the bundled catalogues is freeware or
+shareware from its author's own site; the machine carries none of it.
+
 **Shift+F1** opens a panel over the tube with the rest of the CRT: bloom,
 burn-in, static, jitter, glow line, ambient light, flicker, h-sync, RGB
 shift, chassis glow, persistence, scanlines, pixel grid, curvature,
@@ -175,7 +190,8 @@ Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"` (typed at the DOS
 prompt, one a second), `--shot out.bmp --frames N`, `--deterministic` (a
 fixed 60 Hz clock and the shipped CRT defaults, so a given frame is the same
 picture on every run), `--ambient N`, `--dump-audio FILE`,
-`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`, `--setup`.
+`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`, `--setup`,
+`--catalog`.
 
 ## Requirements
 
@@ -255,8 +271,14 @@ were MIT licensed, and remain so.
   Corporation, redistributable under the notice in the `.bdf` files.
 - **`src/third_party/stb_image.h`** is Sean Barrett's image loader, vendored
   as it ships, in the public domain (MIT at your option).
-- **SDL3** is linked, not vendored, under the zlib licence.
+- **SDL3** is linked, not vendored, under the zlib licence; so are
+  **libcurl** (the curl licence, MIT-like) and **zlib** (the zlib licence),
+  for the catalogue's downloads.
+- **FreeDOS EDIT** travels in the DOSBox core, on Z:, under the GPL-2.0;
+  its source is in the fork beside it.
 - **No software or data for DOS is in this repository or in its releases.**
+  The catalogue downloads what its authors give away, from where they put
+  it, when you ask for it.
 
 ## Design notes
 

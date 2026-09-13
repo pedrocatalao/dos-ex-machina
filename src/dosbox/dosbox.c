@@ -142,6 +142,7 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_DRIVE (RETRO_ENVIRONMENT_PRIVATE | 4)
 #define DXM_ENV_MIDI (RETRO_ENVIRONMENT_PRIVATE | 5)
 #define DXM_ENV_SETUP (RETRO_ENVIRONMENT_PRIVATE | 6)
+#define DXM_ENV_CATALOG (RETRO_ENVIRONMENT_PRIVATE | 7)
 static char g_midi[16] = "auto";
 /* SETUP, asked for at the DOS prompt: the core's thread asks, the frame
  * loop answers, since the screen is the main thread's to open. */
@@ -153,6 +154,89 @@ int dosbox_take_setup(void) {
 }
 void dosbox_setup_is_up(int up) {
     SDL_SetAtomicInt(&g_setup_up, up);
+}
+
+/* CATALOG: the same shape as SETUP, plus the excursions.  The message is
+ * the one the fork's program fills in (dosbox_pure_dxm.h holds the same
+ * struct); the state under it is the frame loop's, read from the core's
+ * thread under the lock. */
+typedef struct {
+    int op;    /* from the core: 0 poll, 1 open, 2 back from an excursion */
+    int reply; /* from the machine: 0 stay up, 1 closed, 2 run an excursion */
+    int kind;  /* the excursion: 0 a command, 1 a nested COMMAND */
+    char drive;
+    char dir[80];
+    char cmd[80];
+    char rescan; /* a drive whose listing the machine changed, or 0 */
+} dxm_catalog_msg;
+static struct {
+    SDL_Mutex *mx;
+    int req_open, up, back;
+    int have_run, kind;
+    char drive, rescan;
+    char dir[80], cmd[80];
+} g_cat;
+
+static void cat_lock(void) {
+    if (!g_cat.mx)
+        g_cat.mx = SDL_CreateMutex();
+    SDL_LockMutex(g_cat.mx);
+}
+static void cat_unlock(void) {
+    SDL_UnlockMutex(g_cat.mx);
+}
+int dosbox_take_catalog(void) {
+    cat_lock();
+    int r = g_cat.req_open;
+    g_cat.req_open = 0;
+    cat_unlock();
+    return r;
+}
+void dosbox_catalog_is_up(int up) {
+    cat_lock();
+    g_cat.up = up;
+    cat_unlock();
+}
+int dosbox_take_catalog_back(void) {
+    cat_lock();
+    int r = g_cat.back;
+    g_cat.back = 0;
+    cat_unlock();
+    return r;
+}
+void dosbox_catalog_run(char drive, const char *dir, const char *cmd, int kind) {
+    cat_lock();
+    g_cat.have_run = 1;
+    g_cat.kind = kind;
+    g_cat.drive = drive;
+    snprintf(g_cat.dir, sizeof g_cat.dir, "%s", dir ? dir : "");
+    snprintf(g_cat.cmd, sizeof g_cat.cmd, "%s", cmd ? cmd : "");
+    cat_unlock();
+}
+void dosbox_catalog_rescan(char drive) {
+    cat_lock();
+    g_cat.rescan = drive;
+    cat_unlock();
+}
+/* the core's side of it, on its thread */
+static void cat_env(dxm_catalog_msg *m) {
+    cat_lock();
+    if (m->op == 1) { /* open: up from this moment, before the screen is */
+        g_cat.req_open = 1;
+        g_cat.up = 1;
+    } else if (m->op == 2)
+        g_cat.back = 1;
+    m->reply = !g_cat.up ? 1 : (g_cat.have_run ? 2 : 0);
+    if (m->reply == 2) {
+        m->kind = g_cat.kind;
+        m->drive = g_cat.drive;
+        memcpy(m->dir, g_cat.dir, sizeof m->dir);
+        memcpy(m->cmd, g_cat.cmd, sizeof m->cmd);
+        g_cat.have_run = 0;
+    }
+    m->rescan = g_cat.rescan;
+    g_cat.rescan = 0;
+    cat_unlock();
 }
 
 void dosbox_set_midi(const char *device) {
@@ -326,6 +410,9 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
         if (*(const bool *)data)
             SDL_SetAtomicInt(&g_setup_req, 1); /* put it up */
         *(bool *)data = SDL_GetAtomicInt(&g_setup_up) != 0;
+        return true;
+    case DXM_ENV_CATALOG:
+        cat_env((dxm_catalog_msg *)data);
         return true;
     case RETRO_ENVIRONMENT_SHUTDOWN:
         /* DOS was told EXIT.  The core wants to stop; the machine wants

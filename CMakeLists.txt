@@ -18,6 +18,11 @@ if(DXM_SANITIZE)
 endif()
 
 find_package(SDL3 REQUIRED CONFIG)
+# libcurl for the catalogue's downloads (TLS, and hosts that redirect), and
+# zlib to open the archives.  Both are system libraries everywhere DXM runs,
+# and curl already depends on zlib, so neither is a new thing to ship.
+find_package(CURL REQUIRED)
+find_package(ZLIB REQUIRED)
 # DXM links no emulator.  DOSBox Pure is a libretro core opened at run time
 # from beside the program (src/dosbox/); it is built below, from its own
 # tree and with its own Makefile, into the same directory as dxm.
@@ -37,7 +42,8 @@ add_executable(dxm
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
     src/dosbox/dosbox.c src/dosbox/keys.c src/dosbox/motd.c src/dosbox/layout.c
-    src/catalogue/catalogue.c
+    src/catalogue/catalogue.c src/catalogue/net.c src/catalogue/unzip.c src/catalogue/sha256.c
+    src/catalogue/art.c src/catalogue/install.c src/catalogue/screen.c src/catalogue/gui.c
     ${DXM_WIN_RC})
 # The catalogues travel beside the program, as the core does (SPEC §8.2):
 # copied next to the binary here, and into the package by each platform's
@@ -87,7 +93,7 @@ target_link_options(dxm PRIVATE ${DXM_SANITIZE_FLAGS})
 # step picks it up.
 target_compile_definitions(dxm PRIVATE DXM_VERSION="${PROJECT_VERSION}")
 configure_file(packaging/macos/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist @ONLY)
-target_link_libraries(dxm PRIVATE SDL3::SDL3 m ${CMAKE_DL_LIBS})
+target_link_libraries(dxm PRIVATE SDL3::SDL3 CURL::libcurl ZLIB::ZLIB m ${CMAKE_DL_LIBS})
 # GL 1.1 is exported by the system library and has to be LINKED; everything
 # past it is loaded at run time (see src/glfuncs.h).  Apple has no pkg for it,
 # hence the framework; everywhere else CMake finds libGL / opengl32.

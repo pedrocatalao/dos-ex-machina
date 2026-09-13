@@ -48,6 +48,10 @@ CASES = [
     # SETUP draws its own screen, and under a fixed clock it draws the same
     # one every time: the first banner, no loading screen, no fade.
     ("setup-1280x800", "1280x800", 120, ["--setup"]),
+    # CATALOG likewise: the bundled catalogues, no artwork (it would have
+    # to come off the network), no fade - and an empty C:, since what is
+    # installed on the developer's own drive is not part of the reference.
+    ("catalog-1280x800", "1280x800", 120, ["--catalog", "--dosbox", "{empty_c}"]),
 ]
 
 
@@ -170,13 +174,17 @@ def main():
     refdir = os.path.join(HERE, "references", refs)
     os.makedirs(refdir, exist_ok=True)
 
+    empty_c = os.path.join(out, "empty-c")
+    os.makedirs(empty_c, exist_ok=True)
+
     failed = 0
     for name, size, frame, flags in CASES:
         if only and name != only:
             continue
         bmp = os.path.join(out, name + ".bmp")
         cmd = [binary, "--windowed", "--deterministic", "--size", size,
-               "--shot", bmp, "--frames", str(frame)] + flags
+               "--shot", bmp, "--frames", str(frame)]
+        cmd += [f.replace("{empty_c}", empty_c) for f in flags]
         if os.path.exists(bmp):
             os.remove(bmp)
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,

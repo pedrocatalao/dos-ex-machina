@@ -9,6 +9,7 @@
 #include "chassis.h"
 #include "dosbox.h"
 #include "setup.h"
+#include "catalog.h"
 #include "crt.h"
 #include "sound.h"
 #include "ui.h"
@@ -37,6 +38,7 @@ typedef struct {
     const char *dosbox, *dosbox_core;
     const char *keyboard; /* --keyboard: the DOS layout, instead of the guess */
     int setup;            /* --setup: open SETUP at once, for shots and tests */
+    int catalog;          /* --catalog: the same for CATALOG */
 } options;
 
 static options parse(int argc, char **argv) {
@@ -48,6 +50,7 @@ static options parse(int argc, char **argv) {
                  getenv("DXM_DOSBOX"),
                  getenv("DXM_DOSBOX_CORE"),
                  getenv("DXM_KEYBOARD"),
+                 0,
                  0};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--dump-audio") && i + 1 < argc)
@@ -72,6 +75,8 @@ static options parse(int argc, char **argv) {
             o.keyboard = argv[++i];
         else if (!strcmp(argv[i], "--setup"))
             o.setup = 1;
+        else if (!strcmp(argv[i], "--catalog"))
+            o.catalog = 1;
         else if (!strcmp(argv[i], "--ambient") && i + 1 < argc) {
             o.ambient = (float)atof(argv[++i]);
             if (o.ambient < 0)
@@ -191,6 +196,10 @@ int main(int argc, char **argv) {
     setup_fixed_clock(a.deterministic);
     if (!a.deterministic)
         setup_load(); /* what the machine is set to, before the DOS reads it */
+    /* the catalogues beside the program - in a bundle, in its Resources */
+    catalog_bind(SDL_GetBasePath(), a.pref, c_drive(&o, &a));
+    catalog_fixed_clock(a.deterministic);
+    catalog_load();
     dos_init(theatre_mhz(&th), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
@@ -209,6 +218,8 @@ int main(int argc, char **argv) {
     }
     if (o.setup)
         setup_open();
+    if (o.catalog)
+        catalog_open();
     dxm_log("dos booting, entering the frame loop");
 
     Uint64 t_start = app_now_ns();
@@ -289,6 +300,13 @@ int main(int argc, char **argv) {
         if (dosbox_take_setup())
             setup_open();
         dosbox_setup_is_up(setup_visible());
+        /* CATALOG, the same way; its errands take the screen away and the
+         * core says when they are done */
+        if (dosbox_take_catalog())
+            catalog_open();
+        if (dosbox_take_catalog_back())
+            catalog_back();
+        dosbox_catalog_is_up(catalog_running());
 
         /* SAVE & REBOOT: the settings it kept are read as the machine
          * starts, so the machine starts - the core goes down, the POST runs
@@ -333,10 +351,10 @@ int main(int argc, char **argv) {
                 last_h = ch;
             }
         }
-        if (setup_visible()) {
+        if (setup_visible() || catalog_visible()) {
             /* the machine's own program has the tube, in its own mode */
             int sw, sh;
-            const uint8_t *px = setup_render(&sw, &sh);
+            const uint8_t *px = setup_visible() ? setup_render(&sw, &sh) : catalog_render(&sw, &sh);
             gpu_set_tube(a.gpu, px, sw, sh);
             k.crt_lines = sh; /* a 400-line mode, like the text screen's */
             k.crt_cols = sw;

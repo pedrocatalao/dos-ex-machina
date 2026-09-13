@@ -66,6 +66,16 @@ void dosbox_set_option(const char *key, const char *value);
  * which is what the command waits on. */
 int dosbox_take_setup(void);
 void dosbox_setup_is_up(int up);
+/* CATALOG at the DOS prompt, the same way, plus its excursions: the screen
+ * asks for a command to be run in a directory on a drive (kind 0), or for
+ * a nested COMMAND there (kind 1); the program in the core runs it and says
+ * when it is back, which is taken once.  A drive whose listing the machine
+ * changed behind DOS is named for the core to re-read. */
+int dosbox_take_catalog(void);
+void dosbox_catalog_is_up(int up);
+void dosbox_catalog_run(char drive, const char *dir, const char *cmd, int kind);
+int dosbox_take_catalog_back(void);
+void dosbox_catalog_rescan(char drive);
 /* Seconds of drive the core's BIOS screen asked for, taken once. */
 double dosbox_take_floppy(void);
 

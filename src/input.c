@@ -5,6 +5,7 @@
 #include "dos.h"
 #include "dosbox.h"
 #include "setup.h"
+#include "catalog.h"
 #include "ui.h"
 
 /* Which of the display's buttons, if any, is under a point in drawable
@@ -104,6 +105,11 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
             setup_key(e->key.scancode, (e->key.mod & SDL_KMOD_SHIFT) != 0);
         else
             dosbox_key(e->key.scancode, 0);
+    } else if (catalog_visible()) {
+        if (down)
+            catalog_key(e->key.scancode, (e->key.mod & SDL_KMOD_SHIFT) != 0);
+        else
+            dosbox_key(e->key.scancode, 0); /* the same as SETUP: releases reach DOS */
     } else if (dosbox_shown()) {
         dosbox_key(e->key.scancode, down);
     } else if (down) {
@@ -135,6 +141,8 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         int bt = (!in->captured && !ui_visible()) ? button_at(L, mx, my) : -1;
         if (setup_visible())
             setup_click(e->button.button == SDL_BUTTON_LEFT);
+        else if (catalog_visible())
+            catalog_click(e->button.button == SDL_BUTTON_LEFT);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
         else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
@@ -152,6 +160,8 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     case SDL_EVENT_MOUSE_BUTTON_UP:
         if (setup_visible())
             setup_click(0);
+        else if (catalog_visible())
+            catalog_click(0);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 0);
         else if (in->knob_drag >= 0)
@@ -163,19 +173,23 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
     case SDL_EVENT_MOUSE_WHEEL:
         /* A trackpad sends fractions of a notch, so they are added up until
          * they make one: otherwise a slow drag scrolls nothing at all. */
-        if (setup_visible()) {
+        if (setup_visible() || catalog_visible()) {
             static float notch = 0.0f;
             notch += e->wheel.y;
             int n = (int)notch;
             notch -= (float)n;
-            if (n)
+            if (n && setup_visible())
                 setup_wheel(n);
+            else if (n)
+                catalog_wheel(n);
         }
         break;
     case SDL_EVENT_MOUSE_MOTION: {
         float mx = e->motion.x * a->W / a->win_wf, my = e->motion.y * a->H / a->win_hf;
         if (setup_visible())
             setup_mouse((int)e->motion.xrel, (int)e->motion.yrel);
+        else if (catalog_visible())
+            catalog_mouse((int)e->motion.xrel, (int)e->motion.yrel);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_move((int)e->motion.xrel, (int)e->motion.yrel);
         else if (in->knob_drag >= 0)

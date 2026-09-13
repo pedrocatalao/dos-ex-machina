@@ -114,9 +114,25 @@ void cv_slider(int x, int y, int w, float t, int on);
 int cv_text(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg);
 int cv_width(const char *s); /* what it will take, without drawing it */
+/* The same face as a display face: bold or not, the pixels doubled by
+ * `scale`, sheared into an italic by `slant`, `track` pixels after each
+ * character.  No background. */
+int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int slant, int track);
+int cv_width_ex(const char *s, int bold, int scale, int track);
+/* For a program that brings its own colours: `n` RGB triples into the
+ * palette from `first`, and a picture of indices with `first` added to
+ * each.  cv_clear() puts the interface's sixteen back but touches nothing
+ * above them, so a palette set once stays set. */
+void cv_palette(int first, int n, const uint8_t *rgb);
+void cv_image(int x, int y, int w, int h, const uint8_t *px, int first);
+uint8_t cv_at(int x, int y); /* what is on the canvas there */
+/* What is on the canvas, in `bands` horizontal bands slid in from
+ * alternate sides, `shut` of the way there (0..1). */
+void cv_slide_bands(int bands, float shut);
 /* The same, broken at spaces to fit `w`, one line every CV_LINE down from
  * `y`.  Returns how many lines it took. */
 int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg);
+int cv_text_wrap_max(int x, int y, int w, const char *s, uint8_t fg, int max_lines);
 void cv_pointer(int x, int y);
 /* How bright the palette is on its way out, 0 black to 1 full: the fade a
  * program of the day did by ramping the DAC rather than by touching a

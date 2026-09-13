@@ -56,10 +56,19 @@ dos-ex-machina/
 │   │   ├── layout.c        the host's keyboard, as a DOS keyboard layout
 │   │   ├── libretro.h      the libretro API, vendored as it ships (MIT)
 │   │   └── internal.h
-│   ├── catalogue.h         the public face of src/catalogue/
-│   ├── catalogue/          the catalogue files (SPEC §8)
-│   │   └── catalogue.c     reads catalogues.lst and a .cat, checks every title, drops
-│   │                       and notes the bad ones; no SDL, no network
+│   ├── catalogue.h         the catalogue files: the public face of catalogue.c
+│   ├── catalog.h           CATALOG, the program: the public face of screen.c
+│   ├── catalogue/          the catalogues, and the program that shows them (SPEC §8)
+│   │   ├── catalogue.c     reads catalogues.lst and a .cat, checks every title, drops
+│   │   │                   and notes the bad ones; no SDL, no network
+│   │   ├── screen.c        CATALOG: the shelves, the keys, the errands, the screen
+│   │   ├── gui.c           its look - backdrop, hazard tape, gold headlines, frames
+│   │   ├── art.c           artwork fetched, cached, fitted and quantised as a set
+│   │   ├── install.c       download, check, unpack, find the title, put it on the drive
+│   │   ├── net.c/.h        libcurl: the only file that talks to the network
+│   │   ├── unzip.c/.h      zlib and a walk of the archive; refuses paths that escape
+│   │   ├── sha256.c/.h     what every download is checked against
+│   │   └── internal.h
 │   ├── segdisp.h           the turbo display's digit geometry and clock stops, shared
 │   │                       by the chassis and the shader
 │   ├── font.c/.h           the CP437 8x8 lettering font and the VGA 8x16 text font
@@ -69,7 +78,7 @@ dos-ex-machina/
 │   ├── version.h
 │   └── gen/                generated data, committed; see its README
 ├── src/third_party/        stb_image.h, vendored as it ships: the only
-│                           third-party code in the program besides SDL3
+│                           third-party code in the program besides SDL3, libcurl and zlib
 ├── catalogues/             catalogues.lst and the bundled .cat files, copied beside dxm
 ├── external/dosbox-pure/   the DOSBox Pure fork, a submodule, built by CMake
 ├── shaders/                one GLSL file per pass, baked into the binary at build time

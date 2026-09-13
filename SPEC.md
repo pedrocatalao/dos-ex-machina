@@ -427,13 +427,15 @@ on a hard disk. `--dosbox DIR` mounts another folder instead. ROM files for
 an MT-32 or an SC-55 go in the root, where DOSBox Pure finds them and puts
 the device on the MPU-401.
 
-Other letters are given out by SETUP's DRIVES section: a letter, and what is
-on it - a catalogue from the list (§8.2) or a local folder. A catalogue on a
-letter is the folder the machine keeps for it, so what is installed from it
-lives there and nothing ever moves; the drive's volume label is the
-catalogue's name. Drives are hardware, so the table takes effect at the next
-power-on, through SAVE & REBOOT (§6.9). The freeware catalogue is on C: by
-default, which is to say it installs into the C: folder above.
+Every catalogue in the list (§8.2) is a drive, on the letter the list gives
+it, mounted as the machine boots. A catalogue on a letter is the folder the
+machine keeps for it, so what is installed from it lives there and nothing
+ever moves; the drive's volume label is the catalogue's name. The freeware
+catalogue is on C:, which is to say it installs into the C: folder above.
+There is nothing to configure while the list holds one catalogue; when there
+are catalogues to choose between, SETUP gets a DRIVES section - a letter,
+and what is on it, a catalogue or a local folder - and since drives are
+hardware, it takes effect at the next power-on through SAVE & REBOOT (§6.9).
 
 ### 8.2 The catalogue files
 
@@ -472,17 +474,33 @@ software that is nobody's to give away is not one of them (§12.4).
 
 `CATALOG` at the DOS prompt is a program the fork adds, like `SETUP`, and
 the screen it opens is the machine's, drawn on the SETUP canvas with the
-same palette, font, pointer and fades (§6.9). Tabs across the top, one per
-mounted catalogue; the titles down the left; the selected one's artwork,
-particulars and description on the right, over the buttons: INSTALL, and
-once it is installed, RUN, SETUP where the title has one, and PROMPT.
+same font and pointer (§6.9) but as an application rather than a BIOS
+screen, and a plain one: a dark ground with no chrome on it, wells a shade
+darker with a hairline round them, light grey text, white for what
+matters, gold for the keys and the one chosen thing. The catalogues as
+tabs across the top, the chosen one underlined. On the left a Find field
+over the list of titles - name, year, a mark for one that is on the drive -
+with a scrollbar; typing goes to the field and the list narrows as you
+type, Backspace edits it, ESC clears it, and only then leaves. On the right
+the chosen title's picture, its name, maker, year and genre, its
+particulars on a line, and its description. Along the foot the keys and
+what they do, as SETUP has them: ENTER installs, or runs once the title is
+on the drive (so does a double-click); F2 its setup where it has one; F3 a
+prompt in its directory; TAB the next catalogue; ESC. Letters are the
+search's, which is why the actions are on function keys; the hints are
+also what the mouse presses. Under the list, the count, and the download's
+progress while there is one. It comes up the way SETUP does, with a
+moment of loading screen, and then arrives in horizontal bands slid in
+from alternate sides - the same arrival, without the loading, when it
+comes back from an errand.
 
 **Artwork** is shown before a title is installed, fetched when the title is
 first selected and kept at `artwork/<catalogue>/<CATEGORY>/<ID>.png` in the
 preferences directory, outside DOS's view. That cache is looked in first,
-always, and is what an offline machine shows; a picture that has not been
-fetched yet is a blank frame until it arrives. Whatever shape the picture
-comes in is fitted to the frame and to the 240 colours, as the banners are.
+always, and is what an offline machine shows; a title whose picture has not
+arrived shows the machine's own mark in the well until it does. Whatever
+shape the picture comes in is fitted to the well and to the palette entries
+the interface leaves it, as the banners are.
 
 **RUN, SETUP and PROMPT are excursions, not exits.** The screen goes away,
 DOS has the tube, and when the excursion ends the catalogue is back exactly
@@ -558,7 +576,8 @@ Next, roughly in order:
 
 The dev flags are the exceptions to the appliance: `--windowed`, `--size`,
 `--deterministic`, `--shot` and `--frames`, `--type`, `--ambient`,
-`--dump-audio`, `--dosbox` and `--dosbox-core`. F5 and F6 during the POST
+`--dump-audio`, `--dosbox` and `--dosbox-core`, `--setup` and `--catalog`.
+F5 and F6 during the POST
 darken and lighten the room, for tuning.
 
 ## 12. Decisions, and open questions

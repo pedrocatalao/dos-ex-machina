@@ -33,6 +33,8 @@ endfunction()
 set(SRC ${CMAKE_SOURCE_DIR}/src)
 unit_test(font      SOURCES ${SRC}/font.c)
 unit_test(catalogue SOURCES ${SRC}/catalogue/catalogue.c)
+unit_test(unzip     SOURCES ${SRC}/catalogue/unzip.c ${SRC}/catalogue/sha256.c LIBS ZLIB::ZLIB)
+target_include_directories(test_unzip PRIVATE ${SRC}/catalogue)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(NOT Python3_Interpreter_FOUND)

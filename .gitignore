@@ -5,3 +5,4 @@ build-*/
 *.o
 *.a
 __pycache__/
+/golden/
