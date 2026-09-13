@@ -16,6 +16,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+/* A laptop with two GPUs runs an unknown program on the integrated one
+ * unless the program asks for the other.  It asks by exporting these two
+ * names from the executable; the NVIDIA and AMD drivers look for them at
+ * launch and nowhere else. */
+__declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+#endif
+
 typedef struct {
     app_options app;
     const char *shot;    /* --shot: write this frame and exit */
