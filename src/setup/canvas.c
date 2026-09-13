@@ -27,8 +27,22 @@ static uint8_t canvas[CANVAS_W * CANVAS_H];
 static uint8_t pal[256][3];
 static uint8_t rgb[CANVAS_W * CANVAS_H * 3];
 
+/* what may be drawn on: the whole screen, unless a caller has narrowed it */
+static int clip_x0, clip_y0, clip_x1 = SCR_W, clip_y1 = SCR_H;
+
+void cv_clip(int x, int y, int w, int h) {
+    clip_x0 = x < 0 ? 0 : x;
+    clip_y0 = y < 0 ? 0 : y;
+    clip_x1 = x + w > SCR_W ? SCR_W : x + w;
+    clip_y1 = y + h > SCR_H ? SCR_H : y + h;
+}
+
+void cv_noclip(void) {
+    cv_clip(0, 0, SCR_W, SCR_H);
+}
+
 static void put(int x, int y, uint8_t colour) {
-    if (x < 0 || x >= SCR_W || y < 0 || y >= SCR_H)
+    if (x < clip_x0 || x >= clip_x1 || y < clip_y0 || y >= clip_y1)
         return;
     canvas[(y + SCR_PAD_Y) * CANVAS_W + (x + SCR_PAD_X)] = colour;
 }

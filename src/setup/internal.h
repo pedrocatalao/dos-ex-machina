@@ -91,6 +91,10 @@ int banner_count(void);
 
 /* canvas.c — the surface and what can be put on it */
 void cv_clear(uint8_t colour);
+/* Draw only inside this rectangle until cv_noclip(): a pane that scrolls
+ * draws its content moved up and lets the edges cut it. */
+void cv_clip(int x, int y, int w, int h);
+void cv_noclip(void);
 void cv_banner(int which); /* the artwork at the top, and its palette */
 /* A change of picture, part way through: the new one showing in slats that
  * grow down from each of `slats` bands, the old one in what is left. */

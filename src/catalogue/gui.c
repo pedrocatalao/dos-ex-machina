@@ -83,8 +83,8 @@ void gui_scrollbar(int x, int y, int w, int h, float at, float shown) {
 }
 
 /* The machine's mark, for a title with no picture yet: the splash, fitted
- * to the well and quantised to sixteen greys just above the well's own
- * dark, so it reads as a watermark.  Made once, on first use, into the
+ * to the space and quantised to sixteen greys just above the ground's own,
+ * so it reads as a watermark.  Made once, on first use, into the
  * sixteen palette entries above the interface's. */
 #define G_MARK0 32
 static uint8_t *mark;
@@ -107,10 +107,10 @@ static void make_mark(int w, int h) {
     }
     uint8_t levels[16 * 3];
     for (int i = 0; i < 16; i++) {
-        int v = 24 + i * 60 / 15; /* from the well's dark up a little */
+        int v = 40 + i * 48 / 15; /* from the ground's own grey up a little */
         levels[i * 3] = (uint8_t)v;
         levels[i * 3 + 1] = (uint8_t)v;
-        levels[i * 3 + 2] = (uint8_t)(v + 3);
+        levels[i * 3 + 2] = (uint8_t)(v + 4);
     }
     cv_palette(G_MARK0, 16, levels);
     for (int y = 0; y < mark_h; y++)
@@ -130,8 +130,9 @@ static void make_mark(int w, int h) {
     free(rgba);
 }
 
+/* The picture on the ground itself, no well and no frame round it: the
+ * artwork where there is some, the machine's mark where there is not. */
 void gui_picture(int x, int y, int w, int h, const art_img *img) {
-    gui_well(x, y, w, h);
     if (img && img->w) {
         int ix = x + (w - img->w) / 2, iy = y + (h - img->h) / 2;
         cv_image(ix, iy, img->w, img->h, img->px, ART_FIRST);
@@ -150,6 +151,27 @@ int gui_hint(int x, int y, const char *key, const char *what, int hover, int off
     pen += cv_text_bold(pen, y, key, kc, -1) + 6;
     pen += cv_text(pen, y, what, wc, -1);
     return pen - x;
+}
+
+/* A filter: a small well holding what it is set to, with its name before
+ * the value when it has one.  Gold when it is narrowing the list. */
+void gui_chip(int x, int y, int w, int h, const char *label, const char *value, int active,
+              int hover) {
+    cv_rect(x, y, w, h, hover ? G_BAR : G_WELL);
+    cv_frame(x, y, w, h, active ? G_GOLD : (hover ? G_TEXT2 : G_LINE));
+    int tw = (label ? cv_width(label) + 6 : 0) + cv_width(value);
+    int pen = x + (w - tw) / 2, ty = y + (h - CV_LINE) / 2;
+    if (label)
+        pen += cv_text(pen, ty, label, G_TEXT2, -1) + 6;
+    cv_text(pen, ty, value, active ? G_GOLD : G_WHITE, -1);
+}
+
+/* A panel over the screen: the ground, a hairline, and a darker edge so it
+ * stands off what is veiled behind it. */
+void gui_panel(int x, int y, int w, int h) {
+    cv_rect(x + 3, y + 3, w, h, G_WELL);
+    cv_rect(x, y, w, h, G_BG);
+    cv_frame(x, y, w, h, G_TEXT2);
 }
 
 void gui_bar(int x, int y, int w, int h, float t) {

@@ -478,12 +478,28 @@ same font and pointer (§6.9) but as an application rather than a BIOS
 screen, and a plain one: a dark ground with no chrome on it, wells a shade
 darker with a hairline round them, light grey text, white for what
 matters, gold for the keys and the one chosen thing. The catalogues as
-tabs across the top, the chosen one underlined. On the left a Find field
-over the list of titles - name, year, a mark for one that is on the drive -
-with a scrollbar; typing goes to the field and the list narrows as you
-type, Backspace edits it, ESC clears it, and only then leaves. On the right
-the chosen title's picture, its name, maker, year and genre, its
-particulars on a line, and its description. Along the foot the keys and
+tabs across the top, the chosen one underlined, with the count - titles
+showing, installed, the drive - on the same line to the right, where an
+install's progress and its outcome also appear. On the left a row of
+filters, each cycled by a click and gold while it narrows the list - the
+type (all, games, education, tools, music), players (all, single, multi)
+and network (all, yes, no) - and a [+] that opens a panel with more: year,
+video, sound, controls, and whether the title is on the drive. F4, F5 and
+F6 cycle the three (backwards with Shift) and F7 opens and closes the
+panel, so the filters are there from the keyboard too. In the panel the
+arrows move a cursor down its rows and Reset, ENTER cycles the filter under
+it (or resets), left and right cycle it either way, and ESC closes it. Under them
+a Find field over the list of titles - name, year, a mark for one that is
+on the drive - with a scrollbar; typing goes to the field and the list
+narrows as you type, Backspace edits it, ESC clears it, and only then
+leaves. On the right the chosen title's picture, its name, maker, year and
+genre, its particulars as a label and a value a line - players, video,
+sound, controls, in words rather than the catalogue's codes, each on one
+line, a value too long for it running past like a marquee after a moment
+to read its start - and its description. Everything under the picture scrolls as one when it is longer
+than the space: the wheel over that side, or Shift with the arrows and
+Page Up and Down, with a thin scrollbar beside it; a new title starts at
+the top. Along the foot the keys and
 what they do, as SETUP has them: ENTER installs, or runs once the title is
 on the drive (so does a double-click); F2 its setup where it has one; F3 a
 prompt in its directory; TAB the next catalogue; ESC. Letters are the

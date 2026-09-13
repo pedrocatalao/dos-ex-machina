@@ -20,7 +20,7 @@ typedef struct {
  * pictures on screen share what is left. */
 #define ART_FIRST 48
 #define ART_COLOURS (256 - ART_FIRST)
-#define ART_BIG_W 300
+#define ART_BIG_W 270
 #define ART_BIG_H 130
 #define ART_THUMB_W 88
 #define ART_THUMB_H 55
@@ -95,5 +95,9 @@ void gui_picture(int x, int y, int w, int h, const art_img *img);
 /* one key and what it does, along the foot; returns its width */
 int gui_hint(int x, int y, const char *key, const char *what, int hover, int off);
 void gui_bar(int x, int y, int w, int h, float t); /* a progress bar */
+/* a filter: its name (or NULL) and what it is set to; gold when narrowing */
+void gui_chip(int x, int y, int w, int h, const char *label, const char *value, int active,
+              int hover);
+void gui_panel(int x, int y, int w, int h); /* a panel over the screen */
 
 #endif
