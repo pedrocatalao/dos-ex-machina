@@ -56,6 +56,10 @@ dos-ex-machina/
 │   │   ├── layout.c        the host's keyboard, as a DOS keyboard layout
 │   │   ├── libretro.h      the libretro API, vendored as it ships (MIT)
 │   │   └── internal.h
+│   ├── catalogue.h         the public face of src/catalogue/
+│   ├── catalogue/          the catalogue files (SPEC §8)
+│   │   └── catalogue.c     reads catalogues.lst and a .cat, checks every title, drops
+│   │                       and notes the bad ones; no SDL, no network
 │   ├── segdisp.h           the turbo display's digit geometry and clock stops, shared
 │   │                       by the chassis and the shader
 │   ├── font.c/.h           the CP437 8x8 lettering font and the VGA 8x16 text font
@@ -66,6 +70,7 @@ dos-ex-machina/
 │   └── gen/                generated data, committed; see its README
 ├── src/third_party/        stb_image.h, vendored as it ships: the only
 │                           third-party code in the program besides SDL3
+├── catalogues/             catalogues.lst and the bundled .cat files, copied beside dxm
 ├── external/dosbox-pure/   the DOSBox Pure fork, a submodule, built by CMake
 ├── shaders/                one GLSL file per pass, baked into the binary at build time
 ├── tests/

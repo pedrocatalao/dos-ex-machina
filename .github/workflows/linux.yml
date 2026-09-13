@@ -118,6 +118,7 @@ jobs:
           cp build/dxm dist/dxm/
           cp build/dosbox_pure_libretro.so dist/dxm/
           cp external/dosbox-pure/LICENSE dist/dxm/LICENSE-dosbox-pure.txt
+          cp -R catalogues dist/dxm/catalogues
           ldd build/dxm | awk '{print $3}' \
             | grep "^$HOME/sdl3-install/" \
             | sort -u | while read -r so; do cp -L "$so" dist/dxm/lib/; done

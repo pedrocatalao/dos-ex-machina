@@ -31,7 +31,8 @@ function(unit_test name)
 endfunction()
 
 set(SRC ${CMAKE_SOURCE_DIR}/src)
-unit_test(font    SOURCES ${SRC}/font.c)
+unit_test(font      SOURCES ${SRC}/font.c)
+unit_test(catalogue SOURCES ${SRC}/catalogue/catalogue.c)
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(NOT Python3_Interpreter_FOUND)

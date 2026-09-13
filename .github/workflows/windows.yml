@@ -82,6 +82,7 @@ jobs:
           # the DOS beside the program, with its licence
           cp build/dosbox_pure_libretro.dll dist/dxm/
           cp external/dosbox-pure/LICENSE dist/dxm/LICENSE-dosbox-pure.txt
+          cp -R catalogues dist/dxm/catalogues
           # ldd already reports the FULL transitive closure, so one pass gets
           # everything - SDL3's own dependencies included.  The recursive
           # version this replaces walked the tree by hand for no benefit, and

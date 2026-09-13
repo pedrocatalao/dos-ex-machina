@@ -417,20 +417,105 @@ ended, and the floppy drive runs: its LED, its motor and its stepper.
 The first size seen, the prompt's own, does not count, and a drive already
 running is not restarted.
 
-## 8. The C: drive
+## 8. Drives, and the catalogue
+
+### 8.1 Drives
 
 The machine owns a C: drive: a folder in its preferences directory, created
 on first run, mounted by DOSBox as C:. DOS software is put there as it sat
-on a hard disk. `--dosbox DIR` mounts another folder instead.
+on a hard disk. `--dosbox DIR` mounts another folder instead. ROM files for
+an MT-32 or an SC-55 go in the root, where DOSBox Pure finds them and puts
+the device on the MPU-401.
 
-The machine writes one file there, `DOSBOX.BAT` (§7). ROM files for an MT-32
-or an SC-55 go in the root, where DOSBox Pure finds them and puts the device
-on the MPU-401.
+Other letters are given out by SETUP's DRIVES section: a letter, and what is
+on it - a catalogue from the list (§8.2) or a local folder. A catalogue on a
+letter is the folder the machine keeps for it, so what is installed from it
+lives there and nothing ever moves; the drive's volume label is the
+catalogue's name. Drives are hardware, so the table takes effect at the next
+power-on, through SAVE & REBOOT (§6.9). The freeware catalogue is on C: by
+default, which is to say it installs into the C: folder above.
 
-No software ships with the machine and nothing is downloaded. Version 1 had
-a catalogue that installed native ports; its successor, if there is one,
-would install DOS software and its settings onto C: from the publishers'
-own downloads.
+### 8.2 The catalogue files
+
+Two kinds of file, both JSON, both shipped beside the program for now and
+read from disk; fetching them from a URL later changes where they come from
+and nothing about them.
+
+**`catalogues.lst`** is the list: a `format` number and `catalogues`, each
+with an `id` (eight characters at most: it names the host folder and is the
+volume label), a `name`, the `file` it is in, an `origin` - `bundled` or
+`community` - and the letter it defaults to.
+
+**A `.cat` file** is one catalogue: `format`, `name`, `about`, `updated`,
+and `titles`. A title has, required: `id`, `name`, `creator`, `year`,
+`category`, `multiplayer` and `network` (booleans), `run`, and `download`
+(`url`, `size`, `sha256`). Optional: `publisher`, `version`, `genre`,
+`description`, `video` (CGA, EGA, VGA, SVGA), `sound` and `controls`
+(lists), `setup` - the title's own configuration program, whatever it is
+called, `SETUP.EXE` or `SOUND.BAT` - and `artwork` (`url`, `sha256`).
+`id` and `category` are DOS directory names, eight characters or fewer, and
+`category` is one of a fixed list, plural because it is a folder:
+`GAMES`, `TOOLS`, `EDUCATION`, `MUSIC`, `DEMOS`, `MISC`. `name` is at most
+64 characters and `description` about 400, since the screen has to fit
+them. A catalogue is validated as it is read, and a bad title is dropped
+with a line in the log rather than taking the catalogue with it.
+
+Nothing in a title says where it goes: it goes to `\<CATEGORY>\<ID>` on
+whatever drive its catalogue is mounted on. A title is *installed* when
+`\<CATEGORY>\<ID>\<run>` exists there, and only then.
+
+Catalogues are licences, not subjects: `freeware` first, `shareware` next.
+What is in DXM's own repository is what DXM may distribute; a catalogue of
+software that is nobody's to give away is not one of them (§12.4).
+
+### 8.3 CATALOG
+
+`CATALOG` at the DOS prompt is a program the fork adds, like `SETUP`, and
+the screen it opens is the machine's, drawn on the SETUP canvas with the
+same palette, font, pointer and fades (§6.9). Tabs across the top, one per
+mounted catalogue; the titles down the left; the selected one's artwork,
+particulars and description on the right, over the buttons: INSTALL, and
+once it is installed, RUN, SETUP where the title has one, and PROMPT.
+
+**Artwork** is shown before a title is installed, fetched when the title is
+first selected and kept at `artwork/<catalogue>/<CATEGORY>/<ID>.png` in the
+preferences directory, outside DOS's view. That cache is looked in first,
+always, and is what an offline machine shows; a picture that has not been
+fetched yet is a blank frame until it arrives. Whatever shape the picture
+comes in is fitted to the frame and to the 240 colours, as the banners are.
+
+**RUN, SETUP and PROMPT are excursions, not exits.** The screen goes away,
+DOS has the tube, and when the excursion ends the catalogue is back exactly
+as it was: the same tab, the same title, the same scroll. The program in the
+fork does the running, as a 1993 program did: it notes the current drive
+and directory, changes to the title's, executes `run` (or `setup`) and
+waits for it, changes back, and asks the machine to show the screen again.
+PROMPT spawns a nested `COMMAND` in the title's directory, after the line
+every such program printed - *Type EXIT to return to CATALOG* - and `EXIT`
+is the way back. A title that hangs DOS hangs the catalogue with it, since
+it runs inside it; that is period-correct too, and the reboot is the fix.
+ESC is the only exit, to the prompt `CATALOG` was typed at.
+
+### 8.4 Installing
+
+INSTALL downloads the archive, one at a time, with a progress bar and
+nothing else to do until it is done. The download is refused past a size
+cap, and discarded if its sha256 is not the catalogue's - said plainly, no
+override. The zip is opened with `..` and absolute paths refused; the
+folder in it that holds `run` is the title, wherever the packer put it, and
+that folder's contents go to `\<CATEGORY>\<ID>`. The zip is then deleted.
+A directory already there, whatever is in it, means INSTALL refuses and
+says so. DOSBox's cached listing of the drive is refreshed afterwards, so
+`DIR` sees the title without a `RESCAN`. There is no uninstall in 2.0:
+removing a title is deleting its directory, from DOS or the desktop.
+
+### 8.5 Not in 2.0
+
+The community list of catalogues and the machinery around it, importers
+(an eXoDOS folder, GOG installers), fetching a single title out of a
+torrent, and uninstall. The formats are written so none of these change
+them: identity is the hash, and where the bytes come from is one way of
+resolving it.
 
 ## 9. Audio
 
@@ -454,8 +539,9 @@ Next, roughly in order:
 - **The recompiler on Apple Silicon** (§12.2).
 - **The drive LED from the emulated drive** rather than from the picture,
   which needs the core to report drive activity.
-- **A way to install software onto C:** from its publisher's own download,
-  with the settings it wants: the sound card, the MIDI device, the speed.
+- **The catalogue** (§8), in this order: the reader and its validator,
+  DRIVES in SETUP, the screen against the bundled `.cat`, then download
+  and install.
 - **A bridge between the machine and DOS** for anything that needs one,
   through files on C: before any change to the core.
 
@@ -465,7 +551,8 @@ Next, roughly in order:
 - A settings screen in the fiction. The panel (§2.1) is the one tuning
   surface.
 - Save states, netplay, gamepads, and more than one DOS at once.
-- Shipping any DOS software or data.
+- Shipping any DOS software or data. The catalogue (§8) downloads what its
+  publisher gives away; the machine carries none of it.
 - Emulating anything itself. The machine draws, sounds and holds the DOS;
   DOSBox emulates.
 
@@ -504,6 +591,21 @@ the machine's signed bundle can grant itself the entitlement for.
 
 GPL-2.0-or-later from 2.0. The one required component is GPL-2.0, and the
 machine is the work; version 1.0 and earlier stay MIT.
+
+### 12.4 What the catalogue may list
+
+A catalogue in DXM's repository is DXM distributing what it lists, one
+step removed, and the step does not change whose name is on it. So the
+bundled catalogues hold software its publisher gives away - freeware, and
+shareware, whose licences permit passing it on - mirrored where the
+original download is gone or unreliable, and nothing else. A catalogue of
+software that is copyrighted and merely unenforced is not for this
+repository under any name, and not for a machine that ships a pointer to
+it either: what the law turns on is knowledge, and a built-in pointer is
+knowledge. When there is a list of community catalogues (§8.5), it is
+theirs, submitted by their maintainers and labelled so; DXM ships no entry
+in it, acts on notice title by title through a block list keyed by hash,
+and delists a catalogue that keeps drawing notices.
 
 ### Open
 

@@ -37,7 +37,16 @@ add_executable(dxm
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
     src/chassis/parts.c src/chassis/marks.c src/chassis/knobs.c src/chassis/layout.c
     src/dosbox/dosbox.c src/dosbox/keys.c src/dosbox/motd.c src/dosbox/layout.c
+    src/catalogue/catalogue.c
     ${DXM_WIN_RC})
+# The catalogues travel beside the program, as the core does (SPEC §8.2):
+# copied next to the binary here, and into the package by each platform's
+# workflow.
+add_custom_target(catalogues ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/catalogues
+            ${CMAKE_BINARY_DIR}/catalogues
+    COMMENT "Copying catalogues/ beside dxm"
+    VERBATIM)
 target_include_directories(dxm PRIVATE src src/third_party ${CMAKE_BINARY_DIR}/generated)
 # The shaders are GLSL files under shaders/, baked into one header at build
 # time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.

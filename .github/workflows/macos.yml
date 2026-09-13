@@ -101,6 +101,8 @@ jobs:
           # travels with the notice that says where its source is.
           cp build/dosbox_pure_libretro.dylib "$APP/Contents/Frameworks/"
           cp external/dosbox-pure/LICENSE "$APP/Contents/Resources/LICENSE-dosbox-pure.txt"
+          # The catalogues, where the machine looks for them in a bundle.
+          cp -R catalogues "$APP/Contents/Resources/catalogues"
           chmod u+w "$APP/Contents/Frameworks/"*.dylib
           for dylib in "$APP/Contents/Frameworks/"*.dylib; do
             install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"

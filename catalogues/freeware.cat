@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "Freeware",
+  "about": "DOS software its makers give away. Every title here is free to download, install and pass on, and comes from where its author put it.",
+  "updated": "2026-09-13",
+  "titles": [
+    {
+      "id": "SKYROADS",
+      "name": "SkyRoads",
+      "creator": "Bluemoon Interactive",
+      "year": 1993,
+      "version": "1.5",
+      "category": "GAMES",
+      "genre": "racing",
+      "description": "Drive a skimmer along roads suspended over thirty alien worlds. Fuel and oxygen run down while you line up the jumps. The gaps do not care. Freeware since 2000, from the people who made it.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": ["pcspeaker", "adlib", "sb"],
+      "controls": ["keyboard"],
+      "run": "SKYROADS.EXE",
+      "download": {
+        "url": "http://www.bluemoon.ee/history/skyroads/skyroads.zip",
+        "size": 593740,
+        "sha256": "24762fe14196a642224288fe2063c9d0c0033be9c5b4b2f97fded09390803ee4"
+      },
+      "artwork": {
+        "url": "http://www.bluemoon.ee/history/skyroads/screenshot.jpg",
+        "sha256": "2608ff63dc2c79ed6842be00ad839af109f24e98210adb059ce114425917e50a"
+      }
+    },
+    {
+      "id": "SKYXMAS",
+      "name": "SkyRoads Xmas Special",
+      "creator": "Bluemoon Interactive",
+      "year": 1994,
+      "category": "GAMES",
+      "genre": "racing",
+      "description": "The same skimmer, the same gaps, on thirty new roads with snow on them. Made for the Christmas after SkyRoads, and given away with it.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": ["pcspeaker", "adlib", "sb"],
+      "controls": ["keyboard"],
+      "run": "SKYXMAS.EXE",
+      "download": {
+        "url": "http://www.bluemoon.ee/history/skyroads/skyxmas.zip",
+        "size": 600444,
+        "sha256": "2a45e5bdb42e59540df07bd1c1b929bfbcc5972d3beb7ecb851ef45e1d0ebcb0"
+      },
+      "artwork": {
+        "url": "http://www.bluemoon.ee/history/skyroads/screenshot.jpg",
+        "sha256": "2608ff63dc2c79ed6842be00ad839af109f24e98210adb059ce114425917e50a"
+      }
+    },
+    {
+      "id": "KENLAB",
+      "name": "Ken's Labyrinth",
+      "creator": "Ken Silverman",
+      "publisher": "Epic MegaGames",
+      "year": 1993,
+      "version": "2.1",
+      "category": "GAMES",
+      "genre": "first-person shooter",
+      "description": "Three episodes of corridors, slot machines and things that shoot back, from the year before Doom, by the man who went on to write the Build engine. The registered version, released free by its author in 1999. Run SETUP for sound; KENSBFIX.EXE is the same game with the Sound Blaster crash fixed.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": ["pcspeaker", "adlib", "sb"],
+      "controls": ["keyboard", "mouse"],
+      "run": "KENSBFIX.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "http://advsys.net/ken/klab/labfull.zip",
+        "size": 940242,
+        "sha256": "643aa0ca8d1a7d2c88afecd952da00f3b912be8b83c4c1d2f4ab9b50491fadfd"
+      },
+      "artwork": {
+        "url": "http://advsys.net/ken/klab/klabcap0.png",
+        "sha256": "5e16e1b021fc4f6e35e94ad9d718d4e6fbe21d51cd79dcdf6aaf37fe5e6cb2db"
+      }
+    }
+  ]
+}
