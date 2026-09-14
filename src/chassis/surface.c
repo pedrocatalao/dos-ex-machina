@@ -373,45 +373,51 @@ void surface_wear(canvas *c, int W, int H) {
  * years of uneven yellowing with dust settled into the recesses.  A
  * purely directional light lights every point on a flat face equally,
  * which is exactly what reads as a cartoon cutout. */
-void surface_finish(canvas *c, int W, int H) {
-    {
-        float lx = (float)W * 0.16f, ly = -(float)H * 0.40f; /* key, above and left */
-        float inv = 1.0f / (float)(W > H ? W : H);
-        for (int j = 0; j < H; j++) {
-            for (int i = 0; i < W; i++) {
-                uint8_t *p = c->px + ((size_t)j * W + i) * 4;
-                float dx = ((float)i - lx) * inv, dy = ((float)j - ly) * inv;
-                float d2 = dx * dx + dy * dy;
-                /* inverse-square-ish falloff across the whole panel */
-                float key = 1.0f / (1.0f + 1.35f * d2);
-                /* broad specular lobe - plastic is satin, not matte */
-                float sheen = expf(-d2 * 2.6f) * 0.05f;
-                /* grazing sheen: the case brightens toward its outer edges */
-                float ex = fabsf(((float)i / (float)W) - 0.5f) * 2.0f;
-                float ey = fabsf(((float)j / (float)H) - 0.5f) * 2.0f;
-                float graze = powf(fmaxf(ex, ey), 3.5f) * 0.07f;
-                /* uneven yellowing: large, slow, and never uniform */
-                float age = vnoise((float)i * 0.0032f, (float)j * 0.0032f, 11);
-                float age2 = vnoise((float)i * 0.0009f, (float)j * 0.0011f, 12);
-                float yellow = (0.45f * age + 0.55f * age2);
-                /* dust: settles low and in the corners */
-                float low = (float)j / (float)H;
-                float dust = vnoise((float)i * 0.006f, (float)j * 0.006f, 13) * low * low * 0.05f;
-
-                float m = 0.72f + 0.26f * key;
-                for (int k = 0; k < 3; k++) {
-                    float v = p[k] * m + (sheen + graze) * 255.0f;
-                    /* warm the reds, hold the greens, pull the blues down */
-                    float tint = (k == 0)   ? 1.0f + 0.055f * yellow
-                                 : (k == 1) ? 1.0f + 0.022f * yellow
-                                            : 1.0f - 0.075f * yellow;
-                    v *= tint;
-                    v *= 1.0f - dust;
-                    p[k] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : v);
-                }
-            }
-        }
+/* The finish at one pixel of a W x H case: what surface_finish does to the
+ * colour there.  Split out so a part drawn after the finish - a key - can
+ * be finished the same way where it lands. */
+void finish_rgb(float i, float j, int W, int H, float rgb[3]) {
+    float lx = (float)W * 0.16f, ly = -(float)H * 0.40f; /* key, above and left */
+    float inv = 1.0f / (float)(W > H ? W : H);
+    float dx = (i - lx) * inv, dy = (j - ly) * inv;
+    float d2 = dx * dx + dy * dy;
+    /* inverse-square-ish falloff across the whole panel */
+    float key = 1.0f / (1.0f + 1.35f * d2);
+    /* broad specular lobe - plastic is satin, not matte */
+    float sheen = expf(-d2 * 2.6f) * 0.05f;
+    /* grazing sheen: the case brightens toward its outer edges */
+    float ex = fabsf((i / (float)W) - 0.5f) * 2.0f;
+    float ey = fabsf((j / (float)H) - 0.5f) * 2.0f;
+    float graze = powf(fmaxf(ex, ey), 3.5f) * 0.07f;
+    /* uneven yellowing: large, slow, and never uniform */
+    float age = vnoise(i * 0.0032f, j * 0.0032f, 11);
+    float age2 = vnoise(i * 0.0009f, j * 0.0011f, 12);
+    float yellow = (0.45f * age + 0.55f * age2);
+    /* dust: settles low and in the corners */
+    float low = j / (float)H;
+    float dust = vnoise(i * 0.006f, j * 0.006f, 13) * low * low * 0.05f;
+    float m = 0.72f + 0.26f * key;
+    for (int k = 0; k < 3; k++) {
+        float v = rgb[k] * m + (sheen + graze) * 255.0f;
+        /* warm the reds, hold the greens, pull the blues down */
+        float tint = (k == 0)   ? 1.0f + 0.055f * yellow
+                     : (k == 1) ? 1.0f + 0.022f * yellow
+                                : 1.0f - 0.075f * yellow;
+        v *= tint;
+        v *= 1.0f - dust;
+        rgb[k] = v < 0.0f ? 0.0f : v > 255.0f ? 255.0f : v;
     }
+}
+
+void surface_finish(canvas *c, int W, int H) {
+    for (int j = 0; j < H; j++)
+        for (int i = 0; i < W; i++) {
+            uint8_t *p = c->px + ((size_t)j * W + i) * 4;
+            float rgb[3] = {p[0], p[1], p[2]};
+            finish_rgb((float)i, (float)j, W, H, rgb);
+            for (int k = 0; k < 3; k++)
+                p[k] = (uint8_t)rgb[k];
+        }
 }
 
 /* The louvres down the monitor's sides: a single column of thin horizontal

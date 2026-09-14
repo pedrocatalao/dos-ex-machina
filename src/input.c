@@ -49,6 +49,7 @@ void input_capture(input_state *in, app *a, int on) {
 void input_init(input_state *in, app *a) {
     in->knob_drag = -1;
     in->knob_y0 = in->knob_v0 = 0.0f;
+    in->key_hit = -1;
     in->holding = -1; /* nothing asked of SDL yet */
     in->arrow = cursor_vintage();
     if (in->arrow)
@@ -151,19 +152,23 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             catalog_click(e->button.button == SDL_BUTTON_LEFT);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
-        else if (!in->captured && e->button.button == SDL_BUTTON_LEFT && key_at(L->osd_btn, mx, my))
+        else if (!in->captured && e->button.button == SDL_BUTTON_LEFT &&
+                 key_at(L->osd_btn, mx, my)) {
             /* the OSD button: for now the panel Shift+F1 opens, and a second
              * press puts it away */
+            in->key_hit = KEY_OSD;
             ui_toggle();
-        else if (!in->captured && e->button.button == SDL_BUTTON_LEFT &&
-                 key_at(L->mouse_btn, mx, my)) {
+        } else if (!in->captured && e->button.button == SDL_BUTTON_LEFT &&
+                   key_at(L->mouse_btn, mx, my)) {
             /* the MOUSE key: out on the case the host has the mouse, so a
              * press can only give it to the machine; CTRL+F10, printed over
              * the key, takes it back */
+            in->key_hit = KEY_MOUSE;
             input_capture(in, a, 1);
             in->knob_drag = -1;
         } else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             in->button = bt;
+            in->key_hit = KEY_MODE + bt;
             return INPUT_BUTTON;
         } else if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             /* grab: remember where the hand and the knob started */

@@ -134,7 +134,7 @@ laid on top, the DXM mark and the dotted mark.
 - **Aspect independence.** No 9-slice seams and no stretched photograph on a
   16:10 or 21:9 display (§6.3).
 - **The case is live where it has to be.** The LEDs, the turbo display's
-  digits, the knobs and the light from the picture are drawn over the baked
+  digits, the knobs, the keys and the light from the picture are drawn over the baked
   case every frame; the case holds only their unlit state.
 - **No art pipeline.** The machine is a file of constants (`params.h`),
   tunable in one place.
@@ -300,8 +300,16 @@ the machine controls:
 ### 6.8 Controls
 
 **The knobs.** Brightness and contrast, turned by dragging with the mouse
-released to the desktop. They are the one part of the case that moves: each
-is drawn over the finished plastic and redrawn alone when turned.
+released to the desktop. Each is drawn over the finished plastic and redrawn
+alone when turned.
+
+**The keys.** MOUSE, OSD, MODE, − and + are momentary: a click sends one
+down and it comes back up on its own, down in 60 ms, a moment at the
+bottom, up in 130. The cap sinks into its outline, showing a band of the
+hole's wall above it; its shadow draws in and its lit slope dims. Like the
+knobs, each is drawn over the finished plastic, taking the case's
+yellowing and key light where it sits, and a press redraws that key and
+any neighbour its square reaches, each at its own depth.
 
 **The turbo module.** A display and three keys beside the power switch,
 the same grey keycaps as the MOUSE and OSD keys.

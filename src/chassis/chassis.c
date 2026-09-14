@@ -110,7 +110,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     *knobs_placed = 1;
                     /* and the OSD button in the same strip under the LEFT pod,
                      * level with them: the monitor's controls in one row */
-                    osd_button(c, pxs[0] + pw * 0.5f, ky, mm, L->osd_btn);
+                    osd_button(pxs[0] + pw * 0.5f, ky, mm, L->osd_btn);
                 }
             }
             /* The dotted mark, engraved above the LEFT pod and centred on
@@ -253,6 +253,8 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     /* until a pod has room for them */
     memset(L->osd_btn, 0, sizeof L->osd_btn);
     memset(L->mouse_btn, 0, sizeof L->mouse_btn);
+    memset(L->btn, 0, sizeof L->btn);
+    keys_reset();
     memset(L->mouse_led, 0, sizeof L->mouse_led);
 
     surface_base(c, W, H);
@@ -266,8 +268,9 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     surface_wear(c, W, H);
     surface_finish(c, W, H);
     bezel_facing_alpha(c, L, W, H, &G);
-    /* the knobs, over the finished case */
+    /* the knobs and the keys, over the finished case */
     knobs_draw(c);
     knobs_layout(L);
+    keys_draw(c);
     return C.px;
 }

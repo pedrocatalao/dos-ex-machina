@@ -613,25 +613,33 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
 /* ---- the OSD button ----------------------------------------------------- */
 
 /* A key of the case's own, standing proud of the plastic: a keycap in
- * mid-grey moulding, seen a little from above.  A firm dark outline, and
- * inside it the cap's four SLOPES - wide, angled faces running in from the
- * rim to the flat top, the top slope catching the light, the two sides
- * half-lit, the bottom slope in shade - round a flat face a touch lighter
- * at the top.  A soft shadow on the case under it.  Its function is
- * printed on the face in Helvetica Bold, `cap` px capitals, set fat.
- * `stained` gives the cap the grime of the key most pressed: soft warm
- * blotches over the moulding, a little heavier than the case's own.
- * (cx, cy) is its centre, w x h the whole cap; records it in btn, for the
- * mouse. */
+ * mid-grey moulding, seen a little from above.  A firm dark outline - the
+ * hole the key stands in - and inside it the cap: four SLOPES, flat angled
+ * faces running in from the rim to the flat top, the top slope catching
+ * the light, the two sides half-lit, the bottom in shade, round a face of
+ * one flat colour, and a soft shadow on the case under it.  Its function
+ * is printed on the face in Helvetica Bold, `cap` px capitals.
+ *
+ * `press` is how far it is pushed in, 0 up to 1 down: the cap sinks into
+ * its hole, so a band of the hole's dark wall shows above it and less of
+ * the front slope below; the shadow it throws draws in and fades, and the
+ * lit slope and the face lose a little light as they go under the rim.
+ * `stained` gives the cap the grime of the key most pressed.  (cx, cy) is
+ * its centre, w x h the whole cap.  The key is drawn after the case's
+ * finish, so it takes the finish itself: (ox, oy) is where canvas c sits
+ * on the cw x ch case, so the yellowing and the key light are the ones at
+ * that spot. */
 static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
-                     float cap, int stained, float btn[4]) {
+                     float cap, int stained, float press, float ox, float oy, int cw, int ch) {
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float rad = h * 0.14f;
     float line = fmaxf(1.5f, 0.48f * mm); /* the outline */
     float slope = h * 0.12f;              /* the angled faces, in from the outline */
     float top_slope = slope * 0.80f;      /* the top one is foreshortened */
     const float R = PLASTIC_R * 0.62f, G = PLASTIC_G * 0.63f, B = PLASTIC_B * 0.68f;
-    float reach = 1.0f * mm, drop = 0.40f * mm;
+    float sink = press * 0.36f * mm; /* how far the cap has gone in */
+    float reach = 1.0f * mm * (1.0f - 0.35f * press), drop = 0.40f * mm * (1.0f - 0.6f * press);
+    float shade = 0.24f * (1.0f - 0.45f * press);
     int saved = canvas_grain;
     /* the shadow on the case, mostly under it */
     canvas_grain = 0;
@@ -641,12 +649,14 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             if (sd <= -1.0f || sd > reach)
                 continue;
             float t = fmaxf(0.0f, sd) / reach;
-            px_shade(c, i, j, 1.0f - 0.24f * (1.0f - t) * (1.0f - t), 0.0f);
+            px_shade(c, i, j, 1.0f - shade * (1.0f - t) * (1.0f - t), 0.0f);
         }
     canvas_grain = saved;
-    /* the flat face: the cap inset by the outline and the slopes */
+    /* the flat face: the cap inset by the outline and the slopes, sunk by
+     * `sink`; the bottom slope loses that much, the hole's wall gains it */
     float fx0 = x + line + slope, fx1 = x + w - line - slope;
-    float fy0 = y + line + top_slope, fy1 = y + h - line - slope;
+    float fy0 = y + line + top_slope + sink, fy1 = y + h - line - slope;
+    float wall = y + line + sink; /* the cap's rim, below the outline */
     for (int j = (int)y - 1; j <= (int)(y + h) + 1; j++)
         for (int i = (int)x - 1; i <= (int)(x + w) + 1; i++) {
             float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
@@ -659,6 +669,14 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 r = 30;
                 g = 28;
                 b = 23;
+            } else if (fy < wall) {
+                /* the hole's wall, seen above the sunk cap: darker the
+                 * deeper, with the cap's own shadow at its foot */
+                float u = (wall - fy) / fmaxf(sink, 1.0f);
+                float k = 0.34f + 0.10f * u;
+                r = (int)(R * k);
+                g = (int)(G * k);
+                b = (int)(B * k);
             } else {
                 float k;
                 /* which slope, if any: the one whose edge this pixel is
@@ -669,21 +687,22 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 float dl = fx0 - fx, dr = fx - fx1, dt = fy0 - fy, db = fy - fy1;
                 float out = fmaxf(fmaxf(dl, dr), fmaxf(dt, db));
                 if (out <= 0.0f) {
-                    k = 1.0f; /* the face: one flat colour */
+                    k = 1.0f - 0.05f * press; /* the face: one flat colour */
                 } else if (out == dt) {
-                    k = 1.62f;
+                    k = 1.62f - 0.16f * press;
                 } else if (out == db) {
-                    k = 0.66f;
+                    k = 0.66f + 0.05f * press;
                 } else {
-                    k = (out == dl) ? 1.22f : 0.88f;
+                    k = ((out == dl) ? 1.22f : 0.88f) - 0.03f * press;
                 }
                 /* a crease where the slopes meet the face */
                 if (out > 0.0f && out < 1.0f)
                     k *= 0.92f;
-                k *= 1.0f + plastic_tex(i, j) * 0.25f; /* a smoother moulding than the case */
+                k *= 1.0f + plastic_tex(i + (int)ox, j + (int)oy) *
+                                0.25f; /* a smoother moulding than the case */
                 float mr = 1.0f, mg = 1.0f, mb = 1.0f;
                 if (stained) {
-                    float u = fx / mm, v = fy / mm;
+                    float u = (fx + ox) / mm, v = (fy + oy) / mm;
                     float blot = vnoise(u * 0.45f, v * 0.5f, 51) * 0.6f +
                                  vnoise(u * 1.3f, v * 1.2f, 53) * 0.4f;
                     float d = fmaxf(0.0f, blot - 0.42f) / 0.58f;
@@ -696,30 +715,172 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 g = (int)(G * k * mg);
                 b = (int)(B * k * mb);
             }
-            px_blend(c, i, j, r, g, b, cov);
+            {
+                float rgb[3] = {(float)r, (float)g, (float)b};
+                finish_rgb((float)i + ox, (float)j + oy, cw, ch, rgb);
+                px_blend(c, i, j, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
+            }
         }
-    /* the legend, set fat: the face drawn twice, a pixel apart */
+    /* the legend, going down with the face */
     canvas_grain = 0;
     {
         const float sq = 0.92f; /* a little condensed */
         float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
         float tw = helv_width(label, cap, sq, track) + fat;
         float lx = cx - tw * 0.5f, ty = (fy0 + fy1) * 0.5f - cap * 0.5f;
-        text_helv(c, lx, ty, label, cap, sq, track, 232, 224, 202);
-        text_helv(c, lx + fat, ty, label, cap, sq, track, 232, 224, 202);
+        float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
+                        202.0f * (1.0f - 0.04f * press)};
+        finish_rgb(cx + ox, cy + oy, cw, ch, ink);
+        int lr = (int)ink[0], lg = (int)ink[1], lb = (int)ink[2];
+        text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
+        text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
     }
     canvas_grain = saved;
-    btn[0] = x;
-    btn[1] = y;
-    btn[2] = w;
-    btn[3] = h;
+}
+
+/* The keys, kept the way the knobs are: where each goes, and the plastic
+ * under it, so a press redraws the key and not the machine.  The plastic
+ * is saved before ANY key is drawn, and a redraw puts back every key its
+ * square reaches, each at the depth it is at - MODE's square takes in the
+ * tops of - and +, which are keys too, not plastic. */
+static struct {
+    struct {
+        float cx, cy, w, h, mm, cap;
+        const char *label;
+        int stained, placed;
+        float depth; /* as last drawn */
+        uint8_t *bg; /* the square beneath, RGBA, with no key in it */
+        int bx, by, bw, bh;
+    } k[KEY_COUNT];
+    int cw, ch; /* the case they were placed on */
+    uint8_t *patch;
+} KEYS;
+
+void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
+               float cap, int stained, float out[4]) {
+    if (which < 0 || which >= KEY_COUNT)
+        return;
+    KEYS.k[which].cx = cx;
+    KEYS.k[which].cy = cy;
+    KEYS.k[which].w = w;
+    KEYS.k[which].h = h;
+    KEYS.k[which].mm = mm;
+    KEYS.k[which].cap = cap;
+    KEYS.k[which].label = label;
+    KEYS.k[which].stained = stained;
+    KEYS.k[which].placed = 1;
+    KEYS.k[which].depth = 0.0f;
+    out[0] = cx - w * 0.5f;
+    out[1] = cy - h * 0.5f;
+    out[2] = w;
+    out[3] = h;
+}
+
+/* draw key `k` onto canvas c, which sits at (ox, oy) on the case */
+static void key_draw_at(canvas *c, int k, float ox, float oy) {
+    case_key(c, KEYS.k[k].cx - ox, KEYS.k[k].cy - oy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
+             KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].stained, KEYS.k[k].depth, ox, oy, KEYS.cw,
+             KEYS.ch);
+}
+
+/* the square a key's drawing can reach: the cap, its shadow, its wall */
+static void key_square(int k, int *bx, int *by, int *bw, int *bh) {
+    float mm = KEYS.k[k].mm, reach = 1.0f * mm + 2.0f;
+    *bx = (int)(KEYS.k[k].cx - KEYS.k[k].w * 0.5f - reach);
+    *by = (int)(KEYS.k[k].cy - KEYS.k[k].h * 0.5f - reach);
+    *bw = (int)(KEYS.k[k].w + 2.0f * reach) + 2;
+    *bh = (int)(KEYS.k[k].h + 2.0f * reach + 0.5f * mm) + 2;
+}
+
+void keys_reset(void) {
+    for (int k = 0; k < KEY_COUNT; k++)
+        KEYS.k[k].placed = 0;
+}
+
+void keys_draw(canvas *c) {
+    KEYS.cw = c->w;
+    KEYS.ch = c->h;
+    /* first the plastic under every key, with no key on it yet */
+    for (int k = 0; k < KEY_COUNT; k++) {
+        if (!KEYS.k[k].placed)
+            continue;
+        int bx, by, bw, bh;
+        key_square(k, &bx, &by, &bw, &bh);
+        free(KEYS.k[k].bg);
+        KEYS.k[k].bg = malloc((size_t)bw * bh * 4);
+        KEYS.k[k].bx = bx;
+        KEYS.k[k].by = by;
+        KEYS.k[k].bw = bw;
+        KEYS.k[k].bh = bh;
+        if (!KEYS.k[k].bg)
+            continue;
+        for (int j = 0; j < bh; j++)
+            for (int i = 0; i < bw; i++) {
+                int x = bx + i, y = by + j;
+                uint8_t *d = KEYS.k[k].bg + ((size_t)j * bw + i) * 4;
+                if (x < 0 || y < 0 || x >= c->w || y >= c->h)
+                    memset(d, 0, 4);
+                else
+                    memcpy(d, c->px + ((size_t)y * c->w + x) * 4, 4);
+            }
+    }
+    /* then the keys, over it; the alpha under them stays the case's */
+    for (int k = 0; k < KEY_COUNT; k++)
+        if (KEYS.k[k].placed) {
+            key_draw_at(c, k, 0.0f, 0.0f);
+            for (int j = 0; j < KEYS.k[k].bh && KEYS.k[k].bg; j++)
+                for (int i = 0; i < KEYS.k[k].bw; i++) {
+                    int x = KEYS.k[k].bx + i, y = KEYS.k[k].by + j;
+                    if (x >= 0 && y >= 0 && x < c->w && y < c->h)
+                        c->px[((size_t)y * c->w + x) * 4 + 3] =
+                            KEYS.k[k].bg[((size_t)j * KEYS.k[k].bw + i) * 4 + 3];
+                }
+        }
+}
+
+const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, int *h) {
+    if (which < 0 || which >= KEY_COUNT || !KEYS.k[which].placed || !KEYS.k[which].bg)
+        return NULL;
+    int bx = KEYS.k[which].bx, by = KEYS.k[which].by;
+    int bw = KEYS.k[which].bw, bh = KEYS.k[which].bh;
+    KEYS.patch = realloc(KEYS.patch, (size_t)bw * bh * 4);
+    if (!KEYS.patch)
+        return NULL;
+    if (press < 0.0f)
+        press = 0.0f;
+    if (press > 1.0f)
+        press = 1.0f;
+    KEYS.k[which].depth = press;
+    /* the plastic, from whichever keys' saved squares cover it: each saved
+     * square is keyless, so any of them will do where it reaches */
+    memcpy(KEYS.patch, KEYS.k[which].bg, (size_t)bw * bh * 4);
+    canvas P;
+    P.w = bw;
+    P.h = bh;
+    P.px = KEYS.patch;
+    /* every key this square reaches, in the order the bake drew them */
+    for (int k = 0; k < KEY_COUNT; k++) {
+        if (!KEYS.k[k].placed || !KEYS.k[k].bg)
+            continue;
+        if (KEYS.k[k].bx >= bx + bw || KEYS.k[k].bx + KEYS.k[k].bw <= bx ||
+            KEYS.k[k].by >= by + bh || KEYS.k[k].by + KEYS.k[k].bh <= by)
+            continue;
+        key_draw_at(&P, k, (float)bx, (float)by);
+    }
+    for (size_t n = 0; n < (size_t)bw * bh; n++)
+        KEYS.patch[n * 4 + 3] = KEYS.k[which].bg[n * 4 + 3];
+    *x = bx;
+    *y = by;
+    *w = bw;
+    *h = bh;
+    return KEYS.patch;
 }
 
 /* The OSD button, under the left pod, level with the knobs under the right
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
-void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]) {
-    case_key(c, cx, cy, 10.8f * mm, 5.8f * mm, mm, "OSD", 2.0f * mm, 0, btn);
+void osd_button(float cx, float cy, float mm, float btn[4]) {
+    keys_slot(KEY_OSD, cx, cy, 10.8f * mm, 5.8f * mm, mm, "OSD", 2.0f * mm, 0, btn);
 }
 
 /* A printed rule, axis-aligned and antialiased: x,y,w,h in px. */
@@ -794,7 +955,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     printed_corner(c, cx - lx + rc, by + rc, rc, -1, -1, lt, LINE_R, LINE_G, LINE_B);
     printed_corner(c, cx + lx - rc, by + rc, rc, 1, -1, lt, LINE_R, LINE_G, LINE_B);
     canvas_grain = saved;
-    case_key(c, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, btn);
+    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, btn);
     {
         const char *words[2] = {"HOST", "DXM"};
         for (int s = 0; s < 2; s++) {
@@ -909,12 +1070,13 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
 }
 
 /* One cap of the button cluster: the same keycap as the MOUSE and OSD
- * keys, at the cluster's size, with its function on it.  Records its
- * outline in out, for the mouse. */
-static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm, const char *label,
+ * keys, at the cluster's size, with its function on it - placed here,
+ * drawn last with the others.  Records its outline in out, for the
+ * mouse. */
+static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
-    case_key(c, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, out);
+    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power
@@ -961,7 +1123,7 @@ void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4
     turbo_glass(c, x + lip + sw, y + lip, gw, gh, seg);
     float kx = x + lip + sw + gw + part, ky = y + lip;
     float ch = (gh - gap) * 0.5f, cw = (kw - gap) * 0.5f;
-    cluster_cap(c, kx, ky, kw, ch, mm, "MODE", btn[0]);
-    cluster_cap(c, kx, ky + ch + gap, cw, ch, mm, "-", btn[1]);
-    cluster_cap(c, kx + cw + gap, ky + ch + gap, cw, ch, mm, "+", btn[2]);
+    cluster_cap(KEY_MODE, kx, ky, kw, ch, mm, "MODE", btn[0]);
+    cluster_cap(KEY_MINUS, kx, ky + ch + gap, cw, ch, mm, "-", btn[1]);
+    cluster_cap(KEY_PLUS, kx + cw + gap, ky + ch + gap, cw, ch, mm, "+", btn[2]);
 }

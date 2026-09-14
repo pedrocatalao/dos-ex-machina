@@ -22,7 +22,8 @@ typedef struct {
     float btn[3][4];
     float mode_led[2][4]; /* the FPS and the MHz LEDs, unlit in the bake */
     /* The two rotary knobs, brightness then contrast: centre x, y and
-     * radius in output px.  They are the one part of the case that moves. */
+     * radius in output px.  They and the keys are the parts of the case that
+     * move. */
     float knob[2][3];
     /* The OSD button under the left pod, x,y,w,h, and the two mouse LEDs on
      * that pod, HOST then DXM, unlit in the bake, under the MOUSE key.  A w of 0 is one there
@@ -36,6 +37,13 @@ dxm_layout chassis_layout(int out_w, int out_h);
 /* Draw the static machine once into an RGBA8 buffer (caller frees). */
 uint8_t *chassis_render(dxm_layout *L, int out_w, int out_h);
 
+/* The keys of the case, in the order chassis_key_set takes them. */
+typedef enum { KEY_MOUSE, KEY_OSD, KEY_MODE, KEY_MINUS, KEY_PLUS, KEY_COUNT } chassis_key;
+/* Press a key: `press` is 0 up to 1 fully down.  Returns a small RGBA8
+ * patch of the key redrawn over the plastic saved beneath it, and where
+ * it goes, as chassis_knob_set does; NULL for a key the case has not
+ * got.  The buffer is valid until the next call. */
+const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, int *h);
 /* Turn a knob.  pos is 0..1 across its travel.  Returns a small RGBA8 patch
  * - the knob redrawn over the plastic chassis_render saved beneath it - and
  * where it goes, for the caller to upload into the chassis texture.  The

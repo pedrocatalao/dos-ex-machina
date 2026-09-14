@@ -64,6 +64,7 @@ void text_smooth16(canvas *c, float x, float y, const char *s, float sc, int r, 
 void surface_base(canvas *c, int W, int H);
 void surface_edges(canvas *c, int W, int H, const chassis_geom *G);
 void surface_finish(canvas *c, int W, int H);
+void finish_rgb(float i, float j, int W, int H, float rgb[3]);
 void surface_monitor_recess(canvas *c, int W, int H, const chassis_geom *G);
 void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G);
 void surface_top_roll(canvas *c, int W, const chassis_geom *G);
@@ -78,7 +79,7 @@ void bezel_facing_alpha(canvas *c, const dxm_layout *L, int W, int H, const chas
 void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4]);
 void grille_panel(canvas *c, float x, float y, float w, float h, float pitch);
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h, dxm_layout *L);
-void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]);
+void osd_button(float cx, float cy, float mm, float btn[4]);
 int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, float btn[4],
                 float led_out[2][4]);
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
@@ -93,6 +94,13 @@ void multimedia_sticker(canvas *c, float cx, float cy, float w, float taller, fl
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);
 void corner_engraving(canvas *c, float cx, float cy, float w);
+
+/* parts.c, the keys: placed while the case is drawn, drawn LAST over the
+ * finished plastic - like the knobs - so a press can redraw one alone */
+void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
+               float cap, int stained, float out[4]);
+void keys_draw(canvas *c);
+void keys_reset(void); /* before a render: no key placed until one is */
 
 /* knobs.c */
 void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s);

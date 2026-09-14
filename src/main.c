@@ -124,6 +124,52 @@ static void show_knobs(gpu *g, const gpu_knobs *k, float *last_b, float *last_c)
     }
 }
 
+/* A key goes down when clicked and comes back up on its own - a momentary
+ * switch, which is what every key on the case is.  Down fast, a moment at
+ * the bottom, up a little slower; each frame the key is redrawn at where
+ * it is, and only while it is moving. */
+#define KEY_DOWN_S 0.06
+#define KEY_HOLD_S 0.05
+#define KEY_UP_S 0.13
+typedef struct {
+    Uint64 t0[KEY_COUNT];   /* when each press began; 0 for none */
+    float shown[KEY_COUNT]; /* the depth the texture shows */
+} key_anim;
+
+static void keys_press(key_anim *ka, int which) {
+    if (which >= 0 && which < KEY_COUNT)
+        ka->t0[which] = app_now_ns();
+}
+
+static float ease(float t) {
+    return t * t * (3.0f - 2.0f * t);
+}
+
+static void show_keys(gpu *g, key_anim *ka) {
+    Uint64 now = app_now_ns();
+    for (int k = 0; k < KEY_COUNT; k++) {
+        float depth = 0.0f;
+        if (ka->t0[k]) {
+            double t = (double)(now - ka->t0[k]) / 1e9;
+            if (t < KEY_DOWN_S)
+                depth = ease((float)(t / KEY_DOWN_S));
+            else if (t < KEY_DOWN_S + KEY_HOLD_S)
+                depth = 1.0f;
+            else if (t < KEY_DOWN_S + KEY_HOLD_S + KEY_UP_S)
+                depth = 1.0f - ease((float)((t - KEY_DOWN_S - KEY_HOLD_S) / KEY_UP_S));
+            else
+                ka->t0[k] = 0;
+        }
+        if (depth == ka->shown[k])
+            continue;
+        int px, py, pw, ph;
+        const uint8_t *p = chassis_key_set(k, depth, &px, &py, &pw, &ph);
+        if (p)
+            gpu_patch_chassis(g, px, py, pw, ph, p);
+        ka->shown[k] = depth;
+    }
+}
+
 /* The machine's own C: drive: a directory in the preferences, created the
  * first time and never touched by anything but the DOS that runs on it.
  * --dosbox DIR points the machine at another one. */
@@ -234,6 +280,7 @@ int main(int argc, char **argv) {
     Uint64 fps_t0 = t_start;
     int fps_n = 0;
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
+    key_anim keys = {{0}, {0}};
     const char *autocmd = o.autocmd;
     while (!quit) {
         SDL_Event e;
@@ -253,6 +300,11 @@ int main(int argc, char **argv) {
                 chas = chassis_render(&L, a.W, a.H);
                 gpu_set_chassis(a.gpu, chas, a.W, a.H);
                 last_b = last_c = -1.0f;
+                memset(&keys, 0, sizeof keys); /* the bake shows them up */
+            }
+            if (in.key_hit >= 0) {
+                keys_press(&keys, in.key_hit);
+                in.key_hit = -1;
             }
         }
         /* SETUP stops the machine's clock: a BIOS setup halted the boot, so
@@ -382,6 +434,7 @@ int main(int argc, char **argv) {
         }
 
         show_knobs(a.gpu, &k, &last_b, &last_c);
+        show_keys(a.gpu, &keys);
         k.aperture_r = L.aperture_r; /* match the chassis hole */
         /* the wall clock, not the machine's: SETUP stops the boot, not the
          * tube - its noise, flicker and jitter are the glass's own */
