@@ -23,6 +23,8 @@ void theatre_power_on(theatre *th, int deterministic) {
     th->mode = 0;
     memset(th->seg_lvl, 0, sizeof th->seg_lvl);
     th->leg_lvl[0] = th->leg_lvl[1] = 0.0f;
+    th->mouse_dxm = 0;
+    th->mouse_lvl[0] = th->mouse_lvl[1] = 0.0f;
     th->seg_t = -1.0;
     snd_relay();
     snd_degauss();
@@ -33,6 +35,10 @@ void theatre_power_off(theatre *th, double t) {
     snd_power(0);
     snd_relay();
     dxm_log("power off");
+}
+
+void theatre_mouse(theatre *th, int dxm) {
+    th->mouse_dxm = dxm ? 1 : 0;
 }
 
 void theatre_fps(theatre *th, int fps) {
@@ -167,6 +173,18 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
                         1.0f - (L->mode_led[i][1] + L->mode_led[i][3]) / H, L->mode_led[i][2] / W,
                         L->mode_led[i][3] / H, th->leg_lvl[i] * th->pwr, 1.0f, 0.16f, 0.06f, 1,
                         2.0f);
+        /* the mouse lamps on the left pod: HOST or DXM, red like the mode
+         * lights, crossfading the same way; none where the pod had no room
+         * for them */
+        for (int i = 0; i < 2; i++) {
+            float want = (th->mouse_dxm == i) ? 1.0f : 0.0f;
+            th->mouse_lvl[i] += (want - th->mouse_lvl[i]) * k;
+            gpu_set_led(g, 4 + i, L->mouse_led[i][0] / W,
+                        1.0f - (L->mouse_led[i][1] + L->mouse_led[i][3]) / H,
+                        L->mouse_led[i][2] / W, L->mouse_led[i][3] / H,
+                        L->mouse_led[i][2] > 0.0f ? th->mouse_lvl[i] * th->pwr : 0.0f, 1.0f, 0.16f,
+                        0.06f, 1, 2.0f);
+        }
     }
     return done;
 }

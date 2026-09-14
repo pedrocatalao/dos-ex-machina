@@ -343,6 +343,26 @@ void surface_wear(canvas *c, int W, int H) {
                 if (scuff > 0.0005f)
                     px_shade(c, i, j, 1.0f - scuff, 0.0f);
             }
+        /* Stains: thirty years of hands, smoke and dust wiped round rather
+         * than off.  Soft blotches a centimetre or two across, warmer than
+         * the plastic - they take more blue out than red - over a finer
+         * mottle, so no stretch of the case is one even colour.  Sized in
+         * millimetres, so they are the same stains at every resolution. */
+        for (int j = 0; j < H; j++)
+            for (int i = 0; i < W; i++) {
+                float u = (float)i / mmu, v = (float)j / mmu; /* mm */
+                float blot = vnoise(u * 0.075f, v * 0.085f, 41) * 0.65f +
+                             vnoise(u * 0.23f, v * 0.21f, 43) * 0.35f;
+                float d = fmaxf(0.0f, blot - 0.52f) / 0.48f;
+                d = d * d * 0.075f;
+                d += (vnoise(u * 0.55f, v * 0.55f, 47) - 0.5f) * 0.016f;
+                uint8_t *p = c->px + ((size_t)j * W + i) * 4;
+                float m[3] = {1.0f - d * 0.80f, 1.0f - d, 1.0f - d * 1.35f};
+                for (int k = 0; k < 3; k++) {
+                    float x = p[k] * m[k];
+                    p[k] = (uint8_t)(x < 0.0f ? 0.0f : x > 255.0f ? 255.0f : x);
+                }
+            }
     }
 }
 

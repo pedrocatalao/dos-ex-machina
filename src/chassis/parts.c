@@ -3,6 +3,9 @@
 #include "internal.h"
 #include "segdisp.h"
 
+/* the condensed cut the case's printed legends are set in (text_helv) */
+#define KEY_SQUEEZE 0.82f
+
 static void led(canvas *c, float cx, float cy, float rad, int r, int g, int b) {
     /* Matched to the reference PNG's LEDs at 16x magnification:
      *  - a THIN dark outline hugging the lens (heavier at the top), not a
@@ -447,7 +450,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     float gap = 0.40f * mm; /* the dark outline */
 
     float top = 1.45f * mm; /* how far it stands proud */
-    float rad = 0.30f * mm; /* barely-there corner ease  */
+    float rad = 0.65f * mm; /* a slight ease on the corners */
 
     /* Only the RECESS ABOVE the cap is dark - that is the opening the
      * button has come out of.  The sides and bottom get no outline: the
@@ -486,7 +489,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     for (int k = 0; k < (int)top; k++) {
         float u = (float)k / top;     /* 0 at the front, 1 far edge */
         float inset = u * 0.9f * mm;  /* the trapezoid narrowing    */
-        float sh = 1.30f - 0.16f * u; /* lit, easing back           */
+        float sh = 1.40f - 0.14f * u; /* lit, a shade above the front face */
         int yy = (int)(ey - k);
         for (int i2 = (int)(ex + inset); i2 < (int)(ex + ew - inset); i2++) {
             float n = plastic_tex(i2, yy);
@@ -499,8 +502,8 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
         px_blend(c, i2, (int)ey, 255, 252, 246, 0.30f);
 
     /* the cap face */
-    rrect(c, ex, ey, ew, eh, rad, (int)(pr * 1.10f), (int)(pg * 1.10f), (int)(pb * 1.10f), 1.10f,
-          0.94f);
+    rrect(c, ex, ey, ew, eh, rad, (int)(pr * 1.10f), (int)(pg * 1.10f), (int)(pb * 1.10f), 1.02f,
+          0.92f);
     housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f);
 
     /* activity light: rectangular window, as in the reference */
@@ -553,14 +556,13 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
                   dxm_layout *L) {
     /* painted, and centred over the cap */
     {
+        /* in the face the mouse lamps' words are set in, and clear of the
+         * well's shadow above the button */
         const char *pl = "POWER";
-        /* a step down from the moulded lettering's scale (the bitmap
-         * font only scales by whole numbers), and clear of the well's
-         * shadow above the button */
-        float ls = fmaxf(1.0f, canvas_lbl * 0.70f);
-        float tw3 = (float)strlen(pl) * 8.0f * ls;
-        float ly = mid - pw * 0.39f - 1.9f * mm - 8.0f * ls - 0.7f * mm;
-        text_smooth(c, px0 + (pw - tw3) * 0.5f, ly, pl, ls, 112, 107, 96);
+        float cap = 2.0f * mm, tr = cap * 0.05f;
+        float tw3 = helv_width(pl, cap, KEY_SQUEEZE, tr);
+        float ly = mid - pw * 0.39f - 1.9f * mm - cap - 0.9f * mm;
+        text_helv(c, px0 + (pw - tw3) * 0.5f, ly, pl, cap, KEY_SQUEEZE, tr, 88, 83, 72);
     }
     /* the well the button sits in, then the thin cut, then the cap */
     well_rect(c, px0, mid - pw * 0.39f, pw, pw * 0.78f, pw * 0.10f, 0.45f * mm, 1.9f * mm);
@@ -606,6 +608,215 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
         L->pwr_led[3] = lr * 2.0f;
         L->pwr_shelf = cap_lo;
     }
+}
+
+/* ---- the OSD button ----------------------------------------------------- */
+
+/* A key of the case's own, standing proud of the plastic: a keycap in
+ * mid-grey moulding, seen a little from above.  A firm dark outline, and
+ * inside it the cap's four SLOPES - wide, angled faces running in from the
+ * rim to the flat top, the top slope catching the light, the two sides
+ * half-lit, the bottom slope in shade - round a flat face a touch lighter
+ * at the top.  A soft shadow on the case under it.  Its function is
+ * printed on the face in Helvetica Bold, `cap` px capitals, set fat.
+ * `stained` gives the cap the grime of the key most pressed: soft warm
+ * blotches over the moulding, a little heavier than the case's own.
+ * (cx, cy) is its centre, w x h the whole cap; records it in btn, for the
+ * mouse. */
+static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
+                     float cap, int stained, float btn[4]) {
+    float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
+    float rad = h * 0.14f;
+    float line = fmaxf(1.5f, 0.48f * mm); /* the outline */
+    float slope = h * 0.12f;              /* the angled faces, in from the outline */
+    float top_slope = slope * 0.80f;      /* the top one is foreshortened */
+    const float R = PLASTIC_R * 0.62f, G = PLASTIC_G * 0.63f, B = PLASTIC_B * 0.68f;
+    float reach = 1.0f * mm, drop = 0.40f * mm;
+    int saved = canvas_grain;
+    /* the shadow on the case, mostly under it */
+    canvas_grain = 0;
+    for (int j = (int)(y - reach); j <= (int)(y + h + reach + drop) + 1; j++)
+        for (int i = (int)(x - reach); i <= (int)(x + w + reach) + 1; i++) {
+            float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f - drop, cx, cy, hw, hh, rad);
+            if (sd <= -1.0f || sd > reach)
+                continue;
+            float t = fmaxf(0.0f, sd) / reach;
+            px_shade(c, i, j, 1.0f - 0.24f * (1.0f - t) * (1.0f - t), 0.0f);
+        }
+    canvas_grain = saved;
+    /* the flat face: the cap inset by the outline and the slopes */
+    float fx0 = x + line + slope, fx1 = x + w - line - slope;
+    float fy0 = y + line + top_slope, fy1 = y + h - line - slope;
+    for (int j = (int)y - 1; j <= (int)(y + h) + 1; j++)
+        for (int i = (int)x - 1; i <= (int)(x + w) + 1; i++) {
+            float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
+            float sd = rr_sd(fx, fy, cx, cy, hw, hh, rad);
+            float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
+            if (cov <= 0.0f)
+                continue;
+            int r, g, b;
+            if (sd > -line) { /* the outline */
+                r = 30;
+                g = 28;
+                b = 23;
+            } else {
+                float k;
+                /* which slope, if any: the one whose edge this pixel is
+                 * nearest to, by how far it lies outside the flat face.
+                 * Each is one flat tone - a moulded chamfer is a plane -
+                 * the top one facing the light, the bottom in shade, the
+                 * sides half-lit. */
+                float dl = fx0 - fx, dr = fx - fx1, dt = fy0 - fy, db = fy - fy1;
+                float out = fmaxf(fmaxf(dl, dr), fmaxf(dt, db));
+                if (out <= 0.0f) {
+                    k = 1.0f; /* the face: one flat colour */
+                } else if (out == dt) {
+                    k = 1.62f;
+                } else if (out == db) {
+                    k = 0.66f;
+                } else {
+                    k = (out == dl) ? 1.22f : 0.88f;
+                }
+                /* a crease where the slopes meet the face */
+                if (out > 0.0f && out < 1.0f)
+                    k *= 0.92f;
+                k *= 1.0f + plastic_tex(i, j) * 0.25f; /* a smoother moulding than the case */
+                float mr = 1.0f, mg = 1.0f, mb = 1.0f;
+                if (stained) {
+                    float u = fx / mm, v = fy / mm;
+                    float blot = vnoise(u * 0.45f, v * 0.5f, 51) * 0.6f +
+                                 vnoise(u * 1.3f, v * 1.2f, 53) * 0.4f;
+                    float d = fmaxf(0.0f, blot - 0.42f) / 0.58f;
+                    d = d * d * 0.30f + (vnoise(u * 2.5f, v * 2.5f, 57) - 0.5f) * 0.05f;
+                    mr = 1.0f - d * 0.70f;
+                    mg = 1.0f - d;
+                    mb = 1.0f - d * 1.40f;
+                }
+                r = (int)(R * k * mr);
+                g = (int)(G * k * mg);
+                b = (int)(B * k * mb);
+            }
+            px_blend(c, i, j, r, g, b, cov);
+        }
+    /* the legend, set fat: the face drawn twice, a pixel apart */
+    canvas_grain = 0;
+    {
+        const float sq = 0.92f; /* a little condensed */
+        float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
+        float tw = helv_width(label, cap, sq, track) + fat;
+        float lx = cx - tw * 0.5f, ty = (fy0 + fy1) * 0.5f - cap * 0.5f;
+        text_helv(c, lx, ty, label, cap, sq, track, 232, 224, 202);
+        text_helv(c, lx + fat, ty, label, cap, sq, track, 232, 224, 202);
+    }
+    canvas_grain = saved;
+    btn[0] = x;
+    btn[1] = y;
+    btn[2] = w;
+    btn[3] = h;
+}
+
+/* The OSD button, under the left pod, level with the knobs under the right
+ * one: a control on its own, tied to nothing, so the monitor's three
+ * controls make one row across the tube. */
+void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]) {
+    case_key(c, cx, cy, 10.8f * mm, 5.8f * mm, mm, "OSD", 2.0f * mm, 0, btn);
+}
+
+/* A printed rule, axis-aligned and antialiased: x,y,w,h in px. */
+static void printed_rule(canvas *c, float x, float y, float w, float h, int r, int g, int b) {
+    for (int j = (int)y - 1; j <= (int)(y + h) + 1; j++)
+        for (int i = (int)x - 1; i <= (int)(x + w) + 1; i++) {
+            float ax = fminf((float)i + 1.0f, x + w) - fmaxf((float)i, x);
+            float ay = fminf((float)j + 1.0f, y + h) - fmaxf((float)j, y);
+            if (ax > 0.0f && ay > 0.0f)
+                px_blend(c, i, j, r, g, b, fminf(1.0f, ax) * fminf(1.0f, ay));
+        }
+}
+
+/* A quarter turn of printed line, `t` px thick, radius `rc`, centred on
+ * (ax, ay): the quadrant with x on the `sx` side and y on the `sy` side
+ * of the centre (-1 or +1 each). */
+static void printed_corner(canvas *c, float ax, float ay, float rc, int sx, int sy, float t, int r,
+                           int g, int b) {
+    for (int j = (int)(ay - rc - t) - 1; j <= (int)(ay + rc + t) + 1; j++)
+        for (int i = (int)(ax - rc - t) - 1; i <= (int)(ax + rc + t) + 1; i++) {
+            float dx = (float)i + 0.5f - ax, dy = (float)j + 0.5f - ay;
+            if (dx * (float)sx < 0.0f || dy * (float)sy < 0.0f)
+                continue;
+            float d = fabsf(sqrtf(dx * dx + dy * dy) - rc);
+            float a = fminf(1.0f, fmaxf(0.0f, t * 0.5f + 0.5f - d));
+            if (a > 0.0f)
+                px_blend(c, i, j, r, g, b, a);
+        }
+}
+
+/* The mouse key and its lamps, on the left pod under the holes where the
+ * right one carries the MULTIMEDIA sticker.  CTRL+F10 printed over a MOUSE
+ * key; from under the key a printed line drops and branches, the way a
+ * hi-fi front of the eighties drew a selector's outputs, down to two LEDs
+ * side by side with HOST and DXM under them.  Which lamp is lit says who
+ * has the mouse; the shader lights it.  The key gives the mouse to the
+ * machine - the only way it can go from a press, since while the machine
+ * has it there is no pointer to press with - and CTRL+F10 takes it back.
+ *
+ * Centred on cx, and between y0 and y1; returns 0 and draws nothing when
+ * that, or maxw across, cannot hold it.  Records the key's well in btn and
+ * the two LEDs, HOST then DXM, in led_out. */
+int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, float btn[4],
+                float led_out[2][4]) {
+    const int INK_R = 88, INK_G = 83, INK_B = 72;     /* the printing: POWER's ink */
+    const int LINE_R = 104, LINE_G = 99, LINE_B = 88; /* the lines, a shade paler */
+    const float SQ = 0.90f;                           /* the legends, a little condensed */
+    float lr = 1.2f * mm, hole = lr * 1.72f, lt = fmaxf(1.0f, 0.30f * mm);
+    /* Helvetica Bold throughout, sized by its capitals, in POWER's weight */
+    float cap_key = 2.1f * mm, cap_lamp = 2.0f * mm, tr_lamp = cap_lamp * 0.08f;
+    float tw_short = helv_width("CTRL+F10", cap_lamp, SQ, tr_lamp);
+    float tw_host = helv_width("HOST", cap_lamp, SQ, tr_lamp);
+    /* the key: the turbo module's MODE key's size exactly, so the two read
+     * as one part from one mould */
+    float kw = 17.4f * mm, kh = 7.5f * mm;
+    float lx = kw * 0.5f - 0.8f * mm; /* the lamps, under the key's ends */
+    float g1 = 1.6f * mm, stem = 3.0f * mm, drop = 3.7f * mm - hole, g2 = 1.4f * mm;
+    float h = cap_lamp + g1 + kh + stem + drop + 2.0f * hole + g2 + cap_lamp;
+    float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
+    if (h * 1.20f > y1 - y0 || wide > maxw)
+        return 0;
+    float top = (y0 + y1) * 0.5f - h * 0.5f;
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    text_helv(c, cx - tw_short * 0.5f, top, "CTRL+F10", cap_lamp, SQ, tr_lamp, INK_R, INK_G, INK_B);
+    float ky = top + cap_lamp + g1 + kh * 0.5f;
+    /* the branch first, so the key's shadow falls over its root */
+    float by = ky + kh * 0.5f + stem, lcy = by + drop + hole;
+    float rc = 0.5f * mm; /* the bar turns down to each lamp round a small corner */
+    printed_rule(c, cx - lt * 0.5f, ky, lt, kh * 0.5f + stem + lt * 0.5f, LINE_R, LINE_G, LINE_B);
+    printed_rule(c, cx - lx + rc, by - lt * 0.5f, 2.0f * (lx - rc), lt, LINE_R, LINE_G, LINE_B);
+    printed_corner(c, cx - lx + rc, by + rc, rc, -1, -1, lt, LINE_R, LINE_G, LINE_B);
+    printed_corner(c, cx + lx - rc, by + rc, rc, 1, -1, lt, LINE_R, LINE_G, LINE_B);
+    canvas_grain = saved;
+    case_key(c, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, btn);
+    {
+        const char *words[2] = {"HOST", "DXM"};
+        for (int s = 0; s < 2; s++) {
+            float lcx = cx + (s ? 1.0f : -1.0f) * lx;
+            canvas_grain = 0;
+            /* the drop runs into the lamp's own dark ring */
+            printed_rule(c, lcx - lt * 0.5f, by + rc, lt, drop - rc + 0.2f * mm, LINE_R, LINE_G,
+                         LINE_B);
+            canvas_grain = saved;
+            led(c, lcx, lcy, lr, 44, 18, 14); /* UNLIT, red */
+            led_out[s][0] = lcx - lr;
+            led_out[s][1] = lcy - lr;
+            led_out[s][2] = lr * 2.0f;
+            led_out[s][3] = lr * 2.0f;
+            float tw = helv_width(words[s], cap_lamp, SQ, tr_lamp);
+            canvas_grain = 0;
+            text_helv(c, lcx - tw * 0.5f, lcy + hole + g2, words[s], cap_lamp, SQ, tr_lamp, INK_R,
+                      INK_G, INK_B);
+            canvas_grain = saved;
+        }
+    }
+    return 1;
 }
 
 /* ---- the turbo display ---------------------------------------------------- */
@@ -697,40 +908,13 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
     out[3] = h;
 }
 
-/* One cap of the button cluster: the power cap's construction at a
- * fraction of the size - cap, bevel, the shadow it throws on the plate
- * below - with its function painted on it.  Records its outline in out,
- * for the mouse. */
+/* One cap of the button cluster: the same keycap as the MOUSE and OSD
+ * keys, at the cluster's size, with its function on it.  Records its
+ * outline in out, for the mouse. */
 static void cluster_cap(canvas *c, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
-    float rad = h * 0.12f;
-    rrect(c, x, y, w, h, rad, (int)(PLASTIC_R * 0.74f), (int)(PLASTIC_G * 0.72f),
-          (int)(PLASTIC_B * 0.76f), 1.16f, 0.84f);
-    bevel(c, x, y, w, h, fmaxf(1.0f, 0.45f * mm), 1);
-    {
-        int saved = canvas_grain;
-        canvas_grain = 0;
-        float sw = 1.0f * mm, cb = y + h;
-        for (int j2 = (int)cb; j2 <= (int)(cb + sw) + 1; j2++) {
-            float t = ((float)j2 + 0.5f - cb) / sw;
-            if (t < 0.0f || t >= 1.0f)
-                continue;
-            float f = (1.0f - t) * (1.0f - t);
-            for (int i2 = (int)x; i2 < (int)(x + w); i2++)
-                px_shade(c, i2, j2, 1.0f - 0.30f * f, 0.0f);
-        }
-        canvas_grain = saved;
-    }
-    {
-        float ls = fmaxf(0.5f, canvas_lbl * 0.62f);
-        float tw3 = (float)strlen(label) * 8.0f * ls;
-        text_smooth(c, x + (w - tw3) * 0.5f, y + (h - 8.0f * ls) * 0.5f - 0.5f, label, ls, 196, 190,
-                    176);
-    }
-    out[0] = x;
-    out[1] = y;
-    out[2] = w;
-    out[3] = h;
+    float cap = fminf(2.1f * mm, h * 0.46f);
+    case_key(c, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power
@@ -750,15 +934,18 @@ void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4
     float lip = 0.7f * mm * k, gap = 0.8f * mm * k, part = 1.1f * mm * k;
     float gh = pw * 0.78f * k, gw = SEG_WIN_W_MM * mm * k, kw = 13.5f * mm * k;
     /* the legend strip: an LED and a printed word, FPS over MHz, in the
-     * VGA face at a 2.2 mm cell - a silk-screened legend, not moulding */
-    float ls = 2.2f * mm * k / 16.0f, lr = 1.0f * mm * k;
-    float sw = (1.2f * mm + 1.0f * mm + 0.6f * mm) * k + lr * 2.0f + 3.0f * 8.0f * ls;
+     * face the case's other legends are set in - a silk-screened legend,
+     * not moulding */
+    float lcap = 1.6f * mm * k, ltr = lcap * 0.05f, lr = 1.0f * mm * k;
+    float sw =
+        (1.2f * mm + 1.0f * mm + 0.6f * mm) * k + lr * 2.0f +
+        fmaxf(helv_width("FPS", lcap, KEY_SQUEEZE, ltr), helv_width("MHZ", lcap, KEY_SQUEEZE, ltr));
     float h = gh + 2.0f * lip, w = lip + sw + gw + part + kw + lip;
     float y = mid - pw * 0.39f - 2.0f * mm, rad = h * 0.09f;
     well_rect(c, x, y, w, h, rad, 0.45f * mm, 1.9f * mm);
     rrect(c, x, y, w, h, rad, 64, 61, 56, 0.80f, 0.92f);
     {
-        const char *words[2] = {"FPS", "MHz"};
+        const char *words[2] = {"FPS", "MHZ"};
         float pitch = gh * 0.40f, lcx = x + lip + 1.2f * mm * k + lr;
         float tx = lcx + lr + 1.0f * mm * k;
         for (int i = 0; i < 2; i++) {
@@ -768,7 +955,7 @@ void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4
             mode_led[i][1] = cy - lr;
             mode_led[i][2] = lr * 2.0f;
             mode_led[i][3] = lr * 2.0f;
-            text_smooth16(c, tx, cy - 8.0f * ls, words[i], ls, 196, 190, 176);
+            text_helv(c, tx, cy - lcap * 0.5f, words[i], lcap, KEY_SQUEEZE, ltr, 196, 190, 176);
         }
     }
     turbo_glass(c, x + lip + sw, y + lip, gw, gh, seg);

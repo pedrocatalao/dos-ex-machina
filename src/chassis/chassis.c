@@ -84,6 +84,12 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                 multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 2.0f * mm,
                                    pw * 0.80f, (y1 - y0) / 1.30f);
             }
+            /* The mouse lamps, printed on the LEFT pod in the same place:
+             * centred between the holes and the foot of the pod, the
+             * sticker's opposite number, and like it something to read.
+             * A pod without the room goes without. */
+            mouse_lamps(c, pxs[0] + pw * 0.5f, gy + gh * 0.94f, py + ph, pw * 0.90f, mm,
+                        L->mouse_btn, L->mouse_led);
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -
              * the picture's controls on the picture's half of the case.
@@ -102,6 +108,9 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     knobs_slot(0, kx0, ky, kr);
                     knobs_slot(1, kx1, ky, kr);
                     *knobs_placed = 1;
+                    /* and the OSD button in the same strip under the LEFT pod,
+                     * level with them: the monitor's controls in one row */
+                    osd_button(c, pxs[0] + pw * 0.5f, ky, mm, L->osd_btn);
                 }
             }
             /* The dotted mark, engraved above the LEFT pod and centred on
@@ -241,6 +250,10 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     float gap_hi = L->tube_y - (gap_lo - (L->tube_y + L->tube_h)) - gap_d;
     int knobs_placed = 0; /* under the right pod, or on the band */
     chassis_geom G = {mm, inset, edge, bz, hous, gap_d, gap_lo, gap_hi};
+    /* until a pod has room for them */
+    memset(L->osd_btn, 0, sizeof L->osd_btn);
+    memset(L->mouse_btn, 0, sizeof L->mouse_btn);
+    memset(L->mouse_led, 0, sizeof L->mouse_led);
 
     surface_base(c, W, H);
     surface_top_roll(c, W, &G);

@@ -335,6 +335,7 @@ int main(int argc, char **argv) {
         }
         if (dosbox_exited() && th.off_t0 < 0.0)
             theatre_power_off(&th, t);
+        theatre_mouse(&th, in.holding == 1);
         if (theatre_frame(&th, a.gpu, &L, a.W, a.H, t))
             quit = 1;
 

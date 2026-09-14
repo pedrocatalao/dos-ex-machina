@@ -28,7 +28,8 @@ raster collapses when it is switched off.
 The machine is the interface. There is no chrome around it, no settings
 screen in front of it, no pointer over its glass while it holds the mouse.
 Controls that a real machine had are on the case: the power button, the
-brightness and contrast knobs, the turbo display and its buttons.
+brightness and contrast knobs, the turbo display and its buttons, the OSD
+button.
 
 SETUP (§6.9) is not an exception to this: a machine of the period had a
 setup screen of its own, reached from the POST, and this one is reached the
@@ -151,11 +152,14 @@ The case is drawn on the CPU, in plain C, from a small set of primitives:
 rounded boxes and signed distance fields, bevels, chamfers, soft edges, a
 lit height field for the plastic's grain, and an integer hash for every bit
 of noise, spelled in unsigned arithmetic so it is the same on every
-compiler.
+compiler. The same noise ages the case: scratches where hands go, scuffs
+low down, and soft warm stains over a finer mottle, sized in millimetres so
+they are the same stains at every resolution.
 
 All lettering uses compiled-in bitmap fonts: an 8x8 face for the moulded
-and printed lettering on the case, and the VGA 8x16 face for text on the
-tube. No system fonts anywhere: CoreText, fontconfig and GDI disagree on
+lettering on the case, Helvetica Bold for its printed legends - POWER, FPS
+and MHZ, the mouse lamps' words, and every key's cap - and the VGA 8x16
+face for text on the tube. No system fonts anywhere: CoreText, fontconfig and GDI disagree on
 hinting and placement, and there is no configuration that makes them agree.
 
 ### 6.3 Layout
@@ -180,7 +184,10 @@ The solve is tube-first:
    vents and the floppy drive, at real-world sizes in millimetres. The
    sticker and the marks are left off where they do not fit.
 5. **The knobs** go under the right speaker when there is room, and on the
-   band beside the turbo module when there is not.
+   band beside the turbo module when there is not. **The OSD button**
+   goes under the left speaker, level with them, when they are there. The
+   MOUSE key and its lamps go on the left pod under the holes, opposite the
+   MULTIMEDIA sticker, and are left off where the pod is too small for them.
 
 One arrangement serves every aspect. Every real-world size is in
 millimetres of one scale tied to the display's height, so a wide display
@@ -296,7 +303,8 @@ the machine controls:
 released to the desktop. They are the one part of the case that moves: each
 is drawn over the finished plastic and redrawn alone when turned.
 
-**The turbo module.** A display and three buttons beside the power switch.
+**The turbo module.** A display and three keys beside the power switch,
+the same grey keycaps as the MOUSE and OSD keys.
 The display shows the CPU clock in MHz, or with MODE the frames per second
 the machine draws; an LED against the printed legend says which. − and +
 step the clock through period speeds, each set in DOSBox as a cycle count
@@ -314,6 +322,21 @@ OSD replaces it.
 pointer, motion to DOSBox. Ctrl+F10 releases it to the desktop, as in
 DOSBox, where it wears a period arrow and works the knobs and buttons. On a
 Mac, whose F10 is a media key, a tap of Command alone does the same.
+
+**The MOUSE key.** On the left speaker pod under the holes, in the manner
+of an eighties hi-fi front: CTRL+F10 printed over a MOUSE key - a grey
+keycap with a firm outline and wide angled slopes in to its face - and from
+under the key a printed line that drops and branches down to two LEDs side
+by side, HOST and DXM under them. The lit LED says who holds the mouse,
+cross-fading like the mode LEDs and dark with the machine. The key gives
+the mouse to the machine; that is the only way a press can move it, since
+while the machine holds it there is no pointer to press with, and CTRL+F10
+takes it back.
+
+**The OSD button.** A momentary button under the left speaker pod, level
+with the knobs under the right one, a raised key like the MOUSE key with
+OSD printed on it. It opens the panel below, as Shift+F1 does, until the
+OSD replaces it.
 
 ### 6.9 SETUP
 

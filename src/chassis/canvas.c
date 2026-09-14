@@ -4,6 +4,7 @@
 #include "internal.h"
 #include "font.h"
 #include "crt.h"
+#include "gen/uifont_bold.h"
 
 float canvas_lbl = 1.0f;
 int canvas_grain = 1;
@@ -426,4 +427,87 @@ void housing_edge(canvas *c, float x, float y, float w, float h, float r, float 
                 px_shade(c, i, j, 1.0f - occl * (1.0f - t) * (1.0f - t) * 0.46f * gain, 0.0f);
             }
         }
+}
+
+/* Helvetica Bold - the face SETUP and CATALOG are set in - as printed on
+ * the case: the legends of the controls that are the machine's own, where
+ * the 8x8 would read as a terminal rather than as a silk screen.  Sized by
+ * its capitals, `cap` px tall from `y` down, and box-filtered from the
+ * 14-pixel bitmap, sixteen samples a pixel, so it holds at any size.
+ * `squeeze` narrows it (1 as drawn), the condensed cut a panel's legends
+ * were set in; `track` px after each letter.  Returns the width it took. */
+#define HELV_CAP 11.0f /* helvB14's capitals, in its own pixels */
+#define HELV_DIG 10.0f /* and its figures */
+float text_helv(canvas *c, float x, float y, const char *s, float cap, float squeeze, float track,
+                int r, int g, int b) {
+    float sc = cap / HELV_CAP, sx_ = sc * squeeze, pen = x;
+    for (int n = 0; s[n]; n++) {
+        unsigned char ch = (unsigned char)s[n];
+        if (ch < DXM_UIB_FIRST || ch > DXM_UIB_LAST)
+            continue;
+        const dxm_glyph *gl = &dxm_uib_glyphs[ch - DXM_UIB_FIRST];
+        int stride = (gl->w + 7) / 8;
+        /* the face's figures stand a pixel short of its capitals; on a
+         * panel they are set to the same height, so a figure is scaled
+         * up by that pixel, and its zero slashed, the way a machine's own
+         * legends wrote one */
+        int digit = (ch >= '0' && ch <= '9');
+        float gy = digit ? sc * HELV_CAP / HELV_DIG : sc,
+              gx = digit ? sx_ * HELV_CAP / HELV_DIG : sx_;
+        /* the glyph's box, on the canvas: rows above the baseline, which
+         * sits HELV_CAP below the capitals' top */
+        float bx0 = pen + gl->xoff * gx;
+        float by0 = y + HELV_CAP * sc - (float)(gl->yoff + gl->h) * gy;
+        int i0 = (int)floorf(bx0), i1 = (int)ceilf(bx0 + gl->w * gx);
+        int j0 = (int)floorf(by0), j1 = (int)ceilf(by0 + gl->h * gy);
+        for (int j = j0; j < j1; j++)
+            for (int i = i0; i < i1; i++) {
+                int on = 0;
+                for (int sy = 0; sy < 4; sy++)
+                    for (int sx = 0; sx < 4; sx++) {
+                        float u = ((float)i + (sx + 0.5f) / 4.0f - bx0) / gx;
+                        float v = ((float)j + (sy + 0.5f) / 4.0f - by0) / gy;
+                        int ui = (int)floorf(u), vi = (int)floorf(v);
+                        if (ui >= 0 && ui < gl->w && vi >= 0 && vi < gl->h &&
+                            (dxm_uib_bits[gl->at + vi * stride + ui / 8] & (0x80 >> (ui & 7))))
+                            on++;
+                    }
+                if (on)
+                    px_blend(c, i, j, r, g, b, (float)on / 16.0f);
+            }
+        if (ch == '0') {
+            /* the slash: lower left to upper right, inside the bowl, as
+             * thick as the face's stroke */
+            float w = gl->w * gx, h = gl->h * gy, t = 1.6f * gx;
+            float ax = bx0 + w * 0.30f, ay = by0 + h * 0.78f, ex = bx0 + w * 0.70f,
+                  ey = by0 + h * 0.22f;
+            float dx = ex - ax, dy = ey - ay, len = sqrtf(dx * dx + dy * dy);
+            for (int j = j0; j < j1; j++)
+                for (int i = i0; i < i1; i++) {
+                    float px = (float)i + 0.5f - ax, py = (float)j + 0.5f - ay;
+                    float along = (px * dx + py * dy) / len;
+                    if (along < 0.0f || along > len)
+                        continue;
+                    float d = fabsf(px * dy - py * dx) / len;
+                    float a = fminf(1.0f, fmaxf(0.0f, t * 0.5f + 0.5f - d));
+                    if (a > 0.0f)
+                        px_blend(c, i, j, r, g, b, a);
+                }
+        }
+        pen += gl->adv * (digit ? gx : sx_) + track;
+    }
+    return pen - x - track;
+}
+
+float helv_width(const char *s, float cap, float squeeze, float track) {
+    float sc = cap / HELV_CAP * squeeze, w = 0.0f;
+    int n = 0;
+    for (; s[n]; n++) {
+        unsigned char ch = (unsigned char)s[n];
+        if (ch >= DXM_UIB_FIRST && ch <= DXM_UIB_LAST)
+            w += dxm_uib_glyphs[ch - DXM_UIB_FIRST].adv * sc *
+                     ((ch >= '0' && ch <= '9') ? HELV_CAP / HELV_DIG : 1.0f) +
+                 track;
+    }
+    return n ? w - track : 0.0f;
 }

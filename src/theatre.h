@@ -24,6 +24,8 @@ typedef struct {
     int mode;           /* what the display shows: 0 the clock, 1 the frame rate */
     float seg_lvl[21];  /* how lit each segment is, easing toward what is shown */
     float leg_lvl[2];   /* the two mode LEDs, FPS and MHz, likewise */
+    int mouse_dxm;      /* the machine has the mouse, not the host */
+    float mouse_lvl[2]; /* the mouse LEDs, HOST and DXM, likewise */
     double seg_t;       /* when the display was last eased */
 } theatre;
 
@@ -37,6 +39,8 @@ void theatre_fps(theatre *th, int fps);
  * between the clock and the frame rate; - and + step the clock through
  * its stops, and do nothing while the frame rate is showing. */
 void theatre_button(theatre *th, int which);
+/* Who has the mouse, for the lamps on the left pod: 1 the machine, 0 the host. */
+void theatre_mouse(theatre *th, int dxm);
 /* the clock, in MHz, and what it asks of the emulator in DOSBox cycles */
 int theatre_mhz(const theatre *th);
 int theatre_cycles(const theatre *th);

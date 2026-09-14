@@ -24,6 +24,12 @@ typedef struct {
     /* The two rotary knobs, brightness then contrast: centre x, y and
      * radius in output px.  They are the one part of the case that moves. */
     float knob[2][3];
+    /* The OSD button under the left pod, x,y,w,h, and the two mouse LEDs on
+     * that pod, HOST then DXM, unlit in the bake, under the MOUSE key.  A w of 0 is one there
+     * was no room for. */
+    float osd_btn[4];
+    float mouse_btn[4]; /* the MOUSE key over those lamps, likewise */
+    float mouse_led[2][4];
 } dxm_layout;
 /* Solve tube-first (SPEC §6.3); the tube is 4:3 in every variant. */
 dxm_layout chassis_layout(int out_w, int out_h);

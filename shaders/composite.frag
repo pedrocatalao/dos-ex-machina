@@ -9,11 +9,11 @@ uniform float warp, bright, contrast, ambient, scan, margin;
 uniform float u_bloom, u_burn, u_noise, u_jitter, u_glowline;
 uniform float u_flicker, u_hsync, u_rgb, u_chassis;
 uniform float aper_r, time;
-uniform vec4  led[4];
-uniform vec3  ledcol[4];
-uniform float ledon[4];
-uniform float ledround[4];
-uniform float ledclip[4];
+uniform vec4  led[6];
+uniform vec3  ledcol[6];
+uniform float ledon[6];
+uniform float ledround[6];
+uniform float ledclip[6];
 // the turbo display (segdisp.h): the window in uv, how lit each of the
 // three digits' seven segments is, the emission, and the digit geometry
 // in window-height units
@@ -261,7 +261,7 @@ void main(){
            // the dish, now that the edge light is the only source
            + spill*fall*u_chassis*facing*(0.54+0.50*(1.0-ambient));
   vec3 fin = mix(lit, col, inside);
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 6; ++i) {
     if (ledon[i] <= 0.001) continue;
     vec2 lc = led[i].xy + led[i].zw*0.5;
     vec2 dd  = (uv - lc) / (led[i].zw*0.5);

@@ -18,6 +18,12 @@ static int button_at(const dxm_layout *L, float x, float y) {
     return -1;
 }
 
+/* Whether a point is inside a key's well, x,y,w,h; a w of 0 is a key the
+ * case had no room for. */
+static int key_at(const float *k, float x, float y) {
+    return k[2] > 0.0f && x >= k[0] && x < k[0] + k[2] && y >= k[1] && y < k[1] + k[3];
+}
+
 /* Which knob, if any, is under a point in drawable pixels; -1 for none.
  * The hit circle is a little larger than the knob, since a finger is. */
 static int knob_at(const dxm_layout *L, float x, float y) {
@@ -145,7 +151,18 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             catalog_click(e->button.button == SDL_BUTTON_LEFT);
         else if (in->captured && dosbox_shown())
             dosbox_mouse_button(e->button.button, 1);
-        else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
+        else if (!in->captured && e->button.button == SDL_BUTTON_LEFT && key_at(L->osd_btn, mx, my))
+            /* the OSD button: for now the panel Shift+F1 opens, and a second
+             * press puts it away */
+            ui_toggle();
+        else if (!in->captured && e->button.button == SDL_BUTTON_LEFT &&
+                 key_at(L->mouse_btn, mx, my)) {
+            /* the MOUSE key: out on the case the host has the mouse, so a
+             * press can only give it to the machine; CTRL+F10, printed over
+             * the key, takes it back */
+            input_capture(in, a, 1);
+            in->knob_drag = -1;
+        } else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             in->button = bt;
             return INPUT_BUTTON;
         } else if (kn >= 0 && e->button.button == SDL_BUTTON_LEFT) {

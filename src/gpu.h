@@ -70,8 +70,9 @@ void gpu_draw_overlay(gpu *g);
 
 /* Live LED emission painted over the baked chassis, which contains only the
  * UNLIT lens.  idx 0 = floppy activity, 1 = power, 2 and 3 the turbo
- * display's FPS and MHz mode lights.  round!=0 uses a circular
- * lens profile.  All the light and its bleed onto the plastic come from here. */
+ * display's FPS and MHz mode lights, 4 and 5 the mouse lamps, HOST and
+ * DXM.  round!=0 uses a circular lens profile.  All the light and its
+ * bleed onto the plastic come from here. */
 /* clip: a height in 0..1 output space above which the LED throws no light
  * on the plastic - the underside of a button it sits beneath.  2.0 = none. */
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
