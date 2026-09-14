@@ -78,8 +78,15 @@ void surface_edges(canvas *c, int W, int H, const chassis_geom *G) {
         {
             float yfloor = gap_lo + gap_d * 0.5f;
             float cr = FACE_R_TOP * (float)H / 268.0f;
-            seam(c, edge, yfloor, (float)H - yfloor, 1, fmaxf(1.0f, W * 0.0012f));
-            seam(c, (float)W - edge, yfloor, (float)H - yfloor, 1, fmaxf(1.0f, W * 0.0012f));
+            /* the seam's light flank lands on the front face on both
+             * corners: past the line on the left, before it on the right */
+            /* The seam is CENTRED on the wall above it, which is drawn
+             * either side of `edge`: starting the seam at `edge` set it a
+             * pixel or two to the right of the wall, and the monitor read
+             * as nudged left of the base. */
+            float sw2 = fmaxf(1.0f, W * 0.0012f), s0 = floorf(sw2 * 0.5f - 0.5f);
+            seam(c, edge - s0, yfloor, (float)H - yfloor, 1, sw2, 1);
+            seam(c, (float)W - edge - s0, yfloor, (float)H - yfloor, 1, sw2, -1);
             float ww = fmaxf(1.5f, W * 0.0011f);
             for (int side = 0; side < 2; side++) {
                 float xw = side ? (float)W - edge : edge;
@@ -91,6 +98,14 @@ void surface_edges(canvas *c, int W, int H, const chassis_geom *G) {
                             continue;
                         px_shade(c, i2, j2, 1.0f - 0.42f * (1.0f - d * d), 0.0f);
                     }
+                /* the front face's own corner catches the same light line
+                 * along the wall that the base's seam has along it below:
+                 * the one edge, continued up the monitor */
+                int s0i = (int)(xw - s0); /* where the seam below starts */
+                int fx0 = side ? s0i - (int)sw2 : s0i + (int)sw2;
+                for (int t = 0; t < (int)sw2; t++)
+                    for (int j2 = (int)ceilf(cr); j2 < (int)yfloor; j2++)
+                        px_blend(c, fx0 + t, j2, 255, 252, 244, 0.24f);
             }
         }
     }
@@ -240,20 +255,13 @@ void surface_monitor_recess(canvas *c, int W, int H, const chassis_geom *G) {
     }
 }
 
-/* ---- moulded marks and manufacturing traces -------------------------
- * Text pressed INTO the tool, not printed on the part, plus the traces
- * every injection moulding carries: the parting line where the two tool
- * halves met, and the ejector-pin circles that pushed the part out. */
+/* ---- manufacturing traces ---------------------------------------------
+ * What every injection moulding carries: the parting line where the two
+ * tool halves met, and the ejector-pin circles that pushed the part out. */
 void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G) {
-    float inset = G->inset;
     float edge = G->edge;
     {
         float mmu = (float)H / 268.0f; /* same mm as the band */
-        float ms = fmaxf(1.0f, canvas_lbl * 0.72f);
-        /* the compliance block, low and to the left, where nobody looks */
-        moulded_text(c, edge + inset * 0.9f, (float)H - inset * 0.95f + 9.0f * ms,
-                     "MADE IN PORTUGAL", ms, 0);
-
         /* ejector pin marks: faint discs on the broad flat areas */
         {
             float pr2 = 3.6f * mmu;
@@ -291,7 +299,7 @@ void surface_wear(canvas *c, int W, int H) {
         float hot[4][3] = {
             {0.50f, 0.86f, 1.00f}, /* the front band, most handled     */
             {0.86f, 0.86f, 0.85f}, /* around the floppy               */
-            {0.22f, 0.86f, 0.55f}, /* badge / power end               */
+            {0.22f, 0.86f, 0.55f}, /* the power end                   */
             {0.50f, 0.06f, 0.40f}, /* the top edge, where it is lifted */
         };
         for (int n = 0; n < 230; n++) {
@@ -383,5 +391,30 @@ void surface_finish(canvas *c, int W, int H) {
                 }
             }
         }
+    }
+}
+
+/* The louvres down the monitor's sides: a single column of thin horizontal
+ * vent slots on each set-back side strip, the length of the monitor
+ * between the two partings, the way a monitor shell breathed through its
+ * flanks.  Cut with the same slot the foot vents use, so the trough and
+ * the lips light the same way. */
+void surface_side_louvres(canvas *c, int W, int H, const chassis_geom *G) {
+    (void)H;
+    float mm = G->mm, edge = G->edge;
+    float y0 = G->gap_hi + G->gap_d + 3.0f * mm, y1 = G->gap_lo - 7.0f * mm;
+    /* Each slot runs from a little inside the wall right out through the
+     * edge of the picture - the cut goes round the corner of the shell,
+     * so its outer end is never seen - with near-square ends. */
+    float sh = fmaxf(2.0f, 1.6f * mm), pitch = 4.0f * mm;
+    float in = edge * 0.62f, over = 3.0f * mm, sw = in + over;
+    if (y1 - y0 < pitch * 3.0f || in < 3.0f)
+        return;
+    int n = (int)((y1 - y0 - sh) / pitch) + 1;
+    float ys = y0 + (y1 - y0 - ((n - 1) * pitch + sh)) * 0.5f;
+    for (int side = 0; side < 2; side++) {
+        float x = side ? (float)W - in : -over;
+        for (int k = 0; k < n; k++)
+            louvre_slot(c, x, ys + k * pitch, sw, sh, sh * 0.18f);
     }
 }

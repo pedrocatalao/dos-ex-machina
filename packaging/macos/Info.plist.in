@@ -17,6 +17,6 @@
        whole point of a procedural chassis is lost. -->
   <key>NSHighResolutionCapable</key>      <true/>
   <key>LSApplicationCategoryType</key>    <string>public.app-category.games</string>
-  <key>NSHumanReadableCopyright</key>     <string>MIT. No game code or data included.</string>
+  <key>NSHumanReadableCopyright</key>     <string>GPL-2.0-or-later, with DOSBox Pure (GPL-2.0). No game code or data included.</string>
 </dict>
 </plist>

@@ -1,7 +1,7 @@
 /* term.c — the text screen: 80x25 characters with a VGA attribute each,
- * a cursor, and the rendering of that grid into pixels with the CP437
- * font.  Everything the machine shows at the prompt, and everything the
- * navigator draws, goes through here. */
+ * a cursor, and the rendering of that grid into pixels with the VGA
+ * font.  The machine's own POST is drawn here, before DOSBox takes the
+ * tube. */
 #include "internal.h"
 #include "font.h"
 
@@ -114,27 +114,26 @@ void term_render(void) {
     memset(fb, 0, sizeof fb);
     for (int r = 0; r < DOS_ROWS; r++)
         for (int c = 0; c < DOS_COLS; c++) {
-            const uint8_t *g = font_glyph((unsigned char)scr[r][c]);
+            const uint8_t *g = font_glyph16((unsigned char)scr[r][c]);
             const uint8_t *fg = VGA16[att[r][c] & 0x0F];
             const uint8_t *bg = VGA16[(att[r][c] >> 4) & 0x07];
-            for (int j = 0; j < 8; j++) {
+            for (int j = 0; j < 16; j++) {
                 uint8_t bits = g[j];
                 for (int i = 0; i < 8; i++) {
                     const uint8_t *col = (bits & (0x80 >> i)) ? fg : bg;
-                    for (int d = 0; d < 2; d++) { /* 8x8 rendered at 8x16 */
-                        int y = DOS_PAD_Y + r * 16 + j * 2 + d, x = DOS_PAD_X + c * 8 + i;
-                        uint8_t *p = fb + ((size_t)y * DOS_W + x) * 3;
-                        p[0] = col[0];
-                        p[1] = col[1];
-                        p[2] = col[2];
-                    }
+                    int y = DOS_PAD_Y + r * 16 + j, x = DOS_PAD_X + c * 8 + i;
+                    uint8_t *p = fb + ((size_t)y * DOS_W + x) * 3;
+                    p[0] = col[0];
+                    p[1] = col[1];
+                    p[2] = col[2];
                 }
             }
         }
 }
-/* the block cursor, at the text position, when the caller says it is on */
+/* the cursor the VGA BIOS set, at the text position, when the caller says
+ * it is on: the underline, on the last two rows of the cell */
 void term_draw_cursor(void) {
-    for (int j = 0; j < 14; j++)
+    for (int j = 13; j < 15; j++)
         for (int i = 0; i < 8; i++) {
             int y = DOS_PAD_Y + cur_r * 16 + j, x = DOS_PAD_X + cur_c * 8 + i;
             if (y < DOS_H && x < DOS_W) {

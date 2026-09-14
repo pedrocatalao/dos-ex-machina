@@ -6,6 +6,8 @@
  * Passes 2..7 are fused into one output-resolution shader; persistence and
  * bloom are separate because they need their own targets. */
 #include "gpu.h"
+#include "crt.h"
+#include "segdisp.h"
 /* The GLSL lives in the shaders directory, one file per pass; the build
  * bakes each into a string in this header (tools/embed.cmake).  Nothing is
  * loaded from disk at run time, so a release is still one binary. */
@@ -88,6 +90,7 @@ static int gl_load(void) {
 #    define glGenBuffers p_glGenBuffers
 #    define glGenFramebuffers p_glGenFramebuffers
 #    define glGenVertexArrays p_glGenVertexArrays
+#    define glGenerateMipmap p_glGenerateMipmap
 #    define glGetProgramInfoLog p_glGetProgramInfoLog
 #    define glGetProgramiv p_glGetProgramiv
 #    define glGetShaderInfoLog p_glGetShaderInfoLog
@@ -106,19 +109,29 @@ static int gl_load(void) {
 #    define glVertexAttribPointer p_glVertexAttribPointer
 #endif
 
+/* The persistence and burn-in targets take the SOURCE's own size - they are
+ * a memory of the picture, texel for texel, and the composite reads the
+ * picture from them.  They start at this size and follow the tube texture
+ * from the first frame on.  A fixed 640x400 here was wrong for everything
+ * that was not 320x200 or 640x400: the 668-column text screen resampled
+ * to 640 and then read back as if it were 680, a beat every seventeen
+ * columns; a 640x480 picture lost eighty rows. */
 #define PERSIST_W 640
 #define PERSIST_H 400
 #define BLOOM_W 160
 #define BLOOM_H 100
-/* Spill source is deliberately tiny: sampling a sharp blur outside the
- * tube and clamping streaks the bright rows sideways across the room. */
-#define SPILL_W 24
-#define SPILL_H 15
-/* A near-average of the whole picture: how much light the tube is
- * actually throwing into the room, regardless of where you are on the
- * chassis.  The edge-local spill alone cannot express that. */
-#define ROOM_W 3
-#define ROOM_H 2
+/* The picture's light at its edges, for the case: four profiles, one per
+ * edge, each point the picture integrated inward with distance (edge.frag).
+ * The case reads the profile of the edge it is nearest, at its own place
+ * along it, so what lights the bottom dish is what is near the bottom of
+ * the picture, and what lights a side is what is at that height. */
+#define EDGE_W 96
+#define EDGE_H 4
+/* and the field those profiles throw on the case (glow.frag): the picture
+ * and a margin of GLOW_EXT around it, in the picture's coordinates */
+#define GLOW_W 128
+#define GLOW_H 96
+#define GLOW_EXT 0.30f
 
 struct gpu {
     int out_w, out_h;
@@ -128,9 +141,13 @@ struct gpu {
     int tube_w, tube_h, chassis_w, chassis_h;
     GLuint fbo_persist[2], tex_persist[2];
     int persist_cur;
+    int persist_w, persist_h; /* the targets' size: the tube texture's */
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
-    GLuint fbo_spill, tex_spill;
-    GLuint fbo_room, tex_room;
+    GLuint fbo_edge, tex_edge;
+    GLuint fbo_glow, tex_glow;
+    GLuint fbo_edgef[2], tex_edgef[2]; /* the eased profiles, this frame and last */
+    int edgef_cur;
+    GLuint prog_edge, prog_ease, prog_glow;
     GLuint fbo_burn[2], tex_burn[2];
     int burn_cur;
     GLuint prog_burn, prog_overlay, tex_overlay;
@@ -140,7 +157,8 @@ struct gpu {
     int ov_w, ov_h;
     double last_t;
     int have_last;
-    float led[2][4], led_col[2][3], led_on[2], led_round[2], led_clip[2];
+    float led[4][4], led_col[4][3], led_on[4], led_round[4], led_clip[4];
+    float seg[4], seg_on, seg_lvl[21];
     float raster_h, raster_v, tube_gain;
 };
 
@@ -203,6 +221,22 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+/* A target that the bloom and spill passes shrink FROM samples through a
+ * mip chain, so that a texel of the small picture is the average of all
+ * the source under it.  Five taps of the blur over a 4x or 7x reduction
+ * miss most of the source, and a bright line scrolling through the picture
+ * drifted in and out of the taps: the light on the case moved in steps
+ * while the picture moved smoothly. */
+static void mipmapped(GLuint tex) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_2D);
+}
+static void remip(GLuint tex) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glGenerateMipmap(GL_TEXTURE_2D);
+}
+
 gpu *gpu_create(int w, int h) {
     if (!gl_load()) {
         gpu_logf("this GL context is missing functions DXM needs");
@@ -226,6 +260,9 @@ gpu *gpu_create(int w, int h) {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     g->prog_persist = mkprog(shader_persist_frag);
     g->prog_blur = mkprog(shader_blur_frag);
+    g->prog_edge = mkprog(shader_edge_frag);
+    g->prog_ease = mkprog(shader_ease_frag);
+    g->prog_glow = mkprog(shader_glow_frag);
     g->prog_composite = mkprog(shader_composite_frag);
     g->prog_burn = mkprog(shader_burn_frag);
     g->prog_overlay = mkprog(shader_overlay_frag);
@@ -252,14 +289,20 @@ gpu *gpu_create(int w, int h) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    g->persist_w = PERSIST_W;
+    g->persist_h = PERSIST_H;
     mktarget(&g->fbo_persist[0], &g->tex_persist[0], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_persist[1], &g->tex_persist[1], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_bloom, &g->tex_bloom, BLOOM_W, BLOOM_H);
     mktarget(&g->fbo_bloom2, &g->tex_bloom2, BLOOM_W, BLOOM_H);
-    mktarget(&g->fbo_spill, &g->tex_spill, SPILL_W, SPILL_H);
-    mktarget(&g->fbo_room, &g->tex_room, ROOM_W, ROOM_H);
+    mktarget(&g->fbo_edge, &g->tex_edge, EDGE_W, EDGE_H);
+    mktarget(&g->fbo_glow, &g->tex_glow, GLOW_W, GLOW_H);
+    mktarget(&g->fbo_edgef[0], &g->tex_edgef[0], EDGE_W, EDGE_H);
+    mktarget(&g->fbo_edgef[1], &g->tex_edgef[1], EDGE_W, EDGE_H);
     mktarget(&g->fbo_burn[0], &g->tex_burn[0], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_burn[1], &g->tex_burn[1], PERSIST_W, PERSIST_H);
+    mipmapped(g->tex_persist[0]);
+    mipmapped(g->tex_persist[1]);
     glGenTextures(1, &g->tex_overlay);
     glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -278,7 +321,7 @@ void gpu_resize(gpu *g, int w, int h) {
 }
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
                  float b, int round, float clip) {
-    if (idx < 0 || idx > 1)
+    if (idx < 0 || idx > 3)
         return;
     g->led[idx][0] = x;
     g->led[idx][1] = y;
@@ -290,6 +333,15 @@ void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, 
     g->led_on[idx] = on;
     g->led_round[idx] = round ? 1.0f : 0.0f;
     g->led_clip[idx] = clip;
+}
+
+void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const float lvl[21], float on) {
+    g->seg[0] = x;
+    g->seg[1] = y;
+    g->seg[2] = w;
+    g->seg[3] = h;
+    memcpy(g->seg_lvl, lvl, sizeof g->seg_lvl);
+    g->seg_on = on;
 }
 
 void gpu_set_tube_power(gpu *g, float h, float v, float gain) {
@@ -334,7 +386,28 @@ void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba) 
                     rgba + ((size_t)sy * (size_t)stride + (size_t)sx) * 4);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
+/* Give an existing target new storage at a new size, cleared: the
+ * framebuffer keeps its attachment, only the texels change. */
+static void retarget(GLuint fbo, GLuint tex, int w, int h) {
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h) {
+    if (w != g->persist_w || h != g->persist_h) {
+        /* a mode change: the phosphor's memory restarts at this size, black,
+         * as the picture did on a real tube while the monitor re-synced */
+        for (int i = 0; i < 2; i++) {
+            retarget(g->fbo_persist[i], g->tex_persist[i], w, h);
+            remip(g->tex_persist[i]);
+            retarget(g->fbo_burn[i], g->tex_burn[i], w, h);
+        }
+        g->persist_w = w;
+        g->persist_h = h;
+    }
     g->tube_w = w;
     g->tube_h = h;
     glBindTexture(GL_TEXTURE_2D, g->tex_tube);
@@ -365,8 +438,43 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1i(glGetUniformLocation(g->prog_persist, "prev"), 1);
     glUniform1f(glGetUniformLocation(g->prog_persist, "dt"), dt);
     glUniform1f(glGetUniformLocation(g->prog_persist, "persist"), k->persistence);
-    pass(g, g->prog_persist, g->fbo_persist[cur], PERSIST_W, PERSIST_H);
+    pass(g, g->prog_persist, g->fbo_persist[cur], g->persist_w, g->persist_h);
+    remip(g->tex_persist[cur]);
     g->persist_cur = cur;
+    /* the picture's light at its edges, for the case */
+    glUseProgram(g->prog_edge);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_persist[cur]);
+    glUniform1i(glGetUniformLocation(g->prog_edge, "src"), 0);
+    glUniform1f(glGetUniformLocation(g->prog_edge, "reach"), 0.18f);
+    pass(g, g->prog_edge, g->fbo_edge, EDGE_W, EDGE_H);
+    /* and a little inertia: the plastic's light eases toward the picture
+     * over a tenth of a second, in and out alike, rather than following
+     * it frame by frame */
+    {
+        int ep = g->edgef_cur, ec = 1 - ep;
+        glUseProgram(g->prog_ease);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g->tex_edge);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, g->tex_edgef[ep]);
+        glUniform1i(glGetUniformLocation(g->prog_ease, "src"), 0);
+        glUniform1i(glGetUniformLocation(g->prog_ease, "prev"), 1);
+        glUniform1f(glGetUniformLocation(g->prog_ease, "dt"), dt);
+        glUniform1f(glGetUniformLocation(g->prog_ease, "tau"), 0.10f);
+        pass(g, g->prog_ease, g->fbo_edgef[ec], EDGE_W, EDGE_H);
+        g->edgef_cur = ec;
+    }
+    /* the field: every point of every edge a source, summed over the case */
+    glUseProgram(g->prog_glow);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_edgef[g->edgef_cur]);
+    glUniform1i(glGetUniformLocation(g->prog_glow, "edgesrc"), 0);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "lambda"), 0.10f);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "ext"), GLOW_EXT);
+    glUniform1f(glGetUniformLocation(g->prog_glow, "aspect"),
+                (tw * (float)g->out_w) / fmaxf(th * (float)g->out_h, 1.0f));
+    pass(g, g->prog_glow, g->fbo_glow, GLOW_W, GLOW_H);
     /* burn-in: a much slower average of the same signal */
     {
         int bp = g->burn_cur, bc = 1 - bp;
@@ -379,7 +487,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
         glUniform1i(glGetUniformLocation(g->prog_burn, "prev"), 1);
         glUniform1f(glGetUniformLocation(g->prog_burn, "dt"), dt);
         glUniform1f(glGetUniformLocation(g->prog_burn, "rate"), 28.0f);
-        pass(g, g->prog_burn, g->fbo_burn[bc], PERSIST_W, PERSIST_H);
+        pass(g, g->prog_burn, g->fbo_burn[bc], g->persist_w, g->persist_h);
         g->burn_cur = bc;
     }
     /* pass 4a: bloom downsample+blur (fixed internal res, SPEC §6.7) */
@@ -405,16 +513,6 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glBindTexture(GL_TEXTURE_2D, g->tex_bloom);
     glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 0, 0.55f / BLOOM_H);
     pass(g, g->prog_blur, g->fbo_bloom2, BLOOM_W, BLOOM_H);
-    /* spill: downsample hard, then blur again — soft enough not to streak */
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_bloom2);
-    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 1.6f / SPILL_W, 0);
-    pass(g, g->prog_blur, g->fbo_spill, SPILL_W, SPILL_H);
-    /* down again to almost nothing: the room-light term */
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_spill);
-    glUniform2f(glGetUniformLocation(g->prog_blur, "dir"), 1.0f / ROOM_W, 0);
-    pass(g, g->prog_blur, g->fbo_room, ROOM_W, ROOM_H);
     /* composite */
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, g->out_w, g->out_h);
@@ -430,11 +528,9 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1i(glGetUniformLocation(p, "bloom"), 1);
     glUniform1i(glGetUniformLocation(p, "chassis"), 2);
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, g->tex_spill);
-    glUniform1i(glGetUniformLocation(p, "spillsrc"), 3);
-    glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, g->tex_room);
-    glUniform1i(glGetUniformLocation(p, "roomsrc"), 4);
+    glBindTexture(GL_TEXTURE_2D, g->tex_glow);
+    glUniform1i(glGetUniformLocation(p, "glowsrc"), 3);
+    glUniform1f(glGetUniformLocation(p, "u_glow_ext"), GLOW_EXT);
     glUniform4f(glGetUniformLocation(p, "rect"), tx, ty, tw, th);
     glUniform2f(glGetUniformLocation(p, "outsize"), (float)g->out_w, (float)g->out_h);
     glUniform1f(glGetUniformLocation(p, "warp"), k->warp);
@@ -444,11 +540,16 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1f(glGetUniformLocation(p, "scan"), k->scan);
     glUniform1f(glGetUniformLocation(p, "margin"), k->margin);
     glUniform1f(glGetUniformLocation(p, "aper_r"), k->aperture_r);
-    glUniform4fv(glGetUniformLocation(p, "led"), 2, &g->led[0][0]);
-    glUniform3fv(glGetUniformLocation(p, "ledcol"), 2, &g->led_col[0][0]);
-    glUniform1fv(glGetUniformLocation(p, "ledon"), 2, g->led_on);
-    glUniform1fv(glGetUniformLocation(p, "ledround"), 2, g->led_round);
-    glUniform1fv(glGetUniformLocation(p, "ledclip"), 2, g->led_clip);
+    glUniform4fv(glGetUniformLocation(p, "led"), 4, &g->led[0][0]);
+    glUniform3fv(glGetUniformLocation(p, "ledcol"), 4, &g->led_col[0][0]);
+    glUniform1fv(glGetUniformLocation(p, "ledon"), 4, g->led_on);
+    glUniform1fv(glGetUniformLocation(p, "ledround"), 4, g->led_round);
+    glUniform1fv(glGetUniformLocation(p, "ledclip"), 4, g->led_clip);
+    glUniform4fv(glGetUniformLocation(p, "seg_rect"), 1, g->seg);
+    glUniform1fv(glGetUniformLocation(p, "seglvl"), 21, g->seg_lvl);
+    glUniform1f(glGetUniformLocation(p, "seg_on"), g->seg_on);
+    glUniform4f(glGetUniformLocation(p, "seg_geom"), SEG_DH, SEG_WR, SEG_PITCH, SEG_T);
+    glUniform2f(glGetUniformLocation(p, "seg_lean"), SEG_SLANT, SEG_GAP);
     glUniform2f(glGetUniformLocation(p, "u_raster"), g->raster_h, g->raster_v);
     glUniform1f(glGetUniformLocation(p, "u_gain"), g->tube_gain);
     glUniform1f(glGetUniformLocation(p, "crt_lines"), (float)k->crt_lines);
@@ -459,6 +560,12 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
                 (float)g->tube_h / fmaxf(th * (float)g->out_h, 1.0f));
     glUniform1f(glGetUniformLocation(p, "u_sharp"), k->sharp_text);
     glUniform1f(glGetUniformLocation(p, "u_overscan"), k->overscan);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder"), DXM_BEZEL_BAND);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder_r"), DXM_BEZEL_R_MID);
+    glUniform1f(glGetUniformLocation(p, "u_shoulder_warp"), DXM_WARP * DXM_BEZEL_R_MID_WARP);
+    glUniform1f(glGetUniformLocation(p, "u_dish_rin"), DXM_BEZEL_R_IN);
+    glUniform1f(glGetUniformLocation(p, "u_dish_warp"), DXM_WARP);
+    glUniform1f(glGetUniformLocation(p, "u_fillet"), DXM_FILLET_START);
     glUniform1f(glGetUniformLocation(p, "vgrid"), k->vgrid);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, g->tex_burn[g->burn_cur]);

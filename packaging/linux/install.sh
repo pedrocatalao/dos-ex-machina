@@ -17,8 +17,10 @@ BIN="$HOME/.local/bin"
 echo "Installing to $DEST"
 mkdir -p "$DEST" "$APPS" "$BIN"
 # The whole directory, not just the binary: the executable finds SDL3 through
-# an rpath of $ORIGIN/lib, so lib/ has to stay beside it.
-cp -R "$HERE"/dxm "$HERE"/lib "$DEST"/ 2>/dev/null || {
+# an rpath of $ORIGIN/lib, so lib/ has to stay beside it, and it looks for
+# its DOS, the DOSBox Pure core, in the same directory as itself.
+cp -R "$HERE"/dxm "$HERE"/lib "$HERE"/dosbox_pure_libretro.so \
+      "$HERE"/LICENSE-dosbox-pure.txt "$DEST"/ 2>/dev/null || {
     cp -R "$HERE"/* "$DEST"/ ; }
 chmod +x "$DEST/dxm"
 
@@ -44,7 +46,7 @@ cat > "$APPS/dos-ex-machina.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=DOS ex Machina
-Comment=A 1993 PC on your screen, running native ports of DOS games
+Comment=A 1993 PC on your screen, running DOS behind its CRT glass
 Exec=$DEST/dxm
 Icon=dxm
 Terminal=false

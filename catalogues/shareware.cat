@@ -1,0 +1,134 @@
+{
+  "format": 1,
+  "id": "SHAREWAR",
+  "name": "Shareware",
+  "origin": "bundled",
+  "drive": "D",
+  "about": "The first episodes and trial versions DOS software was passed around in, free to copy and share as their authors intended, with the rest sold on registration.",
+  "updated": "2026-09-13",
+  "titles": [
+    {
+      "id": "ABUSE",
+      "name": "Abuse",
+      "creator": "Crack dot Com",
+      "year": 1995,
+      "version": "1.05",
+      "category": "GAMES",
+      "genre": "run and gun",
+      "description": "Nick Vrenna against the Ants, in a dark side-scrolling base full of switches, doors and things that come out of the walls. Move with the keys and aim with the mouse, a full circle of fire while running the other way. The shareware episode: the first three levels. Run SETUP first for the sound card.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse"
+      ],
+      "run": "ABUSE.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "https://www.classicdosgames.com/files/games/crack/abuse105.zip",
+        "size": 2350844,
+        "sha256": "020e220a0cb76e32763c0ede103218620e1b3e9a0d085868e36d3f1a08b9208d"
+      },
+      "artwork": {
+        "url": "https://m.media-amazon.com/images/M/MV5BNWNlN2QzOTQtZDFkNC00M2E4LWExMjEtOGQxNmUwYTA0M2JkXkEyXkFqcGc@._V1_.jpg",
+        "sha256": "df3721585dbc7476216cdd2d04e1d6bc939e3a669f1ef38086b5d9b50204e1ce"
+      }
+    },
+    {
+      "id": "CNC",
+      "name": "Command & Conquer",
+      "creator": "Westwood Studios",
+      "publisher": "Virgin Interactive",
+      "year": 1995,
+      "version": "demo",
+      "category": "GAMES",
+      "genre": "real-time strategy",
+      "description": "GDI against the Brotherhood of Nod over Tiberium: harvest it, build a base on it, and send what it pays for at the other side's. The downloadable demo of the game that made real-time strategy a genre - three GDI missions, without the music and briefing videos. Run SETUP first for the sound card.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse"
+      ],
+      "run": "C&C.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "https://www.classicdosgames.com/files/games/virgin/cc1demo1.zip",
+        "size": 9367945,
+        "sha256": "29d33849cb450a87262426cc59b25baa5e033b94c2e3495ec94f813f3bc09f87"
+      },
+      "artwork": {
+        "url": "https://www.classicdosgames.com/images/screenshots/vga13/Command_&_Conquer.png",
+        "sha256": "21d22574d3cb23efff52be643fe8be7b042356dda1d6e0ad1d1d2a17271ace0a"
+      }
+    },
+    {
+      "id": "WORMS",
+      "name": "Worms",
+      "creator": "Team17 Software",
+      "publisher": "Ocean Software",
+      "year": 1995,
+      "version": "demo",
+      "category": "GAMES",
+      "genre": "artillery",
+      "description": "Teams of four worms take turns across a landscape made fresh each game, with bazookas, grenades, air strikes and whatever sheep they can find, until one team is left. The multiplayer demo: two teams on one machine, with the network game and the larger matches held back for the full version.",
+      "multiplayer": true,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb"
+      ],
+      "controls": [
+        "keyboard"
+      ],
+      "run": "WRMS.EXE",
+      "download": {
+        "url": "https://www.playdosgames.com/download/worms",
+        "size": 1716604,
+        "sha256": "1a2ff778116768b712ebe90e24de034f9c14d1b25d2175ced1b30acad5addd02"
+      },
+      "artwork": {
+        "url": "https://www.playdosgames.com/assets/screenshots/worms.png",
+        "sha256": "85f60bd0031e15d76c8c8fa9cc3c24c0f83c28beddeed3dfef94c753e0b6769b"
+      }
+    },
+    {
+      "id": "RALLYS",
+      "name": "Rally-Sport",
+      "creator": "Sulky Fellow",
+      "year": 1996,
+      "version": "demo",
+      "category": "GAMES",
+      "genre": "rally",
+      "description": "Solid 3D rallying with no 3D card, written by one person in 1996: race a computer car one on one round a course of hills, jumps and loose surfaces, with a choice of cars and tracks from the menu. The demo. If the sound does not start, turn it off in the game's menu; the setup program that came with it is a test version.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb"
+      ],
+      "controls": [
+        "keyboard"
+      ],
+      "run": "RALLYE.EXE",
+      "download": {
+        "url": "https://dosgames.com/files/RALLYS.ZIP",
+        "size": 461957,
+        "sha256": "85321099c04e4a49bf4f8f71e03a50503c2cfd7835cc28445c6851d082a58d41"
+      },
+      "artwork": {
+        "url": "https://dosgames.com/screens/rallysport.png",
+        "sha256": "0b25c88fe9660ce975620ca47d55237dbc052f5104ab12f7fc93516483ee56bd"
+      }
+    }
+  ]
+}

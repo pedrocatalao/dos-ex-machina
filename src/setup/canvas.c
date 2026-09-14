@@ -1,0 +1,415 @@
+/* canvas.c — the 640x480 indexed surface SETUP is drawn on.
+ *
+ * Indexed, not RGB, and the split is the period one: entries 0..15 are the
+ * interface's sixteen VGA colours, 16..255 belong to the artwork at the top
+ * of the screen, which brings its own palette with it.  The gradient over
+ * the artwork is already in the artwork (tools/mkbanners.py bakes it),
+ * since indices cannot be blended.
+ *
+ * The whole thing is turned into RGB once a frame, on the way to the tube,
+ * which is the only place colour actually happens. */
+#include "internal.h"
+#include "font.h"
+#include "gen/uifont.h"
+#include "gen/uifont_bold.h"
+#include "gen/uifont_small.h"
+#include <string.h>
+
+/* the 16 VGA text colours, as the DAC actually produced them */
+static const uint8_t VGA16[16][3] = {
+    {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
+    {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
+    {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
+    {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF}};
+
+/* The canvas is the picture plus its overscan; everything is drawn in the
+ * picture's own coordinates and lands inside the border. */
+static uint8_t canvas[CANVAS_W * CANVAS_H];
+static uint8_t pal[256][3];
+static uint8_t rgb[CANVAS_W * CANVAS_H * 3];
+
+/* what may be drawn on: the whole screen, unless a caller has narrowed it */
+static int clip_x0, clip_y0, clip_x1 = SCR_W, clip_y1 = SCR_H;
+
+void cv_clip(int x, int y, int w, int h) {
+    clip_x0 = x < 0 ? 0 : x;
+    clip_y0 = y < 0 ? 0 : y;
+    clip_x1 = x + w > SCR_W ? SCR_W : x + w;
+    clip_y1 = y + h > SCR_H ? SCR_H : y + h;
+}
+
+void cv_noclip(void) {
+    cv_clip(0, 0, SCR_W, SCR_H);
+}
+
+static void put(int x, int y, uint8_t colour) {
+    if (x < clip_x0 || x >= clip_x1 || y < clip_y0 || y >= clip_y1)
+        return;
+    canvas[(y + SCR_PAD_Y) * CANVAS_W + (x + SCR_PAD_X)] = colour;
+}
+
+static void pal_ui(void) {
+    for (int i = 0; i < 16; i++)
+        memcpy(pal[i], VGA16[i], 3);
+}
+
+void cv_clear(uint8_t colour) {
+    memset(canvas, C_BLACK, sizeof canvas); /* the border stays black */
+    for (int y = 0; y < SCR_H; y++)
+        for (int x = 0; x < SCR_W; x++)
+            put(x, y, colour);
+    pal_ui();
+}
+
+int cv_banner_count(void) {
+    return banner_count();
+}
+
+void cv_banner(int which) {
+    const banner *b = banner_open(which);
+    if (!b)
+        return;
+    for (int i = 0; i < BANNER_COLOURS; i++)
+        memcpy(pal[BANNER_FIRST + i], b->pal + i * 3, 3);
+    for (int y = 0; y < b->h && y < SCR_H; y++)
+        for (int x = 0; x < b->w && x < SCR_W; x++)
+            put(x, y, (uint8_t)(BANNER_FIRST + b->px[y * b->w + x]));
+}
+
+/* one picture's rows, from `y0` down to `y1`, wherever it has any */
+static void banner_rows(const banner *b, int y0, int y1) {
+    for (int y = y0; y < y1 && y < b->h && y < SCR_H; y++)
+        for (int x = 0; x < b->w && x < SCR_W; x++)
+            put(x, y, (uint8_t)(BANNER_FIRST + b->px[y * b->w + x]));
+}
+
+void cv_banner_slats(const banner *from, const banner *to, float shut, int slats) {
+    if (!from || !to || slats < 1)
+        return;
+    for (int i = 0; i < BANNER_COLOURS; i++)
+        memcpy(pal[BANNER_FIRST + i], to->pal + i * 3, 3); /* the pair's own */
+    int band = (SCR_H + slats - 1) / slats;
+    int open = (int)((float)band * shut + 0.5f);
+    for (int i = 0; i < slats; i++) {
+        int y0 = i * band;
+        banner_rows(to, y0, y0 + open);          /* what the slat has let through */
+        banner_rows(from, y0 + open, y0 + band); /* and what it still covers */
+    }
+}
+
+void cv_rect(int x, int y, int w, int h, uint8_t colour) {
+    for (int j = y; j < y + h; j++)
+        for (int i = x; i < x + w; i++)
+            put(i, j, colour);
+}
+
+void cv_frame(int x, int y, int w, int h, uint8_t colour) {
+    cv_rect(x, y, w, 1, colour);
+    cv_rect(x, y + h - 1, w, 1, colour);
+    cv_rect(x, y, 1, h, colour);
+    cv_rect(x + w - 1, y, 1, h, colour);
+}
+
+/* A panel you can see through: the pixels are knocked out to black in an
+ * ordered pattern, so what is under it shows in the gaps.  Hard edges on
+ * the canvas, but the tube's own blur closes them up into a veil - which
+ * is exactly the trick the programs that did this were relying on. */
+/* inside a rectangle whose corners are rounded off by r */
+static int in_round(int i, int j, int x, int y, int w, int h, int r) {
+    int cx = i < x + r ? x + r : (i > x + w - 1 - r ? x + w - 1 - r : i);
+    int cy = j < y + r ? y + r : (j > y + h - 1 - r ? y + h - 1 - r : j);
+    int dx = i - cx, dy = j - cy;
+    return dx * dx + dy * dy <= r * r;
+}
+
+void cv_scrim(int x, int y, int w, int h, int n, int r) {
+    for (int j = y; j < y + h; j++)
+        for (int i = x; i < x + w; i++) {
+            if (r > 0 && !in_round(i, j, x, y, w, h, r))
+                continue; /* outside the rounded edge: leave the artwork */
+            int keep = (n <= 2) ? ((i + j) & 1) : ((i & 1) == 0 && (j & 1) == 0);
+            if (!keep)
+                put(i, j, C_BLACK);
+        }
+}
+
+void cv_slider(int x, int y, int w, float t, int on) {
+    if (t < 0.0f)
+        t = 0.0f;
+    if (t > 1.0f)
+        t = 1.0f;
+    int mid = y + CV_SLIDER_H / 2, fill = (int)(t * (float)(w - 1) + 0.5f);
+    cv_rect(x, mid, w, 1, C_DGREY);                   /* the groove */
+    cv_rect(x, mid, fill, 1, on ? C_YELLOW : C_GREY); /* how far along */
+    cv_rect(x + fill - 1, y + 2, 3, CV_SLIDER_H - 4, on ? C_YELLOW : C_GREY);
+}
+
+void cv_round_frame(int x, int y, int w, int h, uint8_t colour, int r) {
+    cv_rect(x + r, y, w - 2 * r, 1, colour);
+    cv_rect(x + r, y + h - 1, w - 2 * r, 1, colour);
+    cv_rect(x, y + r, 1, h - 2 * r, colour);
+    cv_rect(x + w - 1, y + r, 1, h - 2 * r, colour);
+    for (int j = 0; j <= r; j++)
+        for (int i = 0; i <= r; i++) {
+            int d2 = (r - i) * (r - i) + (r - j) * (r - j);
+            if (d2 > (r - 1) * (r - 1) && d2 <= r * r) {
+                put(x + i, y + j, colour);
+                put(x + w - 1 - i, y + j, colour);
+                put(x + i, y + h - 1 - j, colour);
+                put(x + w - 1 - i, y + h - 1 - j, colour);
+            }
+        }
+}
+
+/* How wide a VGA glyph actually is: the character generator gives every one
+ * eight columns whether it needs them or not.  Only the few characters the
+ * proportional face has not got are drawn from it now. */
+static void ink(const uint8_t *g, int *x0, int *x1) {
+    uint8_t m = 0;
+    for (int j = 0; j < 16; j++)
+        m |= g[j];
+    if (!m) { /* a space: give it a word's worth and no more */
+        *x0 = 0;
+        *x1 = 2;
+        return;
+    }
+    int a = 0, b = 7;
+    while (!(m & (0x80 >> a)))
+        a++;
+    while (!(m & (0x80 >> b)))
+        b--;
+    *x0 = a;
+    *x1 = b;
+}
+
+/* One glyph of the proportional face, hung off the baseline: the box BDF
+ * gives sits with its bottom left corner at (xoff, yoff) from the origin,
+ * which is what lets a comma drop below the line and a quote ride above it.
+ * `scale` doubles or trebles the pixels, the way a display face was made
+ * from a text one; `slant` shears the glyph a pixel to the right for every
+ * four rows above the baseline, which is how software of the day made an
+ * italic it had not got. */
+static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, uint8_t fg, int scale,
+                  int slant) {
+    int stride = (g->w + 7) / 8;
+    for (int j = 0; j < g->h; j++) {
+        int row = g->yoff + g->h - 1 - j; /* rows above the baseline */
+        int shear = slant ? (row * scale) / 4 : 0;
+        for (int i = 0; i < g->w; i++)
+            if (bits[g->at + j * stride + i / 8] & (0x80 >> (i & 7))) {
+                int px = pen + (g->xoff + i) * scale + shear, py = base - (row + 1) * scale;
+                for (int sy = 0; sy < scale; sy++)
+                    for (int sx = 0; sx < scale; sx++)
+                        put(px + sx, py + sy, fg);
+            }
+    }
+}
+
+/* The machine's own programs are set in Helvetica, the face the workstations
+ * of the day put their interfaces in; the arrows and the marks it has no
+ * glyph for come from the VGA font, which is where the rest of the machine
+ * speaks from.  Returns how far the pen moved, so a caller can put the next
+ * word after it without counting cells.  `track` is extra space after every
+ * character, for capitals set wide. */
+/* The faces, by the number the calls below take: Helvetica 14, its bold,
+ * and Helvetica 12 for labels and small controls.  All three cover the
+ * same printable range. */
+static const struct {
+    const dxm_glyph *glyphs;
+    const uint8_t *bits;
+    int ascent;
+} FACE[] = {
+    {dxm_ui_glyphs, dxm_ui_bits, DXM_UI_ASCENT},
+    {dxm_uib_glyphs, dxm_uib_bits, DXM_UI_ASCENT},
+    {dxm_uis_glyphs, dxm_uis_bits, DXM_UIS_ASCENT},
+};
+
+static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold, int scale, int slant,
+                int track) {
+    const dxm_glyph *G = FACE[bold].glyphs;
+    const uint8_t *B = FACE[bold].bits;
+    if (scale < 1)
+        scale = 1;
+    int pen = x, base = y + FACE[bold].ascent * scale;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST) {
+            const dxm_glyph *g = &G[c - DXM_UI_FIRST];
+            if (bg >= 0)
+                cv_rect(pen, y, g->adv * scale + track, CV_LINE * scale, (uint8_t)bg);
+            glyph(g, B, pen, base, fg, scale, slant);
+            pen += g->adv * scale + track;
+        } else {
+            const uint8_t *v = font_glyph16(c);
+            int x0, x1;
+            ink(v, &x0, &x1);
+            for (int j = 0; j < 16; j++)
+                for (int i = x0; i <= x1; i++)
+                    if (v[j] & (0x80 >> i))
+                        for (int sy = 0; sy < scale; sy++)
+                            for (int sx = 0; sx < scale; sx++)
+                                put(pen + (i - x0) * scale + sx, y + j * scale + sy, fg);
+            pen += (x1 - x0 + 2) * scale + track;
+        }
+    }
+    return pen - x;
+}
+
+int cv_text(int x, int y, const char *s, uint8_t fg, int bg) {
+    return text(x, y, s, fg, bg, 0, 1, 0, 0);
+}
+int cv_text_bold(int x, int y, const char *s, uint8_t fg, int bg) {
+    return text(x, y, s, fg, bg, 1, 1, 0, 0);
+}
+int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int slant, int track) {
+    return text(x, y, s, fg, -1, bold, scale, slant, track);
+}
+int cv_width_ex(const char *s, int bold, int scale, int track) {
+    const dxm_glyph *G = FACE[bold].glyphs;
+    if (scale < 1)
+        scale = 1;
+    int w = 0;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
+            w += G[c - DXM_UI_FIRST].adv * scale + track;
+        else {
+            int x0, x1;
+            ink(font_glyph16(c), &x0, &x1);
+            w += (x1 - x0 + 2) * scale + track;
+        }
+    }
+    return w;
+}
+
+/* ---- for the programs that bring their own palette ------------------- */
+
+void cv_palette(int first, int n, const uint8_t *triples) {
+    for (int i = 0; i < n && first + i < 256; i++)
+        memcpy(pal[first + i], triples + i * 3, 3);
+}
+
+void cv_image(int x, int y, int w, int h, const uint8_t *px, int first) {
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            put(x + i, y + j, (uint8_t)(first + px[j * w + i]));
+}
+
+/* The screen in horizontal bands, each slid in from its own side - the
+ * first from the left, the next from the right, and so on - by `shut` of
+ * the way (0 nothing has arrived, 1 everything is in place).  Done to what
+ * is already on the canvas, so a screen is drawn as usual and then moved:
+ * the pixels of each band's rows shift by what is left of the journey and
+ * black takes the space behind them. */
+void cv_slide_bands(int bands, float shut) {
+    if (bands < 1)
+        bands = 1;
+    if (shut < 0.0f)
+        shut = 0.0f;
+    if (shut >= 1.0f)
+        return;
+    int off = (int)((float)SCR_W * (1.0f - shut) + 0.5f);
+    if (off <= 0)
+        return;
+    int band = (SCR_H + bands - 1) / bands;
+    for (int y = 0; y < SCR_H; y++) {
+        uint8_t *row = canvas + (y + SCR_PAD_Y) * CANVAS_W + SCR_PAD_X;
+        if (((y / band) & 1) == 0) { /* from the left: the row moves right */
+            memmove(row + off, row, (size_t)(SCR_W - off));
+            memset(row, C_BLACK, (size_t)off);
+        } else { /* from the right: the row moves left */
+            memmove(row, row + off, (size_t)(SCR_W - off));
+            memset(row + SCR_W - off, C_BLACK, (size_t)off);
+        }
+    }
+}
+
+int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg) {
+    return cv_text_wrap_max(x, y, w, s, fg, 1 << 20);
+}
+
+int cv_text_wrap_max(int x, int y, int w, const char *s, uint8_t fg, int max_lines) {
+    int lines = 0;
+    while (*s && lines < max_lines) {
+        /* as many words as fit, and at least one however long it is */
+        int take = 0, last = 0;
+        char line[128];
+        for (int n = 0; s[n] && n < (int)sizeof line - 1; n++) {
+            line[n] = s[n];
+            line[n + 1] = '\0';
+            if (cv_width(line) > w)
+                break;
+            take = n + 1;
+            if (s[n] == ' ')
+                last = n + 1;
+        }
+        if (s[take] && last)
+            take = last; /* break at the space rather than mid-word */
+        memcpy(line, s, (size_t)take);
+        line[take] = '\0';
+        cv_text(x, y + lines * CV_LINE, line, fg, -1);
+        lines++;
+        s += take;
+        while (*s == ' ')
+            s++;
+    }
+    return lines;
+}
+
+int cv_text_small(int x, int y, const char *s, uint8_t fg) {
+    return text(x, y + CV_SMALL_DROP, s, fg, -1, CV_FACE_SMALL, 1, 0, 0);
+}
+int cv_width_small(const char *s) {
+    return cv_width_ex(s, CV_FACE_SMALL, 1, 0);
+}
+
+int cv_width(const char *s) {
+    int w = 0;
+    for (int n = 0; s[n]; n++) {
+        unsigned char c = (unsigned char)s[n];
+        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
+            w += dxm_ui_glyphs[c - DXM_UI_FIRST].adv;
+        else {
+            int x0, x1;
+            ink(font_glyph16(c), &x0, &x1);
+            w += x1 - x0 + 2;
+        }
+    }
+    return w;
+}
+
+/* The arrow the machine's own programs drew: a white wedge with a black
+ * edge, so it reads over artwork as well as over a panel. */
+static const char *const ARROW[] = {
+    "X",         "XX",         "XoX",        "XooX",       "XoooX",     "XooooX",   "XoooooX",
+    "XooooooX",  "XoooooooX",  "XooooooooX", "XoooooXXXX", "XooXooX",   "XoX XooX", "XX  XooX",
+    "X    XooX", "      XooX", "       XoX", "        XX", "         X"};
+
+void cv_pointer(int x, int y) {
+    for (int j = 0; j < (int)(sizeof ARROW / sizeof ARROW[0]); j++)
+        for (int i = 0; ARROW[j][i]; i++) {
+            if (ARROW[j][i] == ' ')
+                continue;
+            put(x + i, y + j, ARROW[j][i] == 'o' ? C_WHITE : C_BLACK);
+        }
+}
+
+static float fade = 1.0f;
+
+void cv_fade(float f) {
+    fade = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
+}
+
+const uint8_t *cv_rgb(void) {
+    uint8_t ramp[256][3];
+    for (int i = 0; i < 256; i++)
+        for (int k = 0; k < 3; k++)
+            ramp[i][k] = (uint8_t)((float)pal[i][k] * fade + 0.5f);
+    for (int i = 0; i < CANVAS_W * CANVAS_H; i++) {
+        const uint8_t *c = ramp[canvas[i]];
+        rgb[i * 3] = c[0];
+        rgb[i * 3 + 1] = c[1];
+        rgb[i * 3 + 2] = c[2];
+    }
+    return rgb;
+}

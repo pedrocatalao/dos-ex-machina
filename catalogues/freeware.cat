@@ -1,0 +1,292 @@
+{
+  "format": 1,
+  "id": "FREEWARE",
+  "name": "Freeware",
+  "origin": "bundled",
+  "drive": "C",
+  "about": "DOS software its makers give away. Every title here is free to download, install and pass on, and comes from where its author put it.",
+  "updated": "2026-09-13",
+  "titles": [
+    {
+      "id": "SKYROADS",
+      "name": "SkyRoads",
+      "creator": "Bluemoon Interactive",
+      "year": 1993,
+      "version": "1.5",
+      "category": "GAMES",
+      "genre": "racing",
+      "description": "Drive a skimmer along roads suspended over thirty alien worlds. Fuel and oxygen run down while you line up the jumps. The gaps do not care. Freeware since 2000, from the people who made it.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "pcspeaker",
+        "adlib",
+        "sb"
+      ],
+      "controls": [
+        "keyboard"
+      ],
+      "run": "SKYROADS.EXE",
+      "download": {
+        "url": "http://www.bluemoon.ee/history/skyroads/skyroads.zip",
+        "size": 593740,
+        "sha256": "24762fe14196a642224288fe2063c9d0c0033be9c5b4b2f97fded09390803ee4"
+      },
+      "artwork": {
+        "url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbHbdlGT4utGvnBw-WO-uxs1ZWeE9gMAv-oqyBiq0LabkzaOu1LthvI_uW&s=10",
+        "sha256": "7595f278c2a3d73e2aa5e72926b5af671da8ba07de6a92724eff5824cf084cae"
+      }
+    },
+    {
+      "id": "SKYXMAS",
+      "name": "SkyRoads Xmas Special",
+      "creator": "Bluemoon Interactive",
+      "year": 1994,
+      "category": "GAMES",
+      "genre": "racing",
+      "description": "The same skimmer, the same gaps, on thirty new roads with snow on them. Made for the Christmas after SkyRoads, and given away with it.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "pcspeaker",
+        "adlib",
+        "sb"
+      ],
+      "controls": [
+        "keyboard"
+      ],
+      "run": "SKYXMAS.EXE",
+      "download": {
+        "url": "http://www.bluemoon.ee/history/skyroads/skyxmas.zip",
+        "size": 600444,
+        "sha256": "2a45e5bdb42e59540df07bd1c1b929bfbcc5972d3beb7ecb851ef45e1d0ebcb0"
+      },
+      "artwork": {
+        "url": "https://www.playdosgames.com/assets/screenshots/skyroads-xmas-special_2.png",
+        "sha256": "e69b2c9c80e4d53b558e94f797b77f91a375d8c3ab03f2052f08573a693786f8"
+      }
+    },
+    {
+      "id": "KENLAB",
+      "name": "Ken's Labyrinth",
+      "creator": "Ken Silverman",
+      "publisher": "Epic MegaGames",
+      "year": 1993,
+      "version": "2.1",
+      "category": "GAMES",
+      "genre": "first-person shooter",
+      "description": "Three episodes of corridors, slot machines and things that shoot back, from the year before Doom, by the man who went on to write the Build engine. The registered version, released free by its author in 1999. Run SETUP for sound; KENSBFIX.EXE is the same game with the Sound Blaster crash fixed.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "pcspeaker",
+        "adlib",
+        "sb"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse"
+      ],
+      "run": "KENSBFIX.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "http://advsys.net/ken/klab/labfull.zip",
+        "size": 940242,
+        "sha256": "643aa0ca8d1a7d2c88afecd952da00f3b912be8b83c4c1d2f4ab9b50491fadfd"
+      },
+      "artwork": {
+        "url": "http://advsys.net/ken/klab/klabcap0.png",
+        "sha256": "5e16e1b021fc4f6e35e94ad9d718d4e6fbe21d51cd79dcdf6aaf37fe5e6cb2db"
+      }
+    },
+    {
+      "id": "2NDREAL",
+      "name": "Second Reality",
+      "creator": "Future Crew",
+      "year": 1993,
+      "category": "DEMOS",
+      "genre": "demo",
+      "description": "The demo that won Assembly '93 and set what a PC demo was for years after: vector landscapes, a plasma, a city built in front of you, all to Purple Motion and Skaven's soundtrack. It asks for the sound card when it starts. Freeware, as Future Crew released it.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "run": "SECOND.EXE",
+      "download": {
+        "url": "https://files.scene.org/get/parties/1993/assembly93/demo/2nd_real.zip",
+        "size": 2122910,
+        "sha256": "9dfdb9c312d736003cc363b151b6f366c481b3bd3bb78233cfff72ae677c5c95"
+      },
+      "artwork": {
+        "url": "https://media.demozoo.org/screens/o/05/10/b46d.1695.png",
+        "sha256": "2718fb70f8c342f45c68bb68884927cf106652101b5a1e98cf782b73d1972ae8"
+      }
+    },
+    {
+      "id": "ST3",
+      "name": "Scream Tracker 3",
+      "creator": "Future Crew",
+      "year": 1994,
+      "version": "3.2",
+      "category": "MUSIC",
+      "genre": "tracker",
+      "description": "The tracker a generation of PC musicians wrote in, and the S3M format with it. Samples, patterns and an order list, played through a Sound Blaster or Gravis Ultrasound. Freeware from its author, Psi of Future Crew.",
+      "multiplayer": false,
+      "network": false,
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse"
+      ],
+      "run": "ST3.EXE",
+      "download": {
+        "url": "https://files.scene.org/get/resources/music/trackers/st32.zip",
+        "size": 483605,
+        "sha256": "1ac7e0db426ff68794f306ba9158ac155d3832ffbf883fa9e2acb9827671c1be"
+      },
+      "artwork": {
+        "url": "https://i.ytimg.com/vi/TO4SEHhaCow/maxresdefault.jpg",
+        "sha256": "76ef1b04db71f9d291ba3477dbfdfb859e993a64bc3d9fd2cffaad6c80b076d5"
+      }
+    },
+    {
+      "id": "IT",
+      "name": "Impulse Tracker",
+      "creator": "Jeffrey Lim",
+      "year": 1995,
+      "version": "2.14",
+      "category": "MUSIC",
+      "genre": "tracker",
+      "description": "Scream Tracker's successor in all but name: instruments with envelopes, new note actions, sample compression, and the IT format. Freeware for non-commercial use, as its author released it.",
+      "multiplayer": false,
+      "network": false,
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse"
+      ],
+      "run": "IT.EXE",
+      "download": {
+        "url": "https://files.scene.org/get/resources/music/trackers/it214v3.zip",
+        "size": 1047473,
+        "sha256": "ad1bf9dcc7db3d74f15e5d8576becd2dadaf0fbdefc8c9057d71f56416ce43de"
+      },
+      "artwork": {
+        "url": "https://ovidem.com/img/tea-cosy-impulse-tracker.jpg",
+        "sha256": "08f226827e6d1f90d0a439831e1da88b5ab6cb014e957f2d9078bc9bf4a178e8"
+      }
+    },
+    {
+      "id": "TYRIAN2K",
+      "name": "Tyrian 2000",
+      "creator": "Eclipse Software",
+      "publisher": "XSIV Games",
+      "year": 1999,
+      "category": "GAMES",
+      "genre": "shoot 'em up",
+      "description": "A vertical shooter with a story, a shop between levels and more weapons than seems reasonable: the original's episodes plus a fifth, an arcade mode and two players on one machine. Released as freeware by its authors in 2004. Run SETUP first for the sound card.",
+      "multiplayer": true,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "adlib",
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "mouse",
+        "joystick"
+      ],
+      "run": "TYRIAN2K.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "https://www.camanis.net/tyrian/tyrian2000.zip",
+        "size": 5051363,
+        "sha256": "348bc76e73514e452279b8730cf217daf0f70a282f07b6b94af653d87e921667"
+      },
+      "artwork": {
+        "url": "https://images.gog-statics.com/60507a732ebfd6d00741c08724d843be5ed130a0d5c436b48f1d1dc66c543095_product_card_v2_mobile_slider_639.jpg",
+        "sha256": "1a53e331b3e788d46e44db9517de981e314ad76c8b3a86996f28238bd104a04c"
+      }
+    },
+    {
+      "id": "OMF2097",
+      "name": "One Must Fall 2097",
+      "creator": "Diversions Entertainment",
+      "publisher": "Epic MegaGames",
+      "year": 1995,
+      "version": "2.1",
+      "category": "GAMES",
+      "genre": "fighting",
+      "description": "Pick a pilot and a robot, then take the robot apart someone else's in arenas that fight back. A tournament mode pays for upgrades between bouts, and two players can share the keyboard or fight over a modem or network. The CD version, all eleven robots, released as freeware in 1999. Run SETUP first for the sound card.",
+      "multiplayer": true,
+      "network": true,
+      "video": "VGA",
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "joystick"
+      ],
+      "run": "OMF.EXE",
+      "setup": "SETUP.EXE",
+      "archive": "OMF/OMF21.EXE",
+      "download": {
+        "url": "https://www.classicdosgames.com/files/games/diversions/omf21cd.zip",
+        "size": 6844108,
+        "sha256": "567bee1b6a71477da6777a8dbdd32bd78833bcdd88242e3df0579c38db889dff"
+      },
+      "artwork": {
+        "url": "https://www.classicdosgames.com/images/screenshots/vga13/One_Must_Fall_2097.png",
+        "sha256": "6b9bad67be30cfaf4268e1459a8a5075bbb71915b75e076dff0234f4f70ce3f7"
+      }
+    },
+    {
+      "id": "STARGUN",
+      "name": "Stargunner",
+      "creator": "Apogee Software",
+      "year": 1996,
+      "version": "1.1a",
+      "category": "GAMES",
+      "genre": "shoot 'em up",
+      "description": "A sideways shooter in rendered colour: fly a Stargunner fighter through three episodes of the Zyrian invasion, collecting credits to buy better weapons between missions. The full registered game, released as freeware by Apogee in 2005, with its manual as a PDF in the directory. Run SETUP first for the sound card.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "sb",
+        "gus"
+      ],
+      "controls": [
+        "keyboard",
+        "joystick"
+      ],
+      "run": "STARGUN.EXE",
+      "setup": "SETUP.EXE",
+      "download": {
+        "url": "https://dosgames.com/files/DOSBOX_STARGUNNERREG.ZIP",
+        "size": 41906775,
+        "sha256": "08e695005be66441c71f03f74e968044d1633057f52c7f89aad6d8b9741bd2b9"
+      },
+      "artwork": {
+        "url": "https://t.gamesnostalgia.net/screenshots/s/t/stargunner/35625.jpg",
+        "sha256": "76aaeba6fbb939b3966dd55ca52b8022469aa32199836c315393cb18f94c1a6b"
+      }
+    }
+  ]
+}

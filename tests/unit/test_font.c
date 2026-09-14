@@ -1,6 +1,6 @@
 /* font: the CP437 8x8 table - every code has a glyph, printable
- * characters have ink, the space does not, and the arrows the navigator
- * scrolls with are there. */
+ * characters have ink, the space does not, and the box-drawing and arrow
+ * glyphs are there. */
 #include "check.h"
 #include "font.h"
 
@@ -17,8 +17,8 @@ int main(void) {
     /* every printable ASCII character has some ink */
     for (int ch = '!'; ch <= '~'; ch++)
         CHECK(ink(font_glyph(ch)) > 0);
-    /* a few shapes the machine depends on: the box-drawing set the
-     * navigator's frames are made of, and the scroll arrows */
+    /* a few shapes worth checking by name: the box-drawing set and the
+     * arrows */
     CHECK(ink(font_glyph(0xC4)) > 0);  /* horizontal line */
     CHECK(ink(font_glyph(0xB3)) > 0);  /* vertical line */
     CHECK(ink(font_glyph(0xDA)) > 0);  /* top-left corner */

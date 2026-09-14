@@ -42,6 +42,7 @@ GLF(void, glUniform4f, (GLint, GLfloat, GLfloat, GLfloat, GLfloat))
 GLF(void, glUniform4fv, (GLint, GLsizei, const GLfloat *))
 GLF(void, glUseProgram, (GLuint))
 GLF(void, glVertexAttribPointer, (GLuint, GLint, GLenum, GLboolean, GLsizei, const void *))
+GLF(void, glGenerateMipmap, (GLenum))
 
 /* The rest are GL 1.1 and are exported by the system library everywhere, so
  * they are deliberately NOT in this list: glBindTexture, glBlendFunc,

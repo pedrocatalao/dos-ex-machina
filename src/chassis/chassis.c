@@ -73,17 +73,16 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             }
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
-            /* The sound-card sticker, on the RIGHT pod under the holes.  A
-             * FIXED physical size, like the badge: sized off the pod it was
+            /* The MULTIMEDIA sticker, on the RIGHT pod under the holes,
+             * centred between them and the foot of the pod.  A FIXED
+             * physical size, like every sticker: sized off the pod it was
              * 4 mm wide on a 4:3 screen and 59 mm on an ultrawide, because
              * the pods are whatever is left beside the tube.  A real sticker
              * is one size; when the pod cannot hold it, it is not there. */
             {
-                float sw = 18.0f * mm;
                 float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
-                float sh = sw * 0.5f;                     /* what sb_sticker builds */
-                if (sw <= pw * 0.80f && y1 - y0 > sh * 1.30f)
-                    sb_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, sw);
+                multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 2.0f * mm,
+                                   pw * 0.80f, (y1 - y0) / 1.30f);
             }
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -
@@ -105,23 +104,23 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     *knobs_placed = 1;
                 }
             }
-            /* The maker's mark: the DXM wordmark, engraved into the case
-             * above the LEFT pod and centred on it, in the flat between the
-             * top parting and the pod, with its colour laid in the cut.  A
-             * fixed physical size; a strip too short or a pod too narrow
-             * for it goes without. */
+            /* The dotted mark, engraved above the LEFT pod and centred on
+             * it, halfway between the top of the display and the top of the
+             * pod - and clear of the top parting and the pod both.  A fixed
+             * physical size; a strip too short or a pod too narrow for it
+             * goes without. */
             {
-                float mw = 16.0f * mm, mh = mw * (float)DXM_MARK_HT / (float)DXM_MARK_W;
-                float top2 = gap_hi + gap_d + 1.5f * mm, bot2 = py - 1.0f * mm;
-                if (bot2 - top2 >= mh + 1.0f * mm && pw >= mw * 1.1f)
-                    engrave_mark(c, pxs[0] + pw * 0.5f, (top2 + bot2) * 0.5f - 1.2f * mm, mw,
-                                 0.75f);
+                float ew = 11.0f * mm, eh = ew * (float)CORNER_STICKER_HT / (float)CORNER_STICKER_W;
+                float cy = py * 0.5f;
+                float room = fminf(cy - (gap_hi + gap_d + 1.0f * mm), py - 1.0f * mm - cy);
+                if (eh <= room * 2.0f && ew <= pw * 0.9f)
+                    corner_engraving(c, pxs[0] + pw * 0.5f, cy, ew);
             }
         }
     }
 }
 
-/* ---- bottom band: badge | power+LEDs | volume/phones | floppy ---- */
+/* ---- bottom band: power | turbo module | mark | vents | floppy ---- */
 static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
                         int *knobs_placed) {
     float mm = G->mm, inset = G->inset, edge = G->edge, hous = G->hous;
@@ -141,22 +140,25 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         surface_monitor_recess(c, W, H, G);
         float mid = band_y + band_h * 0.46f;
 
-        /* badge: the logo, kept, but narrow */
-        float pbw = fminf(W * 0.115f, L->tube_h * 0.34f);
-        float pbh = fminf(band_h * 0.52f, pbw * 0.42f);
-        float pbx = edge + inset * 0.65f, pby = mid - pbh * 0.5f;
-        badge(c, pbx, pby, pbw, pbh);
+        /* power button + status LED at the left end of the band, with the
+         * same space either side of it - three quarters of a cap's width -
+         * between the case's left edge and the turbo module: the display's
+         * glass and its three keys in one well */
+        float pw = 16.0f * mm;   /* a 16mm power cap */
+        float pgap = pw * 0.75f; /* the space either side of it */
+        float px0 = edge + pgap;
+        float pmid = mid + 1.5f * mm;
+        power_button(c, px0, pw, pmid, mm, band_h, L);
+        float sx = px0 + pw + pgap;
+        turbo_module(c, sx, pw, pmid, mm, L->seg, L->btn, L->mode_led);
+        float mod_r = L->btn[2][0] + L->btn[2][2] + 0.7f * mm; /* the module's right edge */
+        float left_r = mod_r; /* the right edge of everything at the left end */
 
-        /* power button + status LEDs */
-        float px0 = pbx + pbw + inset * 0.85f;
-        float pw = 16.0f * mm; /* a 16mm power cap */
-        power_button(c, px0, pw, mid, mm, band_h, L);
-
-        /* the knobs' fallback: on the band beside the power cap, for a
+        /* the knobs' fallback: on the band beside the module, for a
          * screen whose pods have no room under them */
         if (!*knobs_placed) {
             float kr = 3.9f * mm;
-            float kx = px0 + pw + inset * 0.85f + kr;
+            float kx = mod_r + inset * 0.85f + kr;
             float ky = mid;
             knob_icons(c, kx, ky + kr + 3.0f * mm, kx + kr * 3.0f, ky + kr + 3.0f * mm, 1.4f * mm);
             /* only their places for now: the knobs themselves go on LAST,
@@ -166,17 +168,7 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
             knobs_slot(0, kx, ky, kr);
             knobs_slot(1, kx + kr * 3.0f, ky, kr);
             *knobs_placed = 1;
-        }
-
-        /* The engraved mark, on the centre line of the base.  It is level
-         * with the badge rather than lower down, which keeps it clear of
-         * the vent run along the foot - two features sharing the middle of
-         * the case is one too many. */
-        {
-            float sh = pbh * 0.74f;
-            float sw = sh * (float)CORNER_STICKER_W / (float)CORNER_STICKER_HT;
-            if (sw > 8.0f)
-                corner_engraving(c, (float)W * 0.5f, mid, sw);
+            left_r = kx + kr * 4.0f;
         }
 
         /* floppy drive: a real 3.5" face is 101.6 x 25.4 mm, centred
@@ -185,14 +177,22 @@ static void bottom_band(canvas *c, dxm_layout *L, int W, int H, const chassis_ge
         float fx = (float)W - edge - inset * 0.65f - fw2;
         float fmid = ((band_y - inset * 0.26f) + (float)H) * 0.5f;
 
-        /* Vent cuts along the foot of the band, confined to the middle
-         * fifth of the case.  A run all the way from the badge to the drive
-         * read as a decorative band; a short group on the centre line reads
-         * as what it is - ducting put where the airflow is. */
+        /* The maker's mark: the DXM wordmark engraved on the centre line of
+         * the base, level with the controls, with its colour laid in the
+         * cut.  A fixed physical size, drawn only where it clears the
+         * controls on its left and the drive on its right. */
         {
-            float vy0 =
-                fmaxf(pby + pbh, mid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm) +
-                inset * 0.10f;
+            float mw = 17.0f * mm, cx = (float)W * 0.5f;
+            if (cx - mw * 0.5f > left_r + inset * 0.3f && cx + mw * 0.5f < fx - inset * 0.3f)
+                engrave_mark(c, cx, mid + 1.0f * mm, mw, 0.75f);
+        }
+
+        /* Vent cuts along the foot of the band, confined to the middle
+         * fifth of the case, under the mark.  A run all the way across read
+         * as a decorative band; a short group on the centre line reads as
+         * what it is - ducting put where the airflow is. */
+        {
+            float vy0 = pmid + pw * 0.39f + fmaxf(4.0f, band_h * 0.09f) + 2.7f * mm + inset * 0.10f;
             float vy1 = (float)H - inset * 0.28f;
             float vx0 = (float)W * 0.40f, vx1 = (float)W * 0.60f;
             /* the run hangs from its BOTTOM edge: shortening it from the top
@@ -248,6 +248,7 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     bezel_cut(c, L, &G);
     speaker_columns(c, L, W, H, &G, &knobs_placed);
     bottom_band(c, L, W, H, &G, &knobs_placed);
+    surface_side_louvres(c, W, H, &G);
     surface_moulding_traces(c, W, H, &G);
     surface_wear(c, W, H);
     surface_finish(c, W, H);

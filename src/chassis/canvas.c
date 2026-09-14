@@ -233,6 +233,34 @@ void text_smooth(canvas *c, float x, float y, const char *s, float sc, int r, in
     }
 }
 
+/* The same, in the VGA face: lighter strokes and true lowercase, for the
+ * small printed legends a moulded 8x8 would make too heavy.  sc scales the
+ * 8x16 cell, so a glyph is 8*sc wide and 16*sc tall. */
+void text_smooth16(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b) {
+    if (sc < 0.25f)
+        sc = 0.25f;
+    float gw = 8.0f * sc, gh = 16.0f * sc;
+    for (int n = 0; s[n]; n++) {
+        const uint8_t *gl = font_glyph16((unsigned char)s[n]);
+        float gx = x + n * gw;
+        for (int j = 0; j < (int)ceilf(gh); j++)
+            for (int i = 0; i < (int)ceilf(gw); i++) {
+                int on = 0;
+                for (int sy = 0; sy < 4; sy++)
+                    for (int sx = 0; sx < 4; sx++) {
+                        float u = ((float)i + (sx + 0.5f) / 4.0f) / sc,
+                              v = ((float)j + (sy + 0.5f) / 4.0f) / sc;
+                        int ui = (int)u, vi = (int)v;
+                        if (ui >= 0 && ui < 8 && vi >= 0 && vi < 16 && (gl[vi] & (0x80 >> ui)))
+                            on++;
+                    }
+                if (!on)
+                    continue;
+                px_blend(c, (int)(gx + i), (int)(y + j), r, g, b, (float)on / 16.0f);
+            }
+    }
+}
+
 /* The parting between two mouldings.  It is a COVE, not a notch: the face
  * curves down into it and back out again with no edge anywhere, which is
  * what a moulded gap in a case actually looks like - the tool has a radius
@@ -258,17 +286,22 @@ void panel_gap(canvas *c, float x, float y, float w, float d) {
     }
 }
 
-void seam(canvas *c, float x, float y, float len, int vertical, float w) {
-    for (int t = 0; t < (int)fmaxf(1.0f, w); t++) {
+void seam(canvas *c, float x, float y, float len, int vertical, float w, int lit) {
+    int ww = (int)fmaxf(1.0f, w);
+    /* the light flank: ww past the line on its far side, or ww before it */
+    int off = lit > 0 ? ww : -ww;
+    for (int t = 0; t < ww; t++) {
         if (vertical)
             for (int j = (int)y; j < (int)(y + len); j++) {
                 px_blend(c, (int)x + t, j, 52, 49, 44, 0.60f);
-                px_blend(c, (int)x + t + (int)fmaxf(1.0f, w), j, 255, 252, 244, 0.24f);
+                if (lit)
+                    px_blend(c, (int)x + t + off, j, 255, 252, 244, 0.24f);
             }
         else
             for (int i = (int)x; i < (int)(x + len); i++) {
                 px_blend(c, i, (int)y + t, 52, 49, 44, 0.60f);
-                px_blend(c, i, (int)y + t + (int)fmaxf(1.0f, w), 255, 252, 244, 0.24f);
+                if (lit)
+                    px_blend(c, i, (int)y + t + off, 255, 252, 244, 0.24f);
             }
     }
 }

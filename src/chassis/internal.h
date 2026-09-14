@@ -47,12 +47,15 @@ void px_set(canvas *c, int x, int y, int r, int g, int b);
 void px_shade(canvas *c, int x, int y, float mul, float spec);
 void rrect(canvas *c, float x, float y, float w, float h, float rad, int r, int g, int b,
            float shade_top, float shade_bot);
-void seam(canvas *c, float x, float y, float len, int vertical, float w);
+/* a dark join line; lit>0 adds the light flank past it (right/below),
+ * lit<0 before it (left/above), 0 none */
+void seam(canvas *c, float x, float y, float len, int vertical, float w, int lit);
 void soft_hedge(canvas *c, float x0, float x1, float y, float span, float mul_peak, float spec_peak,
                 int downward);
 void soft_vedge(canvas *c, float y0, float y1, float x, float span, float mul_peak, int rightward);
 void text(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
 void text_smooth(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
+void text_smooth16(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b);
 
 /* surface.c */
 void surface_base(canvas *c, int W, int H);
@@ -62,6 +65,7 @@ void surface_monitor_recess(canvas *c, int W, int H, const chassis_geom *G);
 void surface_moulding_traces(canvas *c, int W, int H, const chassis_geom *G);
 void surface_top_roll(canvas *c, int W, const chassis_geom *G);
 void surface_wear(canvas *c, int W, int H);
+void surface_side_louvres(canvas *c, int W, int H, const chassis_geom *G);
 
 /* bezel.c */
 void bezel_cut(canvas *c, dxm_layout *L, const chassis_geom *G);
@@ -71,14 +75,18 @@ void bezel_facing_alpha(canvas *c, const dxm_layout *L, int W, int H, const chas
 void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4]);
 void grille_panel(canvas *c, float x, float y, float w, float h, float pitch);
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h, dxm_layout *L);
+void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
+                  float mode_led[2][4]);
 void vent_slot(canvas *c, float x, float y, float w, float h);
+void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float deep, float rim);
+void louvre_slot(canvas *c, float x, float y, float w, float h, float rad);
 
 /* marks.c */
-void badge(canvas *c, float pbx, float pby, float pbw, float pbh);
-void corner_engraving(canvas *c, float cx, float cy, float w);
+void multimedia_sticker(canvas *c, float cx, float cy, float w, float taller, float maxw,
+                        float maxh);
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);
-void sb_sticker(canvas *c, float cx, float cy, float w);
+void corner_engraving(canvas *c, float cx, float cy, float w);
 
 /* knobs.c */
 void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s);
