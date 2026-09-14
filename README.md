@@ -9,6 +9,9 @@ the release notes keep the full story. -->
 > [!IMPORTANT]
 > **2.0 changes direction: the DOS is now emulated.**
 >
+> 2.0 is not released yet. What follows describes the code on this branch;
+> the [1.0 release][1.0] is still the newest download.
+>
 > Up to 1.0, DOS ex Machina ran DOS games that had been ported to native
 > code, loaded as `.dxm` modules behind a simulated DOS prompt. From 2.0 it
 > runs a real DOS instead, [DOSBox Pure][dbp], inside the machine, so it
@@ -63,23 +66,8 @@ Version 1 ran natively ported DOS games instead; see the notice at the top.
 ## Installing
 
 Every release is self-contained: unpack it and run it. The DOSBox core
-travels inside it.
-
-| Platform | Download |
-|---|---|
-| **macOS** | [universal][dl-mac], Intel and Apple silicon in one bundle |
-| **Windows** | [x86_64][dl-win-x64] · [arm64][dl-win-arm] |
-| **Linux** | [x86_64][dl-lin-x64] · [arm64][dl-lin-arm] |
-
-Those links always point at the newest release; [the releases
-page](https://github.com/pedrocatalao/dos-ex-machina/releases) has the notes
-and the older ones.
-
-[dl-mac]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-macos-universal.zip
-[dl-win-x64]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-x86_64.zip
-[dl-win-arm]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-arm64.zip
-[dl-lin-x64]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-x86_64.tar.gz
-[dl-lin-arm]: https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-arm64.tar.gz
+travels inside it. There are no 2.0 downloads yet; until there are, build it
+yourself (see [Build](#build)).
 
 On macOS the release is a `DOS ex Machina.app` bundle. It is ad-hoc signed
 rather than notarised, so the first launch needs **right-click → Open**;
@@ -147,7 +135,12 @@ collapses, the fans spin down, and the room goes dark.
 program that uses a mouse gets it. **Ctrl+F10** gives it back to your
 operating system, where it wears a period arrow and can work the controls
 on the case, and takes it back again. On a Mac, a tap of **Command** on its
-own does the same.
+own does the same. Under the left speaker's holes, two lamps, **HOST** and
+**DXM**, say which has it, and the **MOUSE** key over them gives it to the
+machine.
+
+**The OSD button** under the left speaker opens the panel of the tube's
+settings, the same one Shift+F1 opens; press it again to put it away.
 
 **The two knobs** under the right speaker are brightness and contrast: grab
 one and drag up or down.
@@ -294,8 +287,9 @@ were MIT licensed, and remain so.
 - **SDL3** is linked, not vendored, under the zlib licence; so are
   **libcurl** (the curl licence, MIT-like) and **zlib** (the zlib licence),
   for the catalogue's downloads.
-- **FreeDOS EDIT** travels in the DOSBox core, on Z:, under the GPL-2.0;
-  its source is in the fork beside it.
+- **FreeDOS EDIT** 0.9b travels in the DOSBox core, on Z:, under the
+  GPL-2.0; its source, with that of the FreeDOS D-Flat+ library it is built
+  on, is in the fork beside it, in `dxm/edit/`.
 - **No software or data for DOS is in this repository or in its releases.**
   The catalogue downloads what its authors give away, from where they put
   it, when you ask for it.
