@@ -9,6 +9,7 @@
  * colours, with a look of its own. */
 #ifndef DXM_CATALOG_H
 #define DXM_CATALOG_H
+#include <stddef.h>
 #include <stdint.h>
 
 /* Where things are: the catalogue files beside the program, the
@@ -16,6 +17,9 @@
  * which is where a catalogue mounted on C: installs to. */
 void catalog_bind(const char *base_dir, const char *pref_dir, const char *c_drive);
 void catalog_load(void); /* read the list and every catalogue in it */
+/* The catalogues that are drives of their own, as dosbox_set_drives()
+ * wants them; the one on C: is the machine's own drive and not listed. */
+void catalog_drives(char *out, size_t n);
 void catalog_fixed_clock(int fixed);
 
 void catalog_open(void);

@@ -59,10 +59,10 @@ dos-ex-machina/
 │   ├── catalogue.h         the catalogue files: the public face of catalogue.c
 │   ├── catalog.h           CATALOG, the program: the public face of screen.c
 │   ├── catalogue/          the catalogues, and the program that shows them (SPEC §8)
-│   │   ├── catalogue.c     reads catalogues.lst and a .cat, checks every title, drops
+│   │   ├── catalogue.c     reads a .cat, checks where it goes and every title, drops
 │   │   │                   and notes the bad ones; no SDL, no network
 │   │   ├── screen.c        CATALOG: the shelves, the keys, the errands, the screen
-│   │   ├── gui.c           its look - backdrop, hazard tape, gold headlines, frames
+│   │   ├── gui.c           its look - the ground, wells, tabs, filters, scrollbars, hints
 │   │   ├── art.c           artwork fetched, cached, fitted and quantised as a set
 │   │   ├── install.c       download, check, unpack, find the title, put it on the drive
 │   │   ├── net.c/.h        libcurl: the only file that talks to the network
@@ -79,7 +79,7 @@ dos-ex-machina/
 │   └── gen/                generated data, committed; see its README
 ├── src/third_party/        stb_image.h, vendored as it ships: the only
 │                           third-party code in the program besides SDL3, libcurl and zlib
-├── catalogues/             catalogues.lst and the bundled .cat files, copied beside dxm
+├── catalogues/             the bundled .cat files, each saying where it goes; copied beside dxm
 ├── external/dosbox-pure/   the DOSBox Pure fork, a submodule, built by CMake
 ├── shaders/                one GLSL file per pass, baked into the binary at build time
 ├── tests/

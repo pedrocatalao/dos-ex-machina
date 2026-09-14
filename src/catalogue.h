@@ -18,7 +18,7 @@
 #define CAT_NAME 65 /* a title's name */
 #define CAT_DESC 401
 #define CAT_URL 400
-#define CAT_LIST 8     /* catalogues in the list */
+#define CAT_LIST 8     /* catalogues the machine holds at once */
 #define CAT_TITLES 256 /* titles in one catalogue */
 #define CAT_WORDS 6    /* entries in a sound or controls list */
 #define CAT_WORD 12    /* one such entry */
@@ -41,11 +41,15 @@ typedef struct {
     char video[8]; /* CGA, EGA, VGA, SVGA, or empty */
     char sound[CAT_WORDS][CAT_WORD], controls[CAT_WORDS][CAT_WORD];
     char run[64], setup[64];    /* setup is empty for a title without one */
+    char archive[64];           /* an archive inside the download to unpack instead, or empty */
     cat_file download, artwork; /* artwork.url empty for a title without */
 } cat_title;
 
 typedef struct {
     int format;
+    char id[CAT_ID]; /* the host folder, and the drive's volume label */
+    char drive;      /* the letter it is a drive on, 'C'..'Z' */
+    int community;   /* origin: bundled (0) or community (1) */
     char name[CAT_NAME], about[CAT_DESC], updated[16];
     cat_title titles[CAT_TITLES];
     int n;
@@ -54,30 +58,14 @@ typedef struct {
     int n_notes;
 } cat_catalogue;
 
-typedef struct {
-    char id[CAT_ID]; /* the host folder, and the volume label */
-    char name[CAT_NAME];
-    char file[64]; /* the .cat, beside the list */
-    int community; /* origin: bundled (0) or community (1) */
-    char drive;    /* the default letter, 'C'..'Z' */
-} cat_entry;
-
-typedef struct {
-    int format;
-    cat_entry entries[CAT_LIST];
-    int n;
-    char notes[CAT_NOTES][160];
-    int n_notes;
-} cat_list;
-
-/* Read a list or a catalogue from JSON text.  Returns the number of entries
- * kept, or -1 when the text is not that kind of file at all.  A bad entry is
- * dropped and noted; a good one after it is still read. */
-int cat_parse_list(cat_list *l, const char *json);
+/* Read a catalogue from JSON text.  Returns the number of titles kept, or -1
+ * when the text is not a catalogue at all - or is one without the id, drive
+ * and origin that say where it goes, since without them it cannot be put
+ * anywhere.  A bad title is dropped and noted; a good one after it is still
+ * read. */
 int cat_parse(cat_catalogue *c, const char *json);
 
 /* The same, from a file.  -1 also when the file cannot be read. */
-int cat_read_list(cat_list *l, const char *path);
 int cat_read(cat_catalogue *c, const char *path);
 
 /* The categories the format allows, NULL-terminated, and whether a word is

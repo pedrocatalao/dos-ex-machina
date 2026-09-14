@@ -115,6 +115,23 @@ static void zip_end(const char *path) {
     }
 }
 
+/* The same archive with a program in front of it, as a self-extracting zip
+ * is: the offsets inside still count from the start of the zip. */
+static void sfx_from(const char *zip, const char *path, size_t stub) {
+    FILE *in = fopen(zip, "rb"), *out = fopen(path, "wb");
+    if (in && out) {
+        for (size_t i = 0; i < stub; i++)
+            fputc("MZ"[i % 2], out);
+        int c;
+        while ((c = fgetc(in)) != EOF)
+            fputc(c, out);
+    }
+    if (in)
+        fclose(in);
+    if (out)
+        fclose(out);
+}
+
 static int file_says(const char *path, const char *want) {
     FILE *f = fopen(path, "rb");
     if (!f)
@@ -168,6 +185,21 @@ int main(void) {
     zip_add("v1.5/a.txt", "a");
     zip_end(zip);
     CHECK(unzip_extract(zip, dir, &n, err, sizeof err) == 0);
+
+    /* a zip that extracts itself: sixteen thousand bytes of program first */
+    {
+        char sfx[600];
+        snprintf(sfx, sizeof sfx, "%s/t.exe", TEST_TMP);
+        zip_begin();
+        zip_add("OMF.EXE", "the game");
+        zip_add("DATA/ARENA0.BK", "an arena");
+        zip_end(zip);
+        sfx_from(zip, sfx, 16088);
+        CHECK(unzip_extract(sfx, dir, &n, err, sizeof err) == 0);
+        CHECK(n == 2);
+        snprintf(path, sizeof path, "%sDATA/ARENA0.BK", dir);
+        CHECK(file_says(path, "an arena"));
+    }
 
     /* not a zip */
     FILE *f = fopen(zip, "wb");

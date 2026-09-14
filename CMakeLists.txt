@@ -49,6 +49,7 @@ add_executable(dxm
 # copied next to the binary here, and into the package by each platform's
 # workflow.
 add_custom_target(catalogues ALL
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_BINARY_DIR}/catalogues
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/catalogues
             ${CMAKE_BINARY_DIR}/catalogues
     COMMENT "Copying catalogues/ beside dxm"

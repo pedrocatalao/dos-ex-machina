@@ -277,6 +277,13 @@ static const char *check_title(const char *obj, cat_title *t) {
     get_words(obj, "controls", t->controls);
     if (get_str(obj, "setup", t->setup, sizeof t->setup, &len) && len > 63)
         return "setup longer than 63";
+    /* A download that is an installer carries the title as an archive of its
+     * own - a zip, or a zip that extracts itself - and this names it, as a
+     * path inside the download.  Relative, and going nowhere above it. */
+    if (get_str(obj, "archive", t->archive, sizeof t->archive, &len) &&
+        (len > 63 || !t->archive[0] || t->archive[0] == '/' || t->archive[0] == '\\' ||
+         strstr(t->archive, "..") || strchr(t->archive, ':')))
+        return "archive is not a relative path inside the download";
     if (get_file(obj, "artwork", &t->artwork)) {
         if (strncmp(t->artwork.url, "https://", 8) && strncmp(t->artwork.url, "http://", 7))
             return "artwork.url is not http(s)";
@@ -318,69 +325,30 @@ int cat_parse(cat_catalogue *c, const char *json) {
         note(c->notes, &c->n_notes, "", "a format this machine does not read");
         return -1;
     }
+    /* where it goes: without these it is a list of titles with no home */
+    size_t len;
+    char origin[16] = "", drive[4] = "";
+    const char *why = NULL;
+    if (!get_str(json, "id", c->id, sizeof c->id, &len) || len > 8 || !cat_id_ok(c->id))
+        why = "the catalogue's id is missing or not a DOS name";
+    else if (!get_str(json, "drive", drive, sizeof drive, NULL) || strlen(drive) != 1 ||
+             drive[0] < 'C' || drive[0] > 'Z')
+        why = "the catalogue's drive is not one letter C..Z";
+    else if (!get_str(json, "origin", origin, sizeof origin, NULL) ||
+             (strcmp(origin, "bundled") && strcmp(origin, "community")))
+        why = "the catalogue's origin is not bundled or community";
+    if (why) {
+        note(c->notes, &c->n_notes, c->id, why);
+        return -1;
+    }
+    c->drive = drive[0];
+    c->community = !strcmp(origin, "community");
     get_str(json, "name", c->name, sizeof c->name, NULL);
     get_str(json, "about", c->about, sizeof c->about, NULL);
     get_str(json, "updated", c->updated, sizeof c->updated, NULL);
     if (each_object(arr, each_title, c) < 0)
         return -1;
     return c->n;
-}
-
-/* ---- the list --------------------------------------------------------- */
-
-static int each_entry(const char *obj, void *ud) {
-    cat_list *l = ud;
-    if (l->n >= CAT_LIST) {
-        note(l->notes, &l->n_notes, "", "more catalogues than the machine holds; the rest dropped");
-        return 0;
-    }
-    cat_entry *e = &l->entries[l->n];
-    memset(e, 0, sizeof *e);
-    size_t len;
-    char origin[16] = "", drive[4] = "";
-    const char *why = NULL;
-    if (!get_str(obj, "id", e->id, sizeof e->id, &len) || len > 8 || !cat_id_ok(e->id))
-        why = "id missing or not a DOS name";
-    else if (!get_str(obj, "name", e->name, sizeof e->name, &len) || len > CAT_NAME - 1)
-        why = "name missing or longer than 64";
-    else if (!get_str(obj, "file", e->file, sizeof e->file, &len) || len > 63 ||
-             strchr(e->file, '/') || strchr(e->file, '\\'))
-        why = "file missing, or not a bare name beside the list";
-    else if (!get_str(obj, "origin", origin, sizeof origin, NULL) ||
-             (strcmp(origin, "bundled") && strcmp(origin, "community")))
-        why = "origin is not bundled or community";
-    else if (!get_str(obj, "drive", drive, sizeof drive, NULL) || strlen(drive) != 1 ||
-             drive[0] < 'C' || drive[0] > 'Z')
-        why = "drive is not one letter C..Z";
-    if (why) {
-        note(l->notes, &l->n_notes, e->id, why);
-        return 1;
-    }
-    e->community = !strcmp(origin, "community");
-    e->drive = drive[0];
-    for (int i = 0; i < l->n; i++)
-        if (!strcmp(l->entries[i].id, e->id)) {
-            note(l->notes, &l->n_notes, e->id, "same id twice");
-            return 1;
-        }
-    l->n++;
-    return 1;
-}
-
-int cat_parse_list(cat_list *l, const char *json) {
-    memset(l, 0, sizeof *l);
-    int present;
-    l->format = (int)get_num(json, "format", &present);
-    const char *arr = member(json, "catalogues");
-    if (!present || !arr)
-        return -1;
-    if (l->format != 1) {
-        note(l->notes, &l->n_notes, "", "a format this machine does not read");
-        return -1;
-    }
-    if (each_object(arr, each_entry, l) < 0)
-        return -1;
-    return l->n;
 }
 
 /* ---- files ------------------------------------------------------------ */
@@ -404,17 +372,6 @@ static char *slurp(const char *path) {
     }
     fclose(f);
     return buf;
-}
-
-int cat_read_list(cat_list *l, const char *path) {
-    char *json = slurp(path);
-    if (!json) {
-        memset(l, 0, sizeof *l);
-        return -1;
-    }
-    int n = cat_parse_list(l, json);
-    free(json);
-    return n;
 }
 
 int cat_read(cat_catalogue *c, const char *path) {

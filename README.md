@@ -162,13 +162,13 @@ again so they take effect. Machine settings live in `dxm.cfg` beside the
 preferences, the tube's in `crt.cfg`.
 
 **CATALOG** is the shop: type `CATALOG` at the DOS prompt. The catalogues the
-machine ships with are drives - the freeware one is C: - and each is a tab
+machine ships with are drives - freeware on C:, shareware on D: - and each is a tab
 with its titles in a list. Just type to find one: the list narrows as you
 go. **Enter** (or a double-click) installs the chosen title - downloaded,
 checked against the hash the catalogue names, unpacked into `\GAMES\<ID>`
 or wherever its category says - or runs it once it is there; **F2** runs
 the title's own setup program when it has one; **F3** drops you at a DOS
-prompt in its directory (`EXIT` comes back); **Tab** changes catalogue;
+prompt in its directory (`EXIT` comes back); **Left** and **Right** change catalogue;
 **Esc** clears the search, then leaves. The key hints along the foot do the
 same when clicked. Running, setting up and the prompt are errands: the catalogue is
 back as you left it when they return. Artwork is fetched as a title is

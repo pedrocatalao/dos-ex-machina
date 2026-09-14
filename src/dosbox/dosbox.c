@@ -143,6 +143,12 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_MIDI (RETRO_ENVIRONMENT_PRIVATE | 5)
 #define DXM_ENV_SETUP (RETRO_ENVIRONMENT_PRIVATE | 6)
 #define DXM_ENV_CATALOG (RETRO_ENVIRONMENT_PRIVATE | 7)
+#define DXM_ENV_DRIVES (RETRO_ENVIRONMENT_PRIVATE | 8)
+/* the drives besides C:, as the core wants them: "D=LABEL=/folder/" a line */
+static char g_drives[2048];
+void dosbox_set_drives(const char *list) {
+    snprintf(g_drives, sizeof g_drives, "%s", list ? list : "");
+}
 static char g_midi[16] = "auto";
 /* SETUP, asked for at the DOS prompt: the core's thread asks, the frame
  * loop answers, since the screen is the main thread's to open. */
@@ -413,6 +419,9 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
         return true;
     case DXM_ENV_CATALOG:
         cat_env((dxm_catalog_msg *)data);
+        return true;
+    case DXM_ENV_DRIVES:
+        *(const char **)data = g_drives;
         return true;
     case RETRO_ENVIRONMENT_SHUTDOWN:
         /* DOS was told EXIT.  The core wants to stop; the machine wants

@@ -1,9 +1,11 @@
 /* install.c — a title from the catalogue onto its drive (SPEC §8.4).
  *
- * Download, check the size and the hash, unpack into a scratch directory,
- * find the folder that holds the file the catalogue says to run - that is
- * the title, wherever the packer put it - and move that folder to
- * \<CATEGORY>\<ID> on the mount.  Then the scratch and the archive go.
+ * Download, check the size and the hash, unpack into a scratch directory -
+ * and, for a download that is an installer, unpack the archive the
+ * catalogue names inside it - find the folder that holds the file the
+ * catalogue says to run - that is the title, wherever the packer put it -
+ * and move that folder to \<CATEGORY>\<ID> on the mount.  Then the scratch
+ * and the download go.
  * All of it on a thread, one at a time, with the screen asking how far. */
 #include "internal.h"
 #include "net.h"
@@ -46,6 +48,32 @@ static int in_dir_ci(const char *dir, const char *name, char *out, size_t n) {
     if (!SDL_EnumerateDirectory(dir, find_ci, &l) || !l.found[0])
         return 0;
     snprintf(out, n, "%s", l.found);
+    return 1;
+}
+
+/* A relative path under `dir`, found a component at a time whatever the
+ * case of each on disk - the catalogue writes OMF/OMF21.EXE, the archive may
+ * have made it omf/Omf21.exe.  0 when some part of it is not there. */
+static int path_ci(const char *dir, const char *rel, char *out, size_t n) {
+    char at[1400], part[260];
+    snprintf(at, sizeof at, "%s", dir);
+    const char *p = rel;
+    while (*p) {
+        size_t k = 0;
+        while (*p && *p != '/' && *p != '\\' && k + 1 < sizeof part)
+            part[k++] = *p++;
+        part[k] = 0;
+        while (*p == '/' || *p == '\\')
+            p++;
+        if (!k)
+            continue;
+        char base[1410], found[1400];
+        snprintf(base, sizeof base, "%s/", at);
+        if (!in_dir_ci(base, part, found, sizeof found))
+            return 0;
+        snprintf(at, sizeof at, "%s", found);
+    }
+    snprintf(out, n, "%s", at);
     return 1;
 }
 
@@ -225,12 +253,35 @@ static int SDLCALL worker(void *ud) {
         }
         dxm_log("catalog: %s: %d files unpacked", t->id, n);
     }
+    /* an installer: the title is an archive inside what was unpacked */
+    char inner[1400] = "";
+    if (t->archive[0]) {
+        char path[1400] = "", into[1400];
+        int n = 0;
+        snprintf(inner, sizeof inner, "%s.in", scratch);
+        rm_tree(inner);
+        SDL_CreateDirectory(inner);
+        snprintf(into, sizeof into, "%s/", inner);
+        if (!path_ci(scratch, t->archive, path, sizeof path) ||
+            unzip_extract(path, into, &n, err, sizeof err) != 0) {
+            rm_tree(inner);
+            rm_tree(scratch);
+            remove(zip);
+            char why[200];
+            snprintf(why, sizeof why, "%s will not open: %s", t->archive,
+                     path[0] ? err : "it is not in the download");
+            return fail(why);
+        }
+        dxm_log("catalog: %s: %d files unpacked from %s", t->id, n, t->archive);
+    }
     say("INSTALLING", 0.96f);
     char found[1400];
     {
         char root[1400];
-        snprintf(root, sizeof root, "%s/", scratch);
+        snprintf(root, sizeof root, "%s/", inner[0] ? inner : scratch);
         if (!find_run(root, t->run, found, sizeof found, 0)) {
+            if (inner[0])
+                rm_tree(inner);
             rm_tree(scratch);
             remove(zip);
             char why[200];
@@ -243,10 +294,14 @@ static int SDLCALL worker(void *ud) {
     }
     SDL_CreateDirectory(cat_dir);
     if (!SDL_RenamePath(found, dest)) {
+        if (inner[0])
+            rm_tree(inner);
         rm_tree(scratch);
         remove(zip);
         return fail("cannot put the title on the drive");
     }
+    if (inner[0])
+        rm_tree(inner);
     rm_tree(scratch);
     remove(zip);
     dxm_log("catalog: %s installed at %s", t->id, dest);

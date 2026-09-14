@@ -122,6 +122,13 @@ int cv_width(const char *s); /* what it will take, without drawing it */
  * `scale`, sheared into an italic by `slant`, `track` pixels after each
  * character.  No background. */
 int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int slant, int track);
+/* `bold` above is really which face: 0 regular, 1 bold, CV_FACE_SMALL the
+ * 12-pixel one.  cv_text_small sets that face on the same line as the
+ * regular one - dropped so the two share a baseline when drawn at one y. */
+#define CV_FACE_SMALL 2
+#define CV_SMALL_DROP 2 /* the difference in ascent, 13 against 11 */
+int cv_text_small(int x, int y, const char *s, uint8_t fg);
+int cv_width_small(const char *s);
 int cv_width_ex(const char *s, int bold, int scale, int track);
 /* For a program that brings its own colours: `n` RGB triples into the
  * palette from `first`, and a picture of indices with `first` added to
@@ -129,7 +136,6 @@ int cv_width_ex(const char *s, int bold, int scale, int track);
  * above them, so a palette set once stays set. */
 void cv_palette(int first, int n, const uint8_t *rgb);
 void cv_image(int x, int y, int w, int h, const uint8_t *px, int first);
-uint8_t cv_at(int x, int y); /* what is on the canvas there */
 /* What is on the canvas, in `bands` horizontal bands slid in from
  * alternate sides, `shut` of the way there (0..1). */
 void cv_slide_bands(int bands, float shut);

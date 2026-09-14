@@ -427,34 +427,43 @@ on a hard disk. `--dosbox DIR` mounts another folder instead. ROM files for
 an MT-32 or an SC-55 go in the root, where DOSBox Pure finds them and puts
 the device on the MPU-401.
 
-Every catalogue in the list (§8.2) is a drive, on the letter the list gives
-it, mounted as the machine boots. A catalogue on a letter is the folder the
-machine keeps for it, so what is installed from it lives there and nothing
-ever moves; the drive's volume label is the catalogue's name. The freeware
-catalogue is on C:, which is to say it installs into the C: folder above.
-There is nothing to configure while the list holds one catalogue; when there
+Every catalogue (§8.2) is a drive, on the letter it names, mounted as the
+machine boots. A catalogue on a letter other than C: is the folder the
+machine keeps for it, `catalogues/<id>` in the preferences, so what is
+installed from it lives there and nothing ever moves; the drive's volume
+label is the catalogue's id. The freeware catalogue is on C:, which is to
+say it installs into the C: folder above; the shareware one is on D:. Which
+catalogue is on which letter is the catalogue's own say for now; when there
 are catalogues to choose between, SETUP gets a DRIVES section - a letter,
 and what is on it, a catalogue or a local folder - and since drives are
 hardware, it takes effect at the next power-on through SAVE & REBOOT (§6.9).
 
 ### 8.2 The catalogue files
 
-Two kinds of file, both JSON, both shipped beside the program for now and
-read from disk; fetching them from a URL later changes where they come from
-and nothing about them.
+A catalogue is a `.cat` file, JSON, shipped in the `catalogues` folder beside
+the program for now and read from disk; fetching one from a URL later
+changes where it comes from and nothing about it. There is no list of them:
+the machine takes every `.cat` in the folder, so adding a catalogue is adding
+a file.
 
-**`catalogues.lst`** is the list: a `format` number and `catalogues`, each
-with an `id` (eight characters at most: it names the host folder and is the
-volume label), a `name`, the `file` it is in, an `origin` - `bundled` or
-`community` - and the letter it defaults to.
-
-**A `.cat` file** is one catalogue: `format`, `name`, `about`, `updated`,
-and `titles`. A title has, required: `id`, `name`, `creator`, `year`,
+**A `.cat` file** says where it goes, then what it holds: `format`; an `id`
+(eight characters at most: it names the host folder and is the drive's
+volume label); a `name`; an `origin`, `bundled` or `community`, which the
+bundled ones carry too, so that whoever writes a catalogue sees the choice;
+the `drive` it is on, a letter from C to Z; then `about`, `updated`, and
+`titles`. The tabs are in the order of the drives. A catalogue without an
+id, a drive or an origin is not read, and one wanting a letter or an id
+another already has is left out, both with a line in the log - the files
+being taken in name order, so which one wins is the same on every
+machine. A title has, required: `id`, `name`, `creator`, `year`,
 `category`, `multiplayer` and `network` (booleans), `run`, and `download`
 (`url`, `size`, `sha256`). Optional: `publisher`, `version`, `genre`,
 `description`, `video` (CGA, EGA, VGA, SVGA), `sound` and `controls`
-(lists), `setup` - the title's own configuration program, whatever it is
-called, `SETUP.EXE` or `SOUND.BAT` - and `artwork` (`url`, `sha256`).
+(lists), `setup` (the title's own configuration program, whatever it is
+called, `SETUP.EXE` or `SOUND.BAT`), `archive` (for a download that is really an
+installer, the path inside it of the archive that holds the title, a zip or
+a zip that extracts itself, unpacked in its place) and `artwork` (`url`,
+`sha256`).
 `id` and `category` are DOS directory names, eight characters or fewer, and
 `category` is one of a fixed list, plural because it is a folder:
 `GAMES`, `TOOLS`, `EDUCATION`, `MUSIC`, `DEMOS`, `MISC`. `name` is at most
@@ -502,7 +511,7 @@ Page Up and Down, with a thin scrollbar beside it; a new title starts at
 the top. Along the foot the keys and
 what they do, as SETUP has them: ENTER installs, or runs once the title is
 on the drive (so does a double-click); F2 its setup where it has one; F3 a
-prompt in its directory; TAB the next catalogue; ESC. Letters are the
+prompt in its directory; left and right the catalogues; ESC. Letters are the
 search's, which is why the actions are on function keys; the hints are
 also what the mouse presses. Under the list, the count, and the download's
 progress while there is one. It comes up the way SETUP does, with a
@@ -512,10 +521,12 @@ comes back from an errand. Leaving, it fades to black on the palette, and
 DOS waits at `CATALOG` until it has, so the prompt never shows under it.
 
 **Artwork** is shown before a title is installed, fetched when the title is
-first selected and kept at `artwork/<catalogue>/<CATEGORY>/<ID>.png` in the
-preferences directory, outside DOS's view. That cache is looked in first,
-always, and is what an offline machine shows; a title whose picture has not
-arrived shows the machine's own mark in the well until it does. Whatever
+first selected and kept at `artwork/<catalogue>/<CATEGORY>/<ID>-<hash>.<ext>`
+in the preferences directory, outside DOS's view - named for the picture's
+hash as well as the title, so a catalogue that changes a picture has it
+fetched afresh. That cache is looked in first, always, and is what an
+offline machine shows; a title without a picture, or whose picture has not
+arrived, shows the machine's own mark in its place. Whatever
 shape the picture comes in is fitted to the well and to the palette entries
 the interface leaves it, as the banners are.
 
@@ -536,9 +547,13 @@ ESC is the only exit, to the prompt `CATALOG` was typed at.
 INSTALL downloads the archive, one at a time, with a progress bar and
 nothing else to do until it is done. The download is refused past a size
 cap, and discarded if its sha256 is not the catalogue's - said plainly, no
-override. The zip is opened with `..` and absolute paths refused; the
-folder in it that holds `run` is the title, wherever the packer put it, and
-that folder's contents go to `\<CATEGORY>\<ID>`. The zip is then deleted.
+override. The zip is opened with `..` and absolute paths refused, and so is
+a zip that extracts itself, which is a zip with a program in front of it;
+for a download that is really an installer, the title's `archive` inside it
+is opened the same way in its place. The folder that holds `run` is the
+title, wherever the packer put it, and that folder's contents go to
+`\<CATEGORY>\<ID>`. The download and everything unpacked from it are then
+deleted.
 A directory already there, whatever is in it, means INSTALL refuses and
 says so. DOSBox's cached listing of the drive is refreshed afterwards, so
 `DIR` sees the title without a `RESCAN`. There is no uninstall in 2.0:

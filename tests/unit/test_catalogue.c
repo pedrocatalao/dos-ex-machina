@@ -38,34 +38,45 @@ static void title(char *out, size_t n, const char *replace_key, const char *with
         }
         k += (size_t)snprintf(out + k, n - k, "%s\"%s\": %s", i ? ", " : "", f[i].key, v);
     }
+    /* a key the good title has not got is added, so optional ones can be tried */
+    int known = 0;
+    for (size_t i = 0; i < sizeof f / sizeof f[0]; i++)
+        known |= replace_key && !strcmp(f[i].key, replace_key);
+    if (replace_key && with && !known)
+        k += (size_t)snprintf(out + k, n - k, ", \"%s\": %s", replace_key, with);
     snprintf(out + k, n - k, "}");
 }
+
+/* where a catalogue goes, without which it is not one */
+#define HEAD "\"id\": \"TEST\", \"drive\": \"D\", \"origin\": \"bundled\","
 
 static int parse_one(cat_catalogue *c, const char *replace_key, const char *with) {
     char t[2048], json[2400];
     title(t, sizeof t, replace_key, with);
-    snprintf(json, sizeof json, "{\"format\": 1, \"name\": \"T\", \"titles\": [%s]}", t);
+    snprintf(json, sizeof json, "{\"format\": 1, %s \"name\": \"T\", \"titles\": [%s]}", HEAD, t);
     return cat_parse(c, json);
 }
 
 int main(void) {
     cat_catalogue c;
-    cat_list l;
 
-    /* the repo's own files read, and the list names a file that exists */
-    CHECK(cat_read_list(&l, TEST_REPO "/catalogues/catalogues.lst") >= 1);
-    CHECK(l.n_notes == 0);
-    CHECK_STR(l.entries[0].id, "FREEWARE");
-    CHECK(l.entries[0].drive == 'C');
-    CHECK(l.entries[0].community == 0);
+    /* the repo's own catalogues read, and say where they go */
     {
-        char path[512];
-        snprintf(path, sizeof path, TEST_REPO "/catalogues/%s", l.entries[0].file);
-        CHECK(cat_read(&c, path) >= 0);
-        CHECK(c.n_notes == 0);
-        CHECK_STR(c.name, "Freeware");
-        for (int i = 0; i < c.n; i++)
-            CHECK(cat_category_ok(c.titles[i].category));
+        const struct {
+            const char *file, *id;
+            char drive;
+        } own[] = {{"freeware.cat", "FREEWARE", 'C'}, {"shareware.cat", "SHAREWAR", 'D'}};
+        for (size_t i = 0; i < sizeof own / sizeof own[0]; i++) {
+            char path[512];
+            snprintf(path, sizeof path, TEST_REPO "/catalogues/%s", own[i].file);
+            CHECK(cat_read(&c, path) >= 0);
+            CHECK(c.n_notes == 0);
+            CHECK_STR(c.id, own[i].id);
+            CHECK(c.drive == own[i].drive);
+            CHECK(c.community == 0);
+            for (int k = 0; k < c.n; k++)
+                CHECK(cat_category_ok(c.titles[k].category));
+        }
     }
 
     /* a good title, read in full */
@@ -104,6 +115,10 @@ int main(void) {
         {"download", "{ \"url\": \"https://x\", \"sha256\": \"" SHA "\" }"},
         {"video", "\"HERCULES\""},
         {"artwork", "{ \"url\": \"x.png\" }"},
+        {"archive", "\"../OMF21.EXE\""},
+        {"archive", "\"/OMF21.EXE\""},
+        {"archive", "\"C:OMF21.EXE\""},
+        {"archive", "\"\""},
     };
     for (size_t i = 0; i < sizeof faults / sizeof faults[0]; i++) {
         int n = parse_one(&c, faults[i][0], faults[i][1]);
@@ -114,12 +129,16 @@ int main(void) {
         CHECK(c.n_notes == 1);
     }
 
+    /* an installer's archive, named inside the download */
+    CHECK(parse_one(&c, "archive", "\"OMF/OMF21.EXE\"") == 1);
+    CHECK_STR(c.titles[0].archive, "OMF/OMF21.EXE");
+
     /* a bad title does not take the good one after it */
     {
         char bad[2048], good[2048], json[4400];
         title(bad, sizeof bad, "year", NULL);
         title(good, sizeof good, "id", "\"KEEN5\"");
-        snprintf(json, sizeof json, "{\"format\": 1, \"titles\": [%s, %s]}", bad, good);
+        snprintf(json, sizeof json, "{\"format\": 1, " HEAD " \"titles\": [%s, %s]}", bad, good);
         CHECK(cat_parse(&c, json) == 1);
         CHECK_STR(c.titles[0].id, "KEEN5");
         CHECK(c.n_notes == 1);
@@ -128,7 +147,7 @@ int main(void) {
     {
         char t[2048], json[4400];
         title(t, sizeof t, NULL, NULL);
-        snprintf(json, sizeof json, "{\"format\": 1, \"titles\": [%s, %s]}", t, t);
+        snprintf(json, sizeof json, "{\"format\": 1, " HEAD " \"titles\": [%s, %s]}", t, t);
         CHECK(cat_parse(&c, json) == 1);
         CHECK(c.n_notes == 1);
     }
@@ -139,25 +158,30 @@ int main(void) {
     CHECK(cat_parse(&c, "{\"format\": 2, \"titles\": []}") == -1);
     CHECK(cat_parse(&c, "{\"format\": 1, \"titles\": [1, 2]}") == -1);
     CHECK(cat_parse(&c, "{\"format\": 1, \"titles\": [{\"id\": \"A\"") == -1);
-    CHECK(cat_parse(&c, "{\"format\": 1, \"titles\": []}") == 0);
+    CHECK(cat_parse(&c, "{\"format\": 1, " HEAD " \"titles\": []}") == 0);
     CHECK(cat_read(&c, TEST_REPO "/no/such/file.cat") == -1);
 
-    /* the list */
-    CHECK(cat_parse_list(&l, "{\"format\": 1, \"catalogues\": ["
-                             "{\"id\": \"A\", \"name\": \"A\", \"file\": \"a.cat\", \"origin\": "
-                             "\"bundled\", \"drive\": \"D\"},"
-                             "{\"id\": \"B\", \"name\": \"B\", \"file\": \"../b.cat\", \"origin\": "
-                             "\"bundled\", \"drive\": \"E\"},"
-                             "{\"id\": \"C\", \"name\": \"C\", \"file\": \"c.cat\", \"origin\": "
-                             "\"mine\", \"drive\": \"E\"},"
-                             "{\"id\": \"D\", \"name\": \"D\", \"file\": \"d.cat\", \"origin\": "
-                             "\"community\", \"drive\": \"A\"},"
-                             "{\"id\": \"A\", \"name\": \"A2\", \"file\": \"a2.cat\", \"origin\": "
-                             "\"community\", \"drive\": \"F\"}"
-                             "]}") == 1);
-    CHECK(l.n_notes == 4);
-    CHECK_STR(l.entries[0].file, "a.cat");
-    CHECK(cat_parse_list(&l, "{\"catalogues\": []}") == -1);
+    /* where it goes: each of these is not a catalogue the machine can put anywhere */
+    {
+        const char *heads[] = {
+            "\"drive\": \"D\", \"origin\": \"bundled\",",                    /* no id */
+            "\"id\": \"lower\", \"drive\": \"D\", \"origin\": \"bundled\",", /* not a DOS name */
+            "\"id\": \"T\", \"origin\": \"bundled\",",                       /* no drive */
+            "\"id\": \"T\", \"drive\": \"A\", \"origin\": \"bundled\",",     /* a floppy */
+            "\"id\": \"T\", \"drive\": \"DE\", \"origin\": \"bundled\",",    /* two letters */
+            "\"id\": \"T\", \"drive\": \"D\",",                              /* no origin */
+            "\"id\": \"T\", \"drive\": \"D\", \"origin\": \"mine\",",        /* not an origin */
+        };
+        for (size_t i = 0; i < sizeof heads / sizeof heads[0]; i++) {
+            char json[400];
+            snprintf(json, sizeof json, "{\"format\": 1, %s \"titles\": []}", heads[i]);
+            CHECK(cat_parse(&c, json) == -1);
+            CHECK(c.n_notes == 1);
+        }
+        CHECK(cat_parse(&c, "{\"format\": 1, \"id\": \"T\", \"drive\": \"E\", "
+                            "\"origin\": \"community\", \"titles\": []}") == 0);
+        CHECK(c.drive == 'E' && c.community == 1);
+    }
 
     /* the names */
     CHECK(cat_id_ok("KEEN4") && cat_id_ok("A") && cat_id_ok("SKYROADS") && cat_id_ok("X-COM"));

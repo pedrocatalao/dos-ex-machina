@@ -10,7 +10,7 @@
 #include <string.h>
 
 /* the interface's colours, in the order of the enum */
-static const uint8_t UI[16][3] = {
+static const uint8_t UI[G_COUNT - G_BG][3] = {
     {40, 40, 44},    /* G_BG */
     {24, 24, 28},    /* G_WELL */
     {88, 88, 96},    /* G_LINE */
@@ -19,18 +19,15 @@ static const uint8_t UI[16][3] = {
     {250, 250, 246}, /* G_WHITE */
     {66, 66, 74},    /* G_BAR */
     {218, 168, 40},  /* G_GOLD */
-    {150, 112, 26},  /* G_GOLD2 */
     {70, 170, 90},   /* G_GREEN */
     {200, 70, 60},   /* G_RED */
     {96, 96, 100},   /* G_OFF */
     {52, 52, 58},    /* G_TROUGH */
     {120, 120, 126}, /* G_THUMB */
-    {32, 32, 36},    /* G_BG2: the foot's darker band */
-    {0, 0, 0},
 };
 
 void gui_init(void) {
-    cv_palette(16, 16, &UI[0][0]);
+    cv_palette(G_BG, G_COUNT - G_BG, &UI[0][0]);
 }
 
 void gui_backdrop(void) {
@@ -159,11 +156,12 @@ void gui_chip(int x, int y, int w, int h, const char *label, const char *value, 
               int hover) {
     cv_rect(x, y, w, h, hover ? G_BAR : G_WELL);
     cv_frame(x, y, w, h, active ? G_GOLD : (hover ? G_TEXT2 : G_LINE));
-    int tw = (label ? cv_width(label) + 6 : 0) + cv_width(value);
+    /* in the small face: a filter is a control, not reading */
+    int tw = (label ? cv_width_small(label) + 5 : 0) + cv_width_small(value);
     int pen = x + (w - tw) / 2, ty = y + (h - CV_LINE) / 2;
     if (label)
-        pen += cv_text(pen, ty, label, G_TEXT2, -1) + 6;
-    cv_text(pen, ty, value, active ? G_GOLD : G_WHITE, -1);
+        pen += cv_text_small(pen, ty, label, G_TEXT2) + 5;
+    cv_text_small(pen, ty, value, active ? G_GOLD : G_WHITE);
 }
 
 /* A panel over the screen: the ground, a hairline, and a darker edge so it

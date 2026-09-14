@@ -1,6 +1,0 @@
-{
-  "format": 1,
-  "catalogues": [
-    { "id": "FREEWARE", "name": "Freeware", "file": "freeware.cat", "origin": "bundled", "drive": "C" }
-  ]
-}

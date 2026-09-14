@@ -200,6 +200,11 @@ int main(int argc, char **argv) {
     catalog_bind(SDL_GetBasePath(), a.pref, c_drive(&o, &a));
     catalog_fixed_clock(a.deterministic);
     catalog_load();
+    {
+        static char drives[2048];
+        catalog_drives(drives, sizeof drives);
+        dosbox_set_drives(drives); /* kept, so a restart mounts them again */
+    }
     dos_init(theatre_mhz(&th), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */

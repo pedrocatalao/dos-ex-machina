@@ -169,7 +169,16 @@ int unzip_extract(const char *zip, const char *destdir, int *n_out, char *err, s
     }
 
     int count = rd16(buf + e + 10);
+    uint32_t cdsize = rd32(buf + e + 12);
     uint32_t cdoff = rd32(buf + e + 16);
+    /* A zip that extracts itself has a program in front of it, and the
+     * offsets it records were written before the program was put there: the
+     * central directory ends where the end record starts, so where it really
+     * begins, less where it says it begins, is how far everything moved. */
+    long shift = e - (long)cdsize - (long)cdoff;
+    if (shift < 0 || shift >= fsz)
+        shift = 0;
+    cdoff += (uint32_t)shift;
     if ((long)cdoff >= fsz) {
         free(buf);
         snprintf(err, errsz, "zip is truncated");
@@ -190,7 +199,7 @@ int unzip_extract(const char *zip, const char *destdir, int *n_out, char *err, s
         uint16_t nlen = rd16(buf + p + 28);
         uint16_t elen = rd16(buf + p + 30);
         uint16_t clen = rd16(buf + p + 32);
-        uint32_t lho = rd32(buf + p + 42);
+        uint32_t lho = rd32(buf + p + 42) + (uint32_t)shift;
 
         char name[512];
         size_t take = nlen < sizeof name - 1 ? nlen : sizeof name - 1;

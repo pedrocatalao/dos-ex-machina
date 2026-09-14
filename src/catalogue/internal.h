@@ -6,10 +6,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* A catalogue as mounted: its entry in the list, what it holds, and the
- * host folder that is its drive. */
+/* A catalogue as mounted: what it holds, and the host folder that is its
+ * drive. */
 typedef struct {
-    cat_entry entry;
     cat_catalogue cat;
     char mount[1024]; /* ends in a separator */
 } shelf;
@@ -20,11 +19,8 @@ typedef struct {
  * pictures on screen share what is left. */
 #define ART_FIRST 48
 #define ART_COLOURS (256 - ART_FIRST)
-#define ART_BIG_W 270
-#define ART_BIG_H 130
-#define ART_THUMB_W 88
-#define ART_THUMB_H 55
-#define ART_THUMBS 5 /* the set can hold a strip of small ones; the screen shows one */
+#define ART_W 270 /* the box a picture is fitted into */
+#define ART_H 130
 
 typedef struct {
     int w, h;          /* what it came to inside the box, or 0 for none */
@@ -35,13 +31,12 @@ void art_bind(const char *pref_dir);
 /* Under a fixed clock the frame has to be the same every run, and a
  * picture that may or may not have arrived is not: show none. */
 void art_offline(int on);
-/* What should be on screen: one title large, up to ART_THUMBS small.  What
- * is cached is decoded and fitted; what is not is fetched in the background
- * and appears on a later call.  Returns 1 when any picture or the palette
- * changed since the last call, so the caller knows to look again. */
-int art_want(const shelf *s, const cat_title *big, const cat_title *const *thumbs, int nthumbs);
-const art_img *art_big(void);
-const art_img *art_thumb(int i);
+/* The title whose picture should be on screen, or NULL.  What is cached is
+ * decoded and fitted; what is not is fetched in the background and appears
+ * on a later call.  Returns 1 when the picture or the palette changed since
+ * the last call, so the caller knows to look again. */
+int art_want(const shelf *s, const cat_title *t);
+const art_img *art_picture(void); /* w is 0 when there is none to show */
 const uint8_t *art_palette(void); /* ART_COLOURS RGB triples */
 
 /* ---- install.c — a title onto its drive ------------------------------ */
@@ -74,13 +69,12 @@ enum {
     G_WHITE,   /* what matters */
     G_BAR,     /* the chosen row */
     G_GOLD,    /* the keys, the caret, the chosen tab */
-    G_GOLD2,   /* dimmer gold */
     G_GREEN,   /* installed */
     G_RED,     /* something went wrong */
     G_OFF,     /* a key with nothing to do */
     G_TROUGH,  /* the scrollbar's, the progress bar's */
-    G_THUMB,
-    G_BG2
+    G_THUMB,   /* the scrollbar's handle */
+    G_COUNT    /* the first entry after them */
 };
 void gui_init(void);     /* the palette */
 void gui_backdrop(void); /* the whole screen: the ground */

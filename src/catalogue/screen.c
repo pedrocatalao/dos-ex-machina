@@ -16,6 +16,7 @@
 #include "log.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -37,7 +38,7 @@ enum {
     RIGHT_X = LEFT_X + LEFT_W + 20,
     RIGHT_W = SCR_W - MARGIN - RIGHT_X,
     PIC_Y = CHIP_Y,
-    PIC_H = ART_BIG_H + 6,
+    PIC_H = ART_H + 6,
     NAME_Y = PIC_Y + PIC_H + 10,
     LABEL_W = 64,                      /* the particulars' labels */
     DETAIL_Y = NAME_Y - 2,             /* what scrolls: everything under the picture */
@@ -161,41 +162,93 @@ void catalog_fixed_clock(int fixed) {
     art_offline(fixed); /* the same picture every run: no artwork at all */
 }
 
-/* The list, then each catalogue in it; what is wrong with any of them goes
- * to the log, and the rest is read anyway. */
+/* Every .cat in the catalogues folder beside the program, each saying for
+ * itself where it goes.  They are kept in the order of their drives, so C:
+ * is the first tab; one that wants a letter or an id already taken is left
+ * out, and everything wrong with any of them goes to the log. */
+typedef struct {
+    char names[CAT_LIST * 2][64];
+    int n;
+} found_cats;
+
+static SDL_EnumerationResult found_cat(void *ud, const char *dirname, const char *fname) {
+    (void)dirname;
+    found_cats *f = ud;
+    size_t len = strlen(fname);
+    if (len > 4 && len < sizeof f->names[0] && !SDL_strcasecmp(fname + len - 4, ".cat") &&
+        f->n < (int)(sizeof f->names / sizeof f->names[0]))
+        snprintf(f->names[f->n++], sizeof f->names[0], "%s", fname);
+    return SDL_ENUM_CONTINUE;
+}
+
+static int by_name(const void *a, const void *b) {
+    return strcmp((const char *)a, (const char *)b);
+}
+static int by_drive(const void *a, const void *b) {
+    return ((const shelf *)a)->cat.drive - ((const shelf *)b)->cat.drive;
+}
+
 void catalog_load(void) {
-    cat_list l;
-    char path[1400];
-    snprintf(path, sizeof path, "%scatalogues/catalogues.lst", S.base);
+    char dir[1400], path[1400];
+    snprintf(dir, sizeof dir, "%scatalogues/", S.base);
     nshelves = 0;
-    if (cat_read_list(&l, path) < 0) {
-        dxm_log("catalog: no list at %s", path);
+    found_cats f = {.n = 0};
+    if (!SDL_EnumerateDirectory(dir, found_cat, &f) || !f.n) {
+        dxm_log("catalog: no catalogues in %s", dir);
         return;
     }
-    for (int i = 0; i < l.n_notes; i++)
-        dxm_log("catalog: list: %s", l.notes[i]);
-    for (int i = 0; i < l.n && nshelves < CAT_LIST; i++) {
+    /* a folder lists in whatever order its filesystem likes: sort it, so
+     * which of two clashing catalogues wins is the same on every machine */
+    qsort(f.names, (size_t)f.n, sizeof f.names[0], by_name);
+    for (int i = 0; i < f.n; i++) {
+        if (nshelves >= CAT_LIST) {
+            dxm_log("catalog: more catalogues than the machine holds; %s and after left out",
+                    f.names[i]);
+            break;
+        }
         shelf *s = &shelves[nshelves];
-        s->entry = l.entries[i];
-        snprintf(path, sizeof path, "%scatalogues/%s", S.base, s->entry.file);
-        if (cat_read(&s->cat, path) < 0) {
-            dxm_log("catalog: %s: cannot read %s", s->entry.id, path);
+        snprintf(path, sizeof path, "%s%s", dir, f.names[i]);
+        int n = cat_read(&s->cat, path);
+        for (int k = 0; k < s->cat.n_notes; k++)
+            dxm_log("catalog: %s: %s", f.names[i], s->cat.notes[k]);
+        if (n < 0) {
+            dxm_log("catalog: %s is not a catalogue this machine can use", f.names[i]);
             continue;
         }
-        for (int k = 0; k < s->cat.n_notes; k++)
-            dxm_log("catalog: %s: %s", s->entry.id, s->cat.notes[k]);
+        int clash = 0;
+        for (int k = 0; k < nshelves; k++)
+            if (shelves[k].cat.drive == s->cat.drive || !strcmp(shelves[k].cat.id, s->cat.id)) {
+                dxm_log("catalog: %s wants %c: or the id %s, which %s already has", f.names[i],
+                        s->cat.drive, s->cat.id, shelves[k].cat.id);
+                clash = 1;
+            }
+        if (clash)
+            continue;
         /* the folder that is its drive: C: is the machine's own.  The id is
          * copied out first: it lives in the same struct as the mount, and
          * GCC will not have snprintf read from what it is writing into. */
         char id[CAT_ID];
-        memcpy(id, s->entry.id, sizeof id);
-        if (s->entry.drive == 'C')
+        memcpy(id, s->cat.id, sizeof id);
+        if (s->cat.drive == 'C')
             snprintf(s->mount, sizeof s->mount, "%s/", S.c_drive);
         else
             snprintf(s->mount, sizeof s->mount, "%scatalogues/%s/", S.pref, id);
         SDL_CreateDirectory(s->mount);
-        dxm_log("catalog: %s on %c: - %d titles", s->entry.name, s->entry.drive, s->cat.n);
+        dxm_log("catalog: %s on %c: - %d titles, %s", s->cat.name, s->cat.drive, s->cat.n,
+                s->cat.community ? "community" : "bundled");
         nshelves++;
+    }
+    qsort(shelves, (size_t)nshelves, sizeof shelves[0], by_drive);
+}
+
+void catalog_drives(char *out, size_t n) {
+    size_t k = 0;
+    out[0] = 0;
+    for (int i = 0; i < nshelves; i++) {
+        const shelf *s = &shelves[i];
+        if (s->cat.drive == 'C' || k >= n)
+            continue;
+        k += (size_t)snprintf(out + k, n - k, "%c=%s=%s\n", s->cat.drive, s->cat.id, s->mount);
     }
 }
 
@@ -405,9 +458,9 @@ static void errand(int kind, const char *cmd) {
         return;
     char dos[80];
     install_dir(s, t, NULL, 0, dos, sizeof dos);
-    dosbox_catalog_run(s->entry.drive, dos, cmd, kind);
+    dosbox_catalog_run(s->cat.drive, dos, cmd, kind);
     S.away = 1;
-    dxm_log("catalog: %s in %c:%s", kind ? "prompt" : cmd, s->entry.drive, dos);
+    dxm_log("catalog: %s in %c:%s", kind ? "prompt" : cmd, s->cat.drive, dos);
 }
 
 static void enter(void) {
@@ -550,8 +603,14 @@ void catalog_key(int sdl_scancode, int shift) {
     case SDL_SCANCODE_END:
         move(S.nshown);
         break;
-    case SDL_SCANCODE_TAB:
-        go_shelf(S.shelf + (shift ? -1 : 1));
+    /* left and right step through the catalogues: nothing else on this
+     * screen moves sideways - the Find field is typed into at its end - and
+     * the panel of filters, which does use them, has the keys to itself */
+    case SDL_SCANCODE_LEFT:
+        go_shelf(S.shelf - 1);
+        break;
+    case SDL_SCANCODE_RIGHT:
+        go_shelf(S.shelf + 1);
         break;
     case SDL_SCANCODE_RETURN:
     case SDL_SCANCODE_KP_ENTER:
@@ -751,11 +810,11 @@ static void draw_chips(void) {
     for (int i = 0; i < ROW_FILTERS; i++) {
         w[i] = 0;
         for (int k = 0; k < FILTER[i].n; k++) {
-            int ww = cv_width(FILTER[i].opt[k]);
+            int ww = cv_width_small(FILTER[i].opt[k]);
             w[i] = ww > w[i] ? ww : w[i];
         }
         if (i != F_TYPE)
-            w[i] += cv_width(FILTER[i].label) + 6;
+            w[i] += cv_width_small(FILTER[i].label) + 5;
         w[i] += PAD;
         total += w[i];
     }
@@ -840,10 +899,10 @@ static void draw_status(const shelf *s) {
     char line[96];
     if (S.nshown != s->cat.n)
         snprintf(line, sizeof line, "%d of %d titles  \x07  %d installed  \x07  %c:", S.nshown,
-                 s->cat.n, installed, s->entry.drive);
+                 s->cat.n, installed, s->cat.drive);
     else
         snprintf(line, sizeof line, "%d titles  \x07  %d installed  \x07  %c:", s->cat.n, installed,
-                 s->entry.drive);
+                 s->cat.drive);
     cv_text(right - cv_width(line), TAB_Y, line, G_TEXT2, -1);
 }
 
@@ -857,7 +916,7 @@ static void draw_status(const shelf *s) {
 #define MARQUEE_GAP 40
 
 static int particular(int y, const char *label, const char *value) {
-    cv_text(RIGHT_X, y, label, G_TEXT2, -1);
+    cv_text_small(RIGHT_X, y, label, G_TEXT2); /* the label smaller than what it labels */
     int x = RIGHT_X + LABEL_W, room = DETAIL_W - LABEL_W, tw = cv_width(value);
     if (tw <= room) {
         cv_text(x, y, value, G_TEXT, -1);
@@ -883,7 +942,7 @@ static int particular(int y, const char *label, const char *value) {
 }
 
 static void draw_title(const cat_title *t) {
-    gui_picture(RIGHT_X, PIC_Y, RIGHT_W, PIC_H, art_big());
+    gui_picture(RIGHT_X, PIC_Y, RIGHT_W, PIC_H, art_picture());
     if (!t) {
         cv_text(RIGHT_X, NAME_Y, "Nothing chosen.", G_TEXT2, -1);
         return;
@@ -963,7 +1022,7 @@ static void draw_foot(const shelf *s, const cat_title *t) {
         {"F2", "Setup", KEY_SETUP, !(present && t->setup[0])},
         {"F3", "Prompt", KEY_PROMPT, !present},
         {"F4-F7", "Filters", KEY_FILTERS, 0},
-        {"TAB", "Catalogue", KEY_TAB, nshelves < 2},
+        {"\x1B\x1A", "Catalogue", KEY_TAB, nshelves < 2},
         {"ESC", S.find[0] ? "Clear" : "Back", KEY_BACK, 0},
     };
     int pen = MARGIN;
@@ -993,7 +1052,7 @@ static void draw_more(void) {
         cv_text(POP_X + 16, y + 2, FILTER[i].label, on ? G_WHITE : G_TEXT, -1);
         int w = 0;
         for (int k = 0; k < FILTER[i].n; k++) {
-            int ww = cv_width(FILTER[i].opt[k]);
+            int ww = cv_width_small(FILTER[i].opt[k]);
             w = ww > w ? ww : w;
         }
         w += 18;
@@ -1058,7 +1117,7 @@ const uint8_t *catalog_render(int *w, int *h) {
         if (d > 0) {
             say("Installed.", 0);
             if (s)
-                dosbox_catalog_rescan(s->entry.drive);
+                dosbox_catalog_rescan(s->cat.drive);
             refilter();
         } else if (d < 0) {
             char line[200];
@@ -1067,7 +1126,7 @@ const uint8_t *catalog_render(int *w, int *h) {
         }
     }
     if (s)
-        art_want(s, t, NULL, 0); /* the picture for this frame */
+        art_want(s, t); /* the picture for this frame */
 
     gui_backdrop();
     cv_palette(ART_FIRST, ART_COLOURS, art_palette());
@@ -1077,7 +1136,7 @@ const uint8_t *catalog_render(int *w, int *h) {
     int pen = MARGIN;
     for (int i = 0; i < nshelves; i++) {
         int tw;
-        gui_tab(pen, TAB_Y, shelves[i].entry.name, i == S.shelf, &tw);
+        gui_tab(pen, TAB_Y, shelves[i].cat.name, i == S.shelf, &tw);
         add_hit(pen - 4, TAB_Y - 2, tw + 8, CV_LINE + 6, HIT_TAB + i);
         pen += tw + 24;
     }

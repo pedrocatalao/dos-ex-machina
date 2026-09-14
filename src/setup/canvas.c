@@ -12,6 +12,7 @@
 #include "font.h"
 #include "gen/uifont.h"
 #include "gen/uifont_bold.h"
+#include "gen/uifont_small.h"
 #include <string.h>
 
 /* the 16 VGA text colours, as the DAC actually produced them */
@@ -210,13 +211,26 @@ static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, ui
  * speaks from.  Returns how far the pen moved, so a caller can put the next
  * word after it without counting cells.  `track` is extra space after every
  * character, for capitals set wide. */
+/* The faces, by the number the calls below take: Helvetica 14, its bold,
+ * and Helvetica 12 for labels and small controls.  All three cover the
+ * same printable range. */
+static const struct {
+    const dxm_glyph *glyphs;
+    const uint8_t *bits;
+    int ascent;
+} FACE[] = {
+    {dxm_ui_glyphs, dxm_ui_bits, DXM_UI_ASCENT},
+    {dxm_uib_glyphs, dxm_uib_bits, DXM_UI_ASCENT},
+    {dxm_uis_glyphs, dxm_uis_bits, DXM_UIS_ASCENT},
+};
+
 static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold, int scale, int slant,
                 int track) {
-    const dxm_glyph *G = bold ? dxm_uib_glyphs : dxm_ui_glyphs;
-    const uint8_t *B = bold ? dxm_uib_bits : dxm_ui_bits;
+    const dxm_glyph *G = FACE[bold].glyphs;
+    const uint8_t *B = FACE[bold].bits;
     if (scale < 1)
         scale = 1;
-    int pen = x, base = y + DXM_UI_ASCENT * scale;
+    int pen = x, base = y + FACE[bold].ascent * scale;
     for (int n = 0; s[n]; n++) {
         unsigned char c = (unsigned char)s[n];
         if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST) {
@@ -251,7 +265,7 @@ int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int
     return text(x, y, s, fg, -1, bold, scale, slant, track);
 }
 int cv_width_ex(const char *s, int bold, int scale, int track) {
-    const dxm_glyph *G = bold ? dxm_uib_glyphs : dxm_ui_glyphs;
+    const dxm_glyph *G = FACE[bold].glyphs;
     if (scale < 1)
         scale = 1;
     int w = 0;
@@ -310,12 +324,6 @@ void cv_slide_bands(int bands, float shut) {
     }
 }
 
-uint8_t cv_at(int x, int y) {
-    if (x < 0 || x >= SCR_W || y < 0 || y >= SCR_H)
-        return 0;
-    return canvas[(y + SCR_PAD_Y) * CANVAS_W + (x + SCR_PAD_X)];
-}
-
 int cv_text_wrap(int x, int y, int w, const char *s, uint8_t fg) {
     return cv_text_wrap_max(x, y, w, s, fg, 1 << 20);
 }
@@ -346,6 +354,13 @@ int cv_text_wrap_max(int x, int y, int w, const char *s, uint8_t fg, int max_lin
             s++;
     }
     return lines;
+}
+
+int cv_text_small(int x, int y, const char *s, uint8_t fg) {
+    return text(x, y + CV_SMALL_DROP, s, fg, -1, CV_FACE_SMALL, 1, 0, 0);
+}
+int cv_width_small(const char *s) {
+    return cv_width_ex(s, CV_FACE_SMALL, 1, 0);
 }
 
 int cv_width(const char *s) {

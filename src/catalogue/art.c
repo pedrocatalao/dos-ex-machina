@@ -2,16 +2,13 @@
  * preferences, fitted to the frames it is shown in, and quantised together
  * with everything else on screen.
  *
- * The screen has ART_COLOURS entries for pictures and shows up to six at
- * once - the chosen title large and a row of thumbnails - so they are
- * fitted as a set, by median cut on one histogram, every time the set
- * changes (the same algorithm as src/setup/banner.c, over more pictures).
- * The large picture dominates the histogram and so the palette, which is
- * right: the thumbnails are small and mostly dimmed anyway.
+ * The screen shows one picture at a time, the chosen title's, in the
+ * ART_COLOURS entries the interface leaves it: fitted by median cut on its
+ * histogram whenever it changes (the same algorithm as src/setup/banner.c).
  *
  * Fetching happens on a thread of its own, one file at a time, into
- * artwork/<catalogue>/<CATEGORY>/<ID>.<ext> in the preferences; the screen
- * asks every frame and gets whatever has arrived. */
+ * artwork/<catalogue>/<CATEGORY>/<ID>-<hash>.<ext> in the preferences; the
+ * screen asks every frame and gets whatever has arrived. */
 #include "internal.h"
 #include "net.h"
 #include "sha256.h"
@@ -55,8 +52,15 @@ static const char *ext_of(const char *url) {
     return ".img";
 }
 
+/* The file is named for the picture as well as the title: the first part of
+ * its hash, when the catalogue gives one.  A catalogue that changes a
+ * title's picture then names a file the cache has not got, and the new one
+ * is fetched, rather than the old one being shown for ever. */
 static void cache_path(const shelf *s, const cat_title *t, char *out, size_t n) {
-    snprintf(out, n, "%sartwork/%s/%s/%s%s", pref, s->entry.id, t->category, t->id,
+    char tag[10] = "";
+    if (t->artwork.sha256[0])
+        snprintf(tag, sizeof tag, "-%.8s", t->artwork.sha256);
+    snprintf(out, n, "%sartwork/%s/%s/%s%s%s", pref, s->cat.id, t->category, t->id, tag,
              ext_of(t->artwork.url));
 }
 
@@ -232,10 +236,10 @@ static int fit_file(const char *path, int box_w, int box_h, fitted *out) {
     return 1;
 }
 
-/* ---- the set on screen, and its palette -------------------------------- */
+/* ---- the picture on screen, and its palette ----------------------------- */
 
 #define CELLS (32 * 32 * 32)
-#define SLOTS (1 + ART_THUMBS)
+#define SLOTS 1 /* the machinery fits a set; the screen has one picture in it */
 
 static struct {
     char key[SLOTS][CAT_ID * 2 + 8]; /* which title is in each slot */
@@ -332,6 +336,16 @@ static void median_cut(int want) {
 }
 
 static void refit(void) {
+    /* Whatever was on screen goes first.  A set with no pictures in it at
+     * all - a title without artwork, or one still on its way - would
+     * otherwise leave the last title's picture showing, drawn from pixels
+     * that have already been freed. */
+    for (int s = 0; s < SLOTS; s++) {
+        free(A.px[s]);
+        A.px[s] = NULL;
+        A.out[s].w = A.out[s].h = 0;
+        A.out[s].px = NULL;
+    }
     memset(A.count, 0, sizeof A.count);
     A.ncell = 0;
     for (int s = 0; s < SLOTS; s++) {
@@ -369,7 +383,7 @@ static int slot(int n, const shelf *s, const cat_title *t, int box_w, int box_h)
     char key[CAT_ID * 2 + 8] = "";
     char path[1400] = "";
     if (t && t->artwork.url[0] && !offline) {
-        snprintf(key, sizeof key, "%s/%s/%s", s->entry.id, t->category, t->id);
+        snprintf(key, sizeof key, "%s/%s/%s", s->cat.id, t->category, t->id);
         cache_path(s, t, path, sizeof path);
         if (!exists(path)) {
             fetch(s, t, path);
@@ -386,25 +400,20 @@ static int slot(int n, const shelf *s, const cat_title *t, int box_w, int box_h)
     return 1;
 }
 
-int art_want(const shelf *s, const cat_title *big, const cat_title *const *thumbs, int nthumbs) {
+int art_want(const shelf *s, const cat_title *t) {
     int changed = F.arrived;
     F.arrived = 0;
     if (changed) /* whatever landed: look at every slot again */
         for (int i = 0; i < SLOTS; i++)
             A.key[i][0] = 0;
-    changed |= slot(0, s, big, ART_BIG_W, ART_BIG_H);
-    for (int i = 0; i < ART_THUMBS; i++)
-        changed |= slot(1 + i, s, i < nthumbs ? thumbs[i] : NULL, ART_THUMB_W, ART_THUMB_H);
+    changed |= slot(0, s, t, ART_W, ART_H);
     if (changed)
         refit();
     return changed;
 }
 
-const art_img *art_big(void) {
+const art_img *art_picture(void) {
     return &A.out[0];
-}
-const art_img *art_thumb(int i) {
-    return (i >= 0 && i < ART_THUMBS) ? &A.out[1 + i] : NULL;
 }
 const uint8_t *art_palette(void) {
     return A.pal;

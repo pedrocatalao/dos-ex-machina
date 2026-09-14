@@ -27,11 +27,12 @@ $PY tools/mklogo.py  assets/multimedia-sticker.png dxm_multimedia "$out/multimed
 $PY tools/mkbanners.py "$out/banners.c" "$out/banners.h" assets/banners/*.jpg
 $PY tools/mkbdf.py   assets/fonts/helvR14.bdf dxm_ui  "$out/uifont.h"      >/dev/null
 $PY tools/mkbdf.py   assets/fonts/helvB14.bdf dxm_uib "$out/uifont_bold.h" >/dev/null
+$PY tools/mkbdf.py   assets/fonts/helvR12.bdf dxm_uis "$out/uifont_small.h" >/dev/null
 
 if [ "$mode" = "--check" ]; then
     rc=0
     for f in mark.h splash.c splash.h font16.h multimedia.h banners.c banners.h \
-             uifont.h uifont_bold.h; do
+             uifont.h uifont_bold.h uifont_small.h; do
         if ! cmp -s "$out/$f" "src/gen/$f"; then
             echo "src/gen/$f is not what tools/regen.sh produces" >&2; rc=1
         fi
@@ -40,4 +41,4 @@ if [ "$mode" = "--check" ]; then
     exit $rc
 fi
 echo "src/gen: regenerated mark.h splash.c splash.h font16.h multimedia.h banners.c" \
-     "banners.h uifont.h uifont_bold.h"
+     "banners.h uifont.h uifont_bold.h uifont_small.h"
