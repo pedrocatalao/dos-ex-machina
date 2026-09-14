@@ -2,16 +2,39 @@
   <img src="docs/logo-readme.png" alt="DOS ex Machina" width="720">
 </p>
 
+<!-- A notice for people arriving from 1.0. Once 2.0 has been out a
+release or two, cut it down to a sentence in "What it is, and what it was";
+the release notes keep the full story. -->
+
+> [!IMPORTANT]
+> **2.0 changes direction: the DOS is now emulated.**
+>
+> Up to 1.0, DOS ex Machina ran DOS games that had been ported to native
+> code, loaded as `.dxm` modules behind a simulated DOS prompt. From 2.0 it
+> runs a real DOS instead, [DOSBox Pure][dbp], inside the machine, so it
+> runs unmodified DOS software rather than a handful of ports.
+>
+> - **Ports and `.dxm` modules no longer load**, and the porting contract
+>   no longer applies. Nothing needs porting: the original DOS program runs
+>   as it is.
+> - **The catalogue installs DOS software**: freeware and shareware,
+>   downloaded from where its authors put it, onto the machine's own drives.
+> - **Or bring your own.** Download DOS programs and games yourself, put
+>   them in the machine's C: drive (see [Your C: drive](#your-c-drive)), and
+>   run them from the DOS prompt.
+> - **1.x is not gone.** Its code, porting contract and documents are on the
+>   [`legacy`][legacy] branch, and the [1.0 release][1.0] is still tagged.
+>
+> 2.0 runs on macOS, Windows and Linux, on x86_64 and arm64, with the DOSBox
+> core built from a fork and shipped inside every release. The downloads are
+> not code-signed, so each platform shows its first-run warning once; see
+> Installing for the way through it.
+
 A 1993 beige-box PC on your screen, case and CRT and all, that boots a real
 DOS. The machine powers on, runs its POST, and hands the tube to DOSBox at
 the prompt. From there it is a DOS PC: whatever you put on its C: drive runs
 behind the same glass, in the same phosphor, with the case lit by what is on
 screen.
-
-> **2.0.** macOS, Windows and Linux, on x86_64 and arm64. The DOS is
-> [DOSBox Pure][dbp], built from a fork and shipped inside every release.
-> The downloads are not code-signed, so each platform shows its first-run
-> warning once; see Installing for the way through it.
 
 Nothing here is a photograph. The machine is drawn procedurally at your
 display's resolution, from signed-distance geometry and a lighting model: the
@@ -32,10 +55,7 @@ with, and the handover between the two is invisible: the BIOS clears its
 first screen, and the second one, the system configuration, is drawn by
 DOSBox itself, with DOS's prompt coming up under it in the same VGA font.
 
-Version 1 ran natively ported DOS games instead, loaded as modules and
-installed from a catalogue, with a simulated DOS prompt and a navigator in
-front of them. That code, its porting contract and its documents live on the
-[`legacy`][legacy] branch, and the [1.0 release][1.0] is tagged.
+Version 1 ran natively ported DOS games instead; see the notice at the top.
 
 [legacy]: https://github.com/pedrocatalao/dos-ex-machina/tree/legacy
 [1.0]: https://github.com/pedrocatalao/dos-ex-machina/releases/tag/1.0
