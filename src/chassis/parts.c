@@ -1012,7 +1012,12 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
     if (h * 1.20f > y1 - y0 || wide > maxw)
         return 0;
-    float top = (y0 + y1) * 0.5f - h * 0.5f;
+    /* centred between the holes and the foot of the pod, then lowered a
+     * little, as one group - but never past the foot */
+    const float GROUP_DROP = 3.0f; /* mm */
+    float top = (y0 + y1) * 0.5f - h * 0.5f + GROUP_DROP * mm;
+    if (top + h > y1)
+        top = y1 - h;
     int saved = canvas_grain;
     canvas_grain = 0;
     text_helv(c, cx - tw_short * 0.5f, top, "CTRL+F10", cap_lamp, SQ, tr_lamp, INK_R, INK_G, INK_B);

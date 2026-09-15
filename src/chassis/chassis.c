@@ -78,8 +78,12 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * without, and Shift+F1 still opens the OSD. */
             {
                 float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
+                /* lowered from the middle toward the knobs under the pod,
+                 * but kept clear of the pod's foot: the key is 7.5 mm tall */
+                const float OSD_DROP = 14.0f; /* mm */
+                float oy = fminf((y0 + y1) * 0.5f + OSD_DROP * mm, y1 - 3.75f * mm - 0.5f * mm);
                 if (y1 - y0 >= 10.0f * mm && pw * 0.90f >= 20.0f * mm)
-                    osd_button(pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, mm, L->osd_btn);
+                    osd_button(pxs[1] + pw * 0.5f, oy, mm, L->osd_btn);
             }
             /* The mouse lamps, on the LEFT pod in the same place: centred
              * between the holes and the foot of the pod, the OSD key's
@@ -109,11 +113,14 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                      * sticker: sized off the pod it was 4 mm wide on a 4:3
                      * screen and 59 mm on an ultrawide.  A real sticker is one
                      * size; when the strip cannot hold it, it is not there. */
-                    /* as big as the strip allows, up to 34 mm across: the
-                     * sticker's height is a third of its width and 2 mm */
+                    /* nine tenths of as big as the strip allows, up to 34 mm
+                     * across: the sticker's height is a third of its width and
+                     * 2 mm */
+                    const float STICKER_SCALE = 0.90f;
                     float sy = (top + gap_lo) * 0.5f;
                     float room = (gap_lo - top) * 0.5f - 1.0f * mm;
-                    float sw = fminf(34.0f * mm, fminf(pw * 0.80f, (2.0f * room - 2.0f * mm) * 3.0f));
+                    float sw = STICKER_SCALE *
+                               fminf(34.0f * mm, fminf(pw * 0.80f, (2.0f * room - 2.0f * mm) * 3.0f));
                     if (sw >= 12.0f * mm)
                         multimedia_sticker(c, pxs[0] + pw * 0.5f, sy, sw, 2.0f * mm, sw,
                                            2.0f * room);
