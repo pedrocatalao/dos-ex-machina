@@ -578,30 +578,16 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
     rrect(c, px0, mid - pw * 0.39f, pw, pw * 0.78f, pw * 0.10f, 64, 61, 56, 0.80f, 0.92f);
     /* the cap is moulded in the keys' plastic, as the drive is, not in the
      * case colour */
-    rrect(c, px0 + pw * 0.045f, mid - pw * 0.39f + pw * 0.04f, pw * 0.91f, pw * 0.70f, pw * 0.08f,
-          (int)KEY_R, (int)KEY_G, (int)KEY_B, 1.16f, 0.84f);
-    bevel(c, px0 + pw * 0.045f, mid - pw * 0.39f + pw * 0.04f, pw * 0.91f, pw * 0.70f,
-          fmaxf(1.0f, pw * 0.06f), 1);
-    /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
-    power_symbol(c, px0 + pw * 0.5f, mid - pw * 0.39f + pw * 0.04f + pw * 0.35f, pw * 0.30f);
-    /* the shadow the cap throws down onto the lip and the case: the
-     * knobs' bell, run along the cap's lower edge */
+    L->pwr_btn[0] = px0; /* where a click powers the machine off */
+    L->pwr_btn[1] = mid - pw * 0.39f;
+    L->pwr_btn[2] = pw;
+    L->pwr_btn[3] = pw * 0.78f;
+    /* the cap itself, with its mark and the shadow it throws, is a live
+     * key drawn last (power_key), so a click can press it */
     {
-        float cx0 = px0 + pw * 0.045f, cw = pw * 0.91f,
-              cb = mid - pw * 0.39f + pw * 0.04f + pw * 0.70f;
-        float sw = 2.6f * mm, rad = pw * 0.08f;
-        int saved = canvas_grain;
-        canvas_grain = 0;
-        for (int j2 = (int)cb; j2 <= (int)(cb + sw) + 1; j2++)
-            for (int i2 = (int)(cx0 - sw); i2 <= (int)(cx0 + cw + sw) + 1; i2++) {
-                float sd = rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, cx0 + cw * 0.5f,
-                                 cb - pw * 0.35f, cw * 0.5f, pw * 0.35f, rad);
-                if (sd <= 0.0f || sd >= sw || (float)j2 + 0.5f < cb)
-                    continue;
-                float t = sd / sw, f = (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f + 3.0f * t);
-                px_shade(c, i2, j2, 1.0f - 0.22f * f, 0.0f);
-            }
-        canvas_grain = saved;
+        float kw = pw * 0.91f, kh = pw * 0.70f, dummy[4];
+        keys_slot(KEY_POWER, px0 + pw * 0.045f + kw * 0.5f, mid - pw * 0.39f + pw * 0.04f + kh * 0.5f,
+                  kw, kh, mm, "", 0.0f, 0, KEY_STYLE_POWER, dummy);
     }
     /* power LED: a small round lens under the button */
     {
@@ -639,6 +625,83 @@ static void key_legend(canvas *c, float mid, float ty, const char *label, float 
     canvas_grain = 0;
     text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
     text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
+    canvas_grain = saved;
+}
+
+/* The power cap's bevel, pressed `press` of the way: the lit edges along
+ * the top and the left give up their highlight and go to a faint shade,
+ * a touch darker than the face, as the cap goes down out of the light;
+ * the shaded edges along the bottom and the right stay as they are.
+ * bevel(..., 1) at press 0. */
+#define POWER_EDGE_SHADE 0.10f /* the lit edges' shade, fully pressed */
+static void power_bevel(canvas *c, float x, float y, float w, float h, float t, float press) {
+    for (int k = 0; k < (int)t; k++) {
+        float a = 0.5f * (1.0f - (float)k / t);
+        /* the lit edges: white fading out, a little black fading in */
+        float lit = a * (1.0f - press), dark = POWER_EDGE_SHADE * (1.0f - (float)k / t) * press;
+        for (int i = (int)x + k; i < (int)(x + w) - k; i++) {
+            px_blend(c, i, (int)y + k, 255, 255, 255, lit * 0.55f);
+            px_blend(c, i, (int)y + k, 0, 0, 0, dark);
+            px_blend(c, i, (int)(y + h) - 1 - k, 0, 0, 0, a * 0.45f);
+        }
+        for (int j = (int)y + k; j < (int)(y + h) - k; j++) {
+            px_blend(c, (int)x + k, j, 255, 255, 255, lit * 0.40f);
+            px_blend(c, (int)x + k, j, 0, 0, 0, dark * 0.75f);
+            px_blend(c, (int)(x + w) - 1 - k, j, 0, 0, 0, a * 0.35f);
+        }
+    }
+}
+
+/* The power button's cap, as a key: a slab of the keys' plastic in its
+ * well, lit at the top and falling off down it, an edge bevel, the power
+ * mark cut into its face and the soft shadow it throws down onto the lip
+ * and the case below.  Pressed, it stays where it is: only the highlight
+ * along its top and left edges goes, turning to a faint shade a touch
+ * darker than the face (power_bevel); the face, the mark and the shadow
+ * stay as they are.
+ * Worked out in the case's coordinates and written ox, oy in, as flat_key
+ * is.  (cx, cy) is the cap's centre and w x h the cap. */
+static void power_key(canvas *c, float cx, float cy, float w, float h, float mm, float press,
+                      int ox, int oy, int cw, int ch) {
+    /* the cap does not move: a press shows only in its light */
+    float x = cx - w * 0.5f, y = cy - h * 0.5f, rad = h * 0.114f;
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    /* the shadow the cap throws down onto the lip and the case: the knobs'
+     * bell, run along the cap's lower edge, less of it as the cap goes in */
+    {
+        float sw = 2.6f * mm, depth = 0.22f;
+        float cb = y + h;
+        for (int j2 = (int)floorf(cb); j2 <= (int)floorf(cb + sw) + 1; j2++)
+            for (int i2 = (int)floorf(x - sw); i2 <= (int)floorf(x + w + sw) + 1; i2++) {
+                float sd = rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, cx, cb - h * 0.5f, w * 0.5f,
+                                 h * 0.5f, rad);
+                if (sd <= 0.0f || sd >= sw || (float)j2 + 0.5f < cb)
+                    continue;
+                float t = sd / sw, f = (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f + 3.0f * t);
+                px_shade(c, i2 - ox, j2 - oy, 1.0f - depth * f, 0.0f);
+            }
+    }
+    /* the face: lit at the top, falling off down it, and the case's finish
+     * where it sits */
+    for (int j = (int)floorf(y) - 1; j <= (int)floorf(y + h) + 1; j++)
+        for (int i = (int)floorf(x) - 1; i <= (int)floorf(x + w) + 1; i++) {
+            float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, y + h * 0.5f, w * 0.5f, h * 0.5f,
+                             rad);
+            float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
+            if (cov <= 0.0f)
+                continue;
+            float ty = ((float)j + 0.5f - y) / h;
+            /* the face, a very little darker as it goes down */
+            float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.03f * press);
+            float rgb[3] = {KEY_R * sh, KEY_G * sh, KEY_B * sh};
+            finish_rgb((float)i, (float)j, cw, ch, rgb);
+            px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
+        }
+    power_bevel(c, x - (float)ox, y - (float)oy, w, h, fmaxf(1.0f, w * 0.066f), press);
+    /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
+    power_symbol(c, cx - (float)ox, y + h * 0.5f - (float)oy, w * 0.33f);
+
     canvas_grain = saved;
 }
 
@@ -883,7 +946,7 @@ static struct {
         float cx, cy, w, h, mm, cap;
         const char *label;
         int stained, placed;
-        int flat;    /* the turbo module's flat cap, not a keycap */
+        int style;   /* KEY_STYLE_CAP, _FLAT or _POWER */
         float depth; /* as last drawn */
         uint8_t *bg; /* the square beneath, RGBA, with no key in it */
         int bx, by, bw, bh;
@@ -893,10 +956,10 @@ static struct {
 } KEYS;
 
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
-               float cap, int stained, int flat, float out[4]) {
+               float cap, int stained, int style, float out[4]) {
     if (which < 0 || which >= KEY_COUNT)
         return;
-    KEYS.k[which].flat = flat;
+    KEYS.k[which].style = style;
     KEYS.k[which].cx = cx;
     KEYS.k[which].cy = cy;
     KEYS.k[which].w = w;
@@ -915,7 +978,12 @@ void keys_slot(int which, float cx, float cy, float w, float h, float mm, const 
 
 /* draw key `k` onto canvas c, which sits at (ox, oy) on the case */
 static void key_draw_at(canvas *c, int k, float ox, float oy) {
-    if (KEYS.k[k].flat) {
+    if (KEYS.k[k].style == KEY_STYLE_POWER) {
+        power_key(c, KEYS.k[k].cx, KEYS.k[k].cy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
+                  KEYS.k[k].depth, (int)ox, (int)oy, KEYS.cw, KEYS.ch);
+        return;
+    }
+    if (KEYS.k[k].style == KEY_STYLE_FLAT) {
         flat_key(c, KEYS.k[k].cx, KEYS.k[k].cy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
                  KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].depth, (int)ox, (int)oy, KEYS.cw,
                  KEYS.ch);
@@ -929,10 +997,12 @@ static void key_draw_at(canvas *c, int k, float ox, float oy) {
 /* the square a key's drawing can reach: the cap, its shadow, its wall */
 static void key_square(int k, int *bx, int *by, int *bw, int *bh) {
     float mm = KEYS.k[k].mm, reach = 1.0f * mm + 2.0f;
+    /* the power cap's shadow falls further: 2.6 mm below it */
+    float below = KEYS.k[k].style == KEY_STYLE_POWER ? 2.8f * mm + 2.0f : reach + 0.5f * mm;
     *bx = (int)(KEYS.k[k].cx - KEYS.k[k].w * 0.5f - reach);
     *by = (int)(KEYS.k[k].cy - KEYS.k[k].h * 0.5f - reach);
     *bw = (int)(KEYS.k[k].w + 2.0f * reach) + 2;
-    *bh = (int)(KEYS.k[k].h + 2.0f * reach + 0.5f * mm) + 2;
+    *bh = (int)(KEYS.k[k].h + reach + below) + 2;
 }
 
 void keys_reset(void) {
@@ -1028,7 +1098,7 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
 void osd_button(float cx, float cy, float mm, float btn[4]) {
-    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1, 0,
+    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1, KEY_STYLE_CAP,
               btn);
 }
 
@@ -1107,7 +1177,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     printed_corner(c, cx - lx + rc, by + rc, rc, -1, -1, lt, LINE_R, LINE_G, LINE_B);
     printed_corner(c, cx + lx - rc, by + rc, rc, 1, -1, lt, LINE_R, LINE_G, LINE_B);
     canvas_grain = saved;
-    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, 0, btn);
+    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, KEY_STYLE_CAP, btn);
     {
         const char *words[2] = {"HOST", "DXM"};
         for (int s = 0; s < 2; s++) {
@@ -1227,7 +1297,7 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
-    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, 1, out);
+    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, KEY_STYLE_FLAT, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power

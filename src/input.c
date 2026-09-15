@@ -78,6 +78,7 @@ void input_init(input_state *in, app *a) {
     in->knob_drag = -1;
     in->knob_y0 = in->knob_v0 = 0.0f;
     in->key_hit = -1;
+    in->key_held = in->key_let_go = -1;
     in->holding = -1; /* nothing asked of SDL yet */
     in->arrow = cursor_vintage();
     if (in->arrow)
@@ -206,6 +207,11 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             in->key_hit = KEY_MOUSE;
             input_capture(in, a, 1);
             in->knob_drag = -1;
+        } else if (e->button.button == SDL_BUTTON_LEFT && key_at(L->pwr_btn, mx, my)) {
+            /* the power button: out on the case, it goes down under the hand
+             * and stays down while held; the machine switches off when it is
+             * let go of over the button, the way EXIT at the prompt does */
+            in->key_held = KEY_POWER;
         } else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
             in->button = bt;
             in->key_hit = KEY_MODE + bt;
@@ -219,7 +225,14 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP:
-        if (machine_has_mouse(in) && setup_visible())
+        if (in->key_held == KEY_POWER && e->button.button == SDL_BUTTON_LEFT) {
+            /* let go of: off, unless the hand slid away from it first */
+            float mx = e->button.x * a->W / a->win_wf, my = e->button.y * a->H / a->win_hf;
+            in->key_let_go = KEY_POWER;
+            in->key_held = -1;
+            if (key_at(L->pwr_btn, mx, my))
+                return INPUT_POWER;
+        } else if (machine_has_mouse(in) && setup_visible())
             setup_click(0);
         else if (machine_has_mouse(in) && catalog_visible())
             catalog_click(0);

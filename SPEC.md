@@ -313,11 +313,16 @@ the machine controls:
 
 ### 6.8 Controls
 
+**The power button.** Pressed with the mouse released, it goes down and
+stays down while held; let go of over the button, it switches the machine
+off - slide off it first and nothing happens: the same power-down EXIT at the prompt runs, after which the
+program ends.
+
 **The knobs.** Brightness and contrast, turned by dragging with the mouse
 released to the desktop. Each is drawn over the finished plastic and redrawn
 alone when turned.
 
-**The keys.** MOUSE, OSD, MODE, − and + are momentary: a click sends one
+**The keys.** MOUSE, OSD, MODE, − and + and the power button are momentary: a click sends one
 down and it comes back up on its own, down in 60 ms, a moment at the
 bottom, up in 130. The cap sinks into its outline, showing a band of the
 hole's wall above it; its shadow draws in and its lit slope dims. Like the

@@ -267,6 +267,7 @@ uint8_t *chassis_render(dxm_layout *L, int W, int H) {
     memset(L->osd_btn, 0, sizeof L->osd_btn);
     memset(L->mouse_btn, 0, sizeof L->mouse_btn);
     memset(L->btn, 0, sizeof L->btn);
+    memset(L->pwr_btn, 0, sizeof L->pwr_btn);
     keys_reset();
     memset(L->mouse_led, 0, sizeof L->mouse_led);
 

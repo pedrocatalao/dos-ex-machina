@@ -128,8 +128,9 @@ letterboxing.
 The machine powers on, degausses, warms up and runs its POST. By the time
 the memory count is done, DOSBox has booted behind it; the screen clears,
 the system configuration comes up, the drive runs, and the DOS prompt
-arrives under it. `EXIT` powers the machine down properly: the raster
-collapses, the fans spin down, and the room goes dark.
+arrives under it. `EXIT`, or pressing and letting go of the **power button**
+with the mouse released, powers the machine down properly: the raster collapses, the fans
+spin down, and the room goes dark.
 
 **The mouse** belongs to the machine: no pointer over the glass, and a DOS
 program that uses a mouse gets it. **Ctrl+F10** gives it back to your

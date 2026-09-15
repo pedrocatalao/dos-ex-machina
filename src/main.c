@@ -131,14 +131,35 @@ static void show_knobs(gpu *g, const gpu_knobs *k, float *last_b, float *last_c)
 #define KEY_DOWN_S 0.06
 #define KEY_HOLD_S 0.05
 #define KEY_UP_S 0.13
+/* the power button's press shows only in its light, so it fades rather
+ * than snaps: slower both ways */
+#define POWER_DOWN_S 0.14
+#define POWER_UP_S 0.26
 typedef struct {
     Uint64 t0[KEY_COUNT];   /* when each press began; 0 for none */
+    int held[KEY_COUNT];    /* held down: it goes down and stays there */
     float shown[KEY_COUNT]; /* the depth the texture shows */
 } key_anim;
 
 static void keys_press(key_anim *ka, int which) {
     if (which >= 0 && which < KEY_COUNT)
         ka->t0[which] = app_now_ns();
+}
+
+/* A key held under the hand goes down and stays down; let go, it comes back
+ * up the way a pressed key does, from the bottom. */
+static void keys_hold(key_anim *ka, int which, int on) {
+    if (which < 0 || which >= KEY_COUNT)
+        return;
+    Uint64 now = app_now_ns();
+    if (on) {
+        ka->held[which] = 1;
+        ka->t0[which] = now;
+    } else {
+        ka->held[which] = 0;
+        double down = which == KEY_POWER ? POWER_DOWN_S : KEY_DOWN_S;
+        ka->t0[which] = now - (Uint64)((down + KEY_HOLD_S) * 1e9);
+    }
 }
 
 static float ease(float t) {
@@ -151,12 +172,14 @@ static void show_keys(gpu *g, key_anim *ka) {
         float depth = 0.0f;
         if (ka->t0[k]) {
             double t = (double)(now - ka->t0[k]) / 1e9;
-            if (t < KEY_DOWN_S)
-                depth = ease((float)(t / KEY_DOWN_S));
-            else if (t < KEY_DOWN_S + KEY_HOLD_S)
+            double down = k == KEY_POWER ? POWER_DOWN_S : KEY_DOWN_S;
+            double up = k == KEY_POWER ? POWER_UP_S : KEY_UP_S;
+            if (t < down)
+                depth = ease((float)(t / down));
+            else if (ka->held[k] || t < down + KEY_HOLD_S)
                 depth = 1.0f;
-            else if (t < KEY_DOWN_S + KEY_HOLD_S + KEY_UP_S)
-                depth = 1.0f - ease((float)((t - KEY_DOWN_S - KEY_HOLD_S) / KEY_UP_S));
+            else if (t < down + KEY_HOLD_S + up)
+                depth = 1.0f - ease((float)((t - down - KEY_HOLD_S) / up));
             else
                 ka->t0[k] = 0;
         }
@@ -280,14 +303,18 @@ int main(int argc, char **argv) {
     Uint64 fps_t0 = t_start;
     int fps_n = 0;
     float last_b = -1.0f, last_c = -1.0f; /* what the knobs currently show */
-    key_anim keys = {{0}, {0}};
+    key_anim keys;
+    memset(&keys, 0, sizeof keys);
     const char *autocmd = o.autocmd;
+    int power_pressed = 0; /* the power button was clicked */
     while (!quit) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             input_result r = input_event(&in, &a, &L, &k, &e);
             if (r == INPUT_QUIT)
                 quit = 1;
+            else if (r == INPUT_POWER)
+                power_pressed = 1; /* the switch: off, from this frame's clock */
             else if (r == INPUT_BUTTON) {
                 theatre_button(&th, in.button);
                 dosbox_set_cycles(theatre_cycles(&th));
@@ -305,6 +332,12 @@ int main(int argc, char **argv) {
             if (in.key_hit >= 0) {
                 keys_press(&keys, in.key_hit);
                 in.key_hit = -1;
+            }
+            if (in.key_held >= 0 && !keys.held[in.key_held])
+                keys_hold(&keys, in.key_held, 1);
+            if (in.key_let_go >= 0) {
+                keys_hold(&keys, in.key_let_go, 0);
+                in.key_let_go = -1;
             }
         }
         /* SETUP stops the machine's clock: a BIOS setup halted the boot, so
@@ -385,7 +418,9 @@ int main(int argc, char **argv) {
                 quit = 1;
             }
         }
-        if (dosbox_exited() && th.off_t0 < 0.0)
+        /* switched off: by EXIT at the prompt, or by the power button - the
+         * same power-down either way, and the machine ends when it has run */
+        if ((dosbox_exited() || power_pressed) && th.off_t0 < 0.0)
             theatre_power_off(&th, t);
         theatre_mouse(&th, in.holding == 1);
         if (theatre_frame(&th, a.gpu, &L, a.W, a.H, t))
