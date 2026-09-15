@@ -508,7 +508,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     {
         float dkw = 90.0f * mm, dkx = x + (fw - dkw) * 0.5f;
         float dky = sly + 2.2f * mm, dkh = 3.3f * mm;
-        float clip = sly + slh - 0.5f * mm; /* the bottom lip stands in front below this */
+        /* the bottom lip stands in front below this: only the lit edge of
+         * the slot's bottom face shows under the disk, not the dark of the
+         * face's far part, which the disk hides */
+        float clip = sly + slh - 0.35f * mm;
         const float INSIDE = 0.70f;         /* how much of the light reaches it in there */
         const float LABEL_T = 0.22f;        /* where the label starts, down the edge */
         float corner = 2.6f * mm; /* the shell's rounded corners */
