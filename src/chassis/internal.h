@@ -98,7 +98,7 @@ void corner_engraving(canvas *c, float cx, float cy, float w);
 /* parts.c, the keys: placed while the case is drawn, drawn LAST over the
  * finished plastic - like the knobs - so a press can redraw one alone */
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
-               float cap, int stained, float out[4]);
+               float cap, int stained, int flat, float out[4]);
 void keys_draw(canvas *c);
 void keys_reset(void); /* before a render: no key placed until one is */
 

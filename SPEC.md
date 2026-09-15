@@ -323,8 +323,9 @@ knobs, each is drawn over the finished plastic, taking the case's
 yellowing and key light where it sits, and a press redraws that key and
 any neighbour its square reaches, each at its own depth.
 
-**The turbo module.** A display and three keys beside the power switch,
-the same grey keycaps as the MOUSE and OSD keys.
+**The turbo module.** A display and three keys beside the power switch:
+flat caps lying on the module's plate, the power cap's construction at a
+fraction of the size, lettered like the MOUSE and OSD keys.
 The display shows the CPU clock in MHz, or with MODE the frames per second
 the machine draws; an LED against the printed legend says which. − and +
 step the clock through period speeds, each set in DOSBox as a cycle count

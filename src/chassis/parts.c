@@ -306,8 +306,8 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     float mm = h / 25.4f;
     (void)w;
     float fw = 101.6f * mm;
-    /* the drive is a separate moulding: darker and greyer than the case */
-    int pr = (int)(PLASTIC_R * 0.74f), pg = (int)(PLASTIC_G * 0.72f), pb = (int)(PLASTIC_B * 0.76f);
+    /* the drive is a separate moulding, in the keys' plastic */
+    int pr = (int)KEY_R, pg = (int)KEY_G, pb = (int)KEY_B;
     /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
     rrect(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
           (int)(PLASTIC_R * 0.38f), (int)(PLASTIC_G * 0.38f), (int)(PLASTIC_B * 0.38f), 0.92f,
@@ -567,11 +567,10 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
     /* the well the button sits in, then the thin cut, then the cap */
     well_rect(c, px0, mid - pw * 0.39f, pw, pw * 0.78f, pw * 0.10f, 0.45f * mm, 1.9f * mm);
     rrect(c, px0, mid - pw * 0.39f, pw, pw * 0.78f, pw * 0.10f, 64, 61, 56, 0.80f, 0.92f);
-    /* the cap is moulded in the same darker brown as the drive, not in
-     * the case colour - the same multipliers floppy_drive() uses */
+    /* the cap is moulded in the keys' plastic, as the drive is, not in the
+     * case colour */
     rrect(c, px0 + pw * 0.045f, mid - pw * 0.39f + pw * 0.04f, pw * 0.91f, pw * 0.70f, pw * 0.08f,
-          (int)(PLASTIC_R * 0.74f), (int)(PLASTIC_G * 0.72f), (int)(PLASTIC_B * 0.76f), 1.16f,
-          0.84f);
+          (int)KEY_R, (int)KEY_G, (int)KEY_B, 1.16f, 0.84f);
     bevel(c, px0 + pw * 0.045f, mid - pw * 0.39f + pw * 0.04f, pw * 0.91f, pw * 0.70f,
           fmaxf(1.0f, pw * 0.06f), 1);
     /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
@@ -612,6 +611,77 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
 
 /* ---- the OSD button ----------------------------------------------------- */
 
+/* A key's legend: its function in lightly condensed Helvetica Bold, cream,
+ * `cap` px capitals from `ty` down, centred across on `mid`, on canvas c;
+ * the case's finish is taken at (fx, fy) on the case, and it dims a little
+ * as the key goes down.  The same on every key, whatever its cap is like. */
+static void key_legend(canvas *c, float mid, float ty, const char *label, float cap, float press,
+                       float fx, float fy, int cw, int ch) {
+    const float sq = 0.92f; /* a little condensed */
+    float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
+    float tw = helv_width(label, cap, sq, track) + fat;
+    float lx = mid - tw * 0.5f;
+    float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
+                    202.0f * (1.0f - 0.04f * press)};
+    finish_rgb(fx, fy, cw, ch, ink);
+    int lr = (int)ink[0], lg = (int)ink[1], lb = (int)ink[2];
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
+    text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
+    canvas_grain = saved;
+}
+
+/* The flat cap the turbo module's keys are: a slab of the keys' plastic
+ * lying on the module's plate, its face lit from above and falling off
+ * down it, an edge bevel, and the shadow it throws on the plate below - the
+ * power cap's construction at a fraction of the size.  Pressed, the face
+ * dims, the bevel turns in and the shadow goes, and the legend goes down
+ * with it.  Its legend is the other keys' (key_legend). */
+static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
+                     float cap, float press, int ox, int oy, int cw, int ch) {
+    /* Everything is worked out in the case's own coordinates and only
+     * written ox, oy in: a redraw into a patch then lands on exactly the
+     * pixels the bake drew, where shifting the geometry itself would round
+     * the face's gradient a level differently here and there. */
+    float x = cx - w * 0.5f, y = cy - h * 0.5f, rad = h * 0.12f;
+    int saved = canvas_grain;
+    /* the shadow on the plate under it */
+    canvas_grain = 0;
+    {
+        float sw = 1.0f * mm, cb = y + h, depth = 0.30f * (1.0f - 0.8f * press);
+        for (int j2 = (int)floorf(cb); j2 <= (int)floorf(cb + sw) + 1; j2++) {
+            float t = ((float)j2 + 0.5f - cb) / sw;
+            if (t < 0.0f || t >= 1.0f)
+                continue;
+            float f = (1.0f - t) * (1.0f - t);
+            for (int i2 = (int)floorf(x); i2 < (int)floorf(x + w); i2++)
+                px_shade(c, i2 - ox, j2 - oy, 1.0f - depth * f, 0.0f);
+        }
+    }
+    canvas_grain = saved;
+    /* the face: lit at the top, falling off down it, with the plastic's
+     * grain, and the case's finish where it sits */
+    for (int j = (int)floorf(y) - 1; j <= (int)floorf(y + h) + 1; j++)
+        for (int i = (int)floorf(x) - 1; i <= (int)floorf(x + w) + 1; i++) {
+            float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, cy, w * 0.5f, h * 0.5f, rad);
+            float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
+            if (cov <= 0.0f)
+                continue;
+            float ty = ((float)j + 0.5f - y) / h;
+            float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.08f * press);
+            sh += plastic_tex(i, j);
+            float rgb[3] = {KEY_R * sh, KEY_G * sh, KEY_B * sh};
+            finish_rgb((float)i, (float)j, cw, ch, rgb);
+            px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
+        }
+    /* the bevel, raised; turned in once it is most of the way down */
+    bevel(c, x - (float)ox, y - (float)oy, w, h, fmaxf(1.0f, 0.45f * mm), press < 0.5f);
+    /* the legend, going down with the face */
+    key_legend(c, cx - (float)ox, cy - cap * 0.5f - 0.5f + press * 0.35f * mm - (float)oy, label,
+               cap, press, cx, cy, cw, ch);
+}
+
 /* A key of the case's own, standing proud of the plastic: a keycap in
  * mid-grey moulding, seen a little from above.  A firm dark outline - the
  * hole the key stands in - and inside it the cap: four SLOPES, flat angled
@@ -636,7 +706,7 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
     float line = fmaxf(1.5f, 0.48f * mm); /* the outline */
     float slope = h * 0.12f;              /* the angled faces, in from the outline */
     float top_slope = slope * 0.80f;      /* the top one is foreshortened */
-    const float R = PLASTIC_R * 0.62f, G = PLASTIC_G * 0.63f, B = PLASTIC_B * 0.68f;
+    const float R = KEY_R, G = KEY_G, B = KEY_B;
     float sink = press * 0.36f * mm; /* how far the cap has gone in */
     float reach = 1.0f * mm * (1.0f - 0.35f * press), drop = 0.40f * mm * (1.0f - 0.6f * press);
     float shade = 0.24f * (1.0f - 0.45f * press);
@@ -665,7 +735,8 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             if (cov <= 0.0f)
                 continue;
             int r, g, b;
-            if (sd > -line) { /* the outline */
+            if (sd > -line) {
+                /* the outline: the gap round the key, in shadow */
                 r = 30;
                 g = 28;
                 b = 23;
@@ -722,20 +793,7 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             }
         }
     /* the legend, going down with the face */
-    canvas_grain = 0;
-    {
-        const float sq = 0.92f; /* a little condensed */
-        float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
-        float tw = helv_width(label, cap, sq, track) + fat;
-        float lx = cx - tw * 0.5f, ty = (fy0 + fy1) * 0.5f - cap * 0.5f;
-        float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
-                        202.0f * (1.0f - 0.04f * press)};
-        finish_rgb(cx + ox, cy + oy, cw, ch, ink);
-        int lr = (int)ink[0], lg = (int)ink[1], lb = (int)ink[2];
-        text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
-        text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
-    }
-    canvas_grain = saved;
+    key_legend(c, cx, (fy0 + fy1) * 0.5f - cap * 0.5f, label, cap, press, cx + ox, cy + oy, cw, ch);
 }
 
 /* The keys, kept the way the knobs are: where each goes, and the plastic
@@ -748,6 +806,7 @@ static struct {
         float cx, cy, w, h, mm, cap;
         const char *label;
         int stained, placed;
+        int flat;    /* the turbo module's flat cap, not a keycap */
         float depth; /* as last drawn */
         uint8_t *bg; /* the square beneath, RGBA, with no key in it */
         int bx, by, bw, bh;
@@ -757,9 +816,10 @@ static struct {
 } KEYS;
 
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
-               float cap, int stained, float out[4]) {
+               float cap, int stained, int flat, float out[4]) {
     if (which < 0 || which >= KEY_COUNT)
         return;
+    KEYS.k[which].flat = flat;
     KEYS.k[which].cx = cx;
     KEYS.k[which].cy = cy;
     KEYS.k[which].w = w;
@@ -778,6 +838,12 @@ void keys_slot(int which, float cx, float cy, float w, float h, float mm, const 
 
 /* draw key `k` onto canvas c, which sits at (ox, oy) on the case */
 static void key_draw_at(canvas *c, int k, float ox, float oy) {
+    if (KEYS.k[k].flat) {
+        flat_key(c, KEYS.k[k].cx, KEYS.k[k].cy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
+                 KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].depth, (int)ox, (int)oy, KEYS.cw,
+                 KEYS.ch);
+        return;
+    }
     case_key(c, KEYS.k[k].cx - ox, KEYS.k[k].cy - oy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
              KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].stained, KEYS.k[k].depth, ox, oy, KEYS.cw,
              KEYS.ch);
@@ -876,11 +942,17 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
     return KEYS.patch;
 }
 
+/* The two wide keys, MOUSE and OSD: one size, so they read as one part */
+#define WIDE_KEY_W 17.4f  /* mm */
+#define WIDE_KEY_H 7.5f   /* mm */
+#define WIDE_KEY_CAP 2.1f /* mm, the legend's capitals */
+
 /* The OSD button, under the left pod, level with the knobs under the right
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
 void osd_button(float cx, float cy, float mm, float btn[4]) {
-    keys_slot(KEY_OSD, cx, cy, 10.8f * mm, 5.8f * mm, mm, "OSD", 2.0f * mm, 0, btn);
+    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 0, 0,
+              btn);
 }
 
 /* A printed rule, axis-aligned and antialiased: x,y,w,h in px. */
@@ -930,13 +1002,11 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     const float SQ = 0.90f;                           /* the legends, a little condensed */
     float lr = 1.2f * mm, hole = lr * 1.72f, lt = fmaxf(1.0f, 0.30f * mm);
     /* Helvetica Bold throughout, sized by its capitals, in POWER's weight */
-    float cap_key = 2.1f * mm, cap_lamp = 2.0f * mm, tr_lamp = cap_lamp * 0.08f;
+    float cap_key = WIDE_KEY_CAP * mm, cap_lamp = 2.0f * mm, tr_lamp = cap_lamp * 0.08f;
     float tw_short = helv_width("CTRL+F10", cap_lamp, SQ, tr_lamp);
     float tw_host = helv_width("HOST", cap_lamp, SQ, tr_lamp);
-    /* the key: the turbo module's MODE key's size exactly, so the two read
-     * as one part from one mould */
-    float kw = 17.4f * mm, kh = 7.5f * mm;
-    float lx = kw * 0.5f - 0.8f * mm; /* the lamps, under the key's ends */
+    float kw = WIDE_KEY_W * mm, kh = WIDE_KEY_H * mm; /* the key */
+    float lx = kw * 0.5f - 0.8f * mm;                 /* the lamps, under the key's ends */
     float g1 = 1.6f * mm, stem = 3.0f * mm, drop = 3.7f * mm - hole, g2 = 1.4f * mm;
     float h = cap_lamp + g1 + kh + stem + drop + 2.0f * hole + g2 + cap_lamp;
     float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
@@ -955,7 +1025,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     printed_corner(c, cx - lx + rc, by + rc, rc, -1, -1, lt, LINE_R, LINE_G, LINE_B);
     printed_corner(c, cx + lx - rc, by + rc, rc, 1, -1, lt, LINE_R, LINE_G, LINE_B);
     canvas_grain = saved;
-    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, btn);
+    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, 0, btn);
     {
         const char *words[2] = {"HOST", "DXM"};
         for (int s = 0; s < 2; s++) {
@@ -1069,14 +1139,13 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
     out[3] = h;
 }
 
-/* One cap of the button cluster: the same keycap as the MOUSE and OSD
- * keys, at the cluster's size, with its function on it - placed here,
- * drawn last with the others.  Records its outline in out, for the
- * mouse. */
+/* One cap of the button cluster: a flat cap on the module's plate (flat_key),
+ * with its function printed on it as on the other keys - placed here, drawn
+ * last with them.  Records its outline in out, for the mouse. */
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
-    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, out);
+    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, 1, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power

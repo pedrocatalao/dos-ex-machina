@@ -1,5 +1,5 @@
-/* knobs.c — the two rotary controls, the one part of the case that moves:
- * drawn last over the finished plastic, and redrawn alone when turned. */
+/* knobs.c — the two rotary controls: drawn last over the finished plastic,
+ * like the keys, and redrawn when turned. */
 #include "internal.h"
 
 /* The knobs: where they are, and the plastic under each one, kept so a
@@ -9,7 +9,25 @@ static struct {
     uint8_t *bg[2];    /* the square beneath, RGBA */
     int bx[2], by[2], bs[2];
     uint8_t *patch;
+    float pos[2]; /* where each is turned to, as last drawn */
+    int cw, ch;   /* the case they sit on, for its finish */
+    float ox, oy; /* where the canvas being drawn on sits on that case */
 } K;
+
+/* A knob is drawn after the case's finish, so it takes the finish itself -
+ * the yellowing and the key light where it sits - or it reads as a part
+ * from a cleaner machine than the one it is fitted to. */
+static void finished(canvas *c, int i, int j, float r, float g, float b, float a) {
+    float rgb[3] = {r, g, b};
+    if (K.cw > 0)
+        finish_rgb((float)i + K.ox, (float)j + K.oy, K.cw, K.ch, rgb);
+    px_blend(c, i, j, (int)rgb[0], (int)rgb[1], (int)rgb[2], a);
+}
+
+/* The chamfer and the knurled side are the knobs' plastic (params.h) at
+ * the tones in rotary().  The tones were set against the plain case colour,
+ * and the finish takes some light away; this puts both back. */
+#define KNOB_GAIN (1.09f / (0.74f * KNOB_SHADE))
 
 /* Where a knob goes.  The knob itself is drawn by knobs_draw, last, so the
  * plastic saved under it is the finished case. */
@@ -21,9 +39,9 @@ void knobs_slot(int which, float cx, float cy, float r) {
 
 /* A rotary control: a short cylinder of dark plastic standing off the
  * band, knurled round its edge so fingers can turn it, with a flat face
- * carrying a white index line.  The face is lit from above like everything
- * else, and the knurl is what makes it read as round - a plain disc would
- * be a button.  pos 0..1 runs the index through 270 degrees, from seven
+ * carrying a white index line and the stains of the hands that turned it.
+ * The knurl and the lit chamfer are what make it read as round - a plain
+ * disc would be a button.  pos 0..1 runs the index through 270 degrees, from seven
  * o'clock round to five. */
 static void rotary(canvas *c, float cx, float cy, float r, float pos) {
     const float PI = 3.14159265f;
@@ -34,11 +52,11 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
      * faces the key light and is the brightest thing here.  Below the
      * face the side is hidden and a contact shadow takes over.  It is the
      * same knob as before; only the camera has moved. */
-    /* The three tones, as multipliers on the case colour.  Each part is
-     * its own number so one can be tuned without moving the others. */
-    const float TONE_DOME = 1.42f; /* the face proper */
-    const float TONE_RING = 1.42f; /* the chamfer round it */
-    const float TONE_GRIP = 1.30f; /* the knurled side */
+    /* The tones of the chamfer and the knurled side, as multipliers on the
+     * knobs' plastic; the face is the plastic itself.  Each is its own
+     * number so one can be tuned without moving the others. */
+    const float TONE_RING = 1.31f; /* the chamfer round the face */
+    const float TONE_GRIP = 1.20f; /* the knurled side: a touch above, lit */
     const float SQ = 0.98f;        /* ellipse: vertical/horizontal */
     float ry = r * SQ;             /* face half-height */
     float hs = r * 0.20f;          /* visible side, foreshortened */
@@ -83,8 +101,7 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                 continue; /* the shadow reaches this far */
             float yr = (fabsf(ux) < 1.0f) ? ry * sqrtf(1.0f - ux * ux) : 0.0f; /* rim height here */
             float rho = sqrtf(ux * ux + (dy / ry) * (dy / ry)); /* 1 on the face rim */
-            int R, G, B;
-            float spec = 0.0f, base, cov, tone;
+            float base, cov;
 
             if (rho > 1.0f) {
                 /* The shadow the knob throws: a blurred copy of itself, dropped
@@ -124,16 +141,9 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                  * again at the far edge into the panel */
                 base *= 0.76f + 0.24f * fminf(1.0f, above / (hs * 0.5f));
                 base *= 1.0f - 0.28f * fmaxf(0.0f, (above - hs * 0.55f) / (hs * 0.45f));
-                R = (int)(PLASTIC_R * TONE_GRIP * base);
-                G = (int)(PLASTIC_G * (TONE_GRIP - 0.06f) * base);
-                B = (int)(PLASTIC_B * (TONE_GRIP + 0.04f) * base);
-                if (R > 255)
-                    R = 255;
-                if (G > 255)
-                    G = 255;
-                if (B > 255)
-                    B = 255;
-                px_blend(c, i2, j2, R, G, B, cov);
+                float f = TONE_GRIP * KNOB_GAIN * base;
+                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * f, CONTROL_G * KNOB_SHADE * f,
+                         CONTROL_B * KNOB_SHADE * f, cov);
                 continue;
             }
             /* the face */
@@ -151,30 +161,44 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                 /* darker than the face it surrounds: this is the moulding
                  * turning away from the viewer toward the grip */
                 base = (0.54f + 0.08f * up) * (1.0f - 0.22f * k) + 0.02f * ridge * k;
-                spec = 0.0f;
-                tone = TONE_RING;
+                float f = TONE_RING * KNOB_GAIN * base;
+                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * f, CONTROL_G * KNOB_SHADE * f,
+                         CONTROL_B * KNOB_SHADE * f, cov);
             } else {
-                /* the dome: light runs off it toward the lower right */
-                float nx = ux * 0.75f, ny = (dy / ry) * 0.75f;
-                float lam = 0.55f + 0.45f * (-ny * 0.85f - nx * 0.35f);
-                base = (0.40f * lam + 0.18f) * (1.0f - 0.10f * rho * rho);
-                float hx = (ux + 0.30f) / 0.34f, hy = (dy / ry + 0.36f) / 0.34f;
-                spec = expf(-(hx * hx + hy * hy)) * 0.16f;
-                tone = TONE_DOME;
+                /* the face: flat, as the MOUSE key's face is - one colour with
+                 * the moulding's grain in it, no light running off it and no
+                 * highlight - but in the knob's own warmer plastic, the one
+                 * its chamfer and its knurled side are */
+                int saved_grain = canvas_grain;
+                canvas_grain = 1;
+                float g = 1.0f + plastic_tex(i2 + (int)K.ox, j2 + (int)K.oy) * 0.25f;
+                canvas_grain = saved_grain;
+                /* light stains: where fingers have turned it for thirty years,
+                 * soft warm blotches over a fine mottle, lighter than the
+                 * MOUSE key's - taking more blue out than red, as the case's
+                 * grime does.  They are the knob's own, so they are laid out
+                 * on the face itself and turn with it, in millimetres so they
+                 * look the same at any size, and each knob's are different,
+                 * offset by where it sits on the case. */
+                float mr = 1.0f, mg = 1.0f, mb = 1.0f;
+                {
+                    float mmu = (float)(K.ch > 0 ? K.ch : 268) / 268.0f;
+                    float ex = ux * r, ey = (dy / ry) * r; /* on the face, unsquashed */
+                    float ca = cosf(ang), sa = sinf(ang);
+                    float u = (ex * ca + ey * sa + cx + K.ox) / mmu;
+                    float v = (-ex * sa + ey * ca + cy + K.oy) / mmu;
+                    float blot = vnoise(u * 0.55f, v * 0.6f, 61) * 0.6f +
+                                 vnoise(u * 1.4f, v * 1.3f, 63) * 0.4f;
+                    float d = fmaxf(0.0f, blot - 0.45f) / 0.55f;
+                    d = d * d * 0.16f + (vnoise(u * 2.6f, v * 2.6f, 67) - 0.5f) * 0.03f;
+                    mr = 1.0f - d * 0.70f;
+                    mg = 1.0f - d;
+                    mb = 1.0f - d * 1.40f;
+                }
+                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * g * mr,
+                         CONTROL_G * KNOB_SHADE * g * mg, CONTROL_B * KNOB_SHADE * g * mb, cov);
             }
-            R = (int)(PLASTIC_R * tone * base);
-            G = (int)(PLASTIC_G * (tone - 0.06f) * base);
-            B = (int)(PLASTIC_B * (tone + 0.02f) * base);
-            if (R > 255)
-                R = 255;
-            if (G > 255)
-                G = 255;
-            if (B > 255)
-                B = 255;
-            px_blend(c, i2, j2, R, G, B, cov);
-            if (spec > 0.0f)
-                px_shade(c, i2, j2, 1.0f, spec);
-            /* the index: a painted mark across the dome, an off-white that
+            /* the index: a painted mark across the face, an off-white that
              * has seen thirty years of thumbs, sitting in a shallow groove so
              * it reads as filled rather than printed */
             {
@@ -185,7 +209,7 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                 if (along > r * 0.20f && along < r * 0.66f) {
                     if (across < hw) {
                         float a = fminf(1.0f, (hw - across)) * 0.86f;
-                        px_blend(c, i2, j2, 214, 208, 192, a);
+                        finished(c, i2, j2, 214.0f, 208.0f, 192.0f, a);
                     } else if (across < hw + 1.0f) {
                         /* the groove's edge, a hair darker all round */
                         float e = 1.0f - (across - hw);
@@ -237,42 +261,68 @@ void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
     free(dep);
 }
 
-/* keep the plastic under a knob, draw the knob, and put the band's facing
- * alpha back - a moulded control does not catch the tube's light as if it
- * were the reveal dish */
-static void knob_place(canvas *c, int which, float cx, float cy, float r, float pos) {
-    /* the square must hold everything rotary() draws - side band above,
-     * shadow ring below - or a redraw clips them with straight edges */
-    int bs = (int)(2.0f * (r * 2.35f + 4.0f)) + 2, bx = (int)(cx - bs * 0.5f),
-        by = (int)(cy - bs * 0.5f);
-    free(K.bg[which]);
-    K.bg[which] = malloc((size_t)bs * bs * 4);
-    K.bx[which] = bx;
-    K.by[which] = by;
-    K.bs[which] = bs;
-    if (!K.bg[which])
-        return;
-    for (int j = 0; j < bs; j++)
-        for (int i = 0; i < bs; i++) {
-            int x = bx + i, y = by + j;
-            uint8_t *d = K.bg[which] + ((size_t)j * bs + i) * 4;
-            if (x < 0 || y < 0 || x >= c->w || y >= c->h) {
-                memset(d, 0, 4);
-                continue;
+/* The square a knob's drawing reaches: the side band above, the shadow
+ * ring below.  Smaller, and a redraw would clip them with straight edges. */
+static void knob_square(int which, int *bx, int *by, int *bs) {
+    float cx = K.place[which][0], cy = K.place[which][1], r = K.place[which][2];
+    *bs = (int)(2.0f * (r * 2.35f + 4.0f)) + 2;
+    *bx = (int)(cx - (float)*bs * 0.5f);
+    *by = (int)(cy - (float)*bs * 0.5f);
+}
+
+/* Draw both knobs where they reach canvas c, which sits at (ox, oy) on the
+ * case.  The two stand close enough that one's square takes in the edge of
+ * the other, so a redraw of either puts back both, each as it is turned. */
+static void knobs_onto(canvas *c, float ox, float oy) {
+    int px0 = (int)ox, py0 = (int)oy;
+    for (int k = 0; k < 2; k++) {
+        int bx, by, bs;
+        knob_square(k, &bx, &by, &bs);
+        if (bx >= px0 + c->w || bx + bs <= px0 || by >= py0 + c->h || by + bs <= py0)
+            continue;
+        K.ox = ox;
+        K.oy = oy;
+        rotary(c, K.place[k][0] - ox, K.place[k][1] - oy, K.place[k][2], K.pos[k]);
+    }
+}
+
+void knobs_draw(canvas *c) {
+    K.cw = c->w;
+    K.ch = c->h;
+    /* first the plastic under both, with neither knob on it, and the band's
+     * facing alpha with it - a moulded control does not catch the tube's
+     * light as if it were the reveal dish */
+    for (int k = 0; k < 2; k++) {
+        int bx, by, bs;
+        knob_square(k, &bx, &by, &bs);
+        free(K.bg[k]);
+        K.bg[k] = malloc((size_t)bs * bs * 4);
+        K.bx[k] = bx;
+        K.by[k] = by;
+        K.bs[k] = bs;
+        K.pos[k] = 0.5f;
+        if (!K.bg[k])
+            continue;
+        for (int j = 0; j < bs; j++)
+            for (int i = 0; i < bs; i++) {
+                int x = bx + i, y = by + j;
+                uint8_t *d = K.bg[k] + ((size_t)j * bs + i) * 4;
+                if (x < 0 || y < 0 || x >= c->w || y >= c->h)
+                    memset(d, 0, 4);
+                else
+                    memcpy(d, c->px + ((size_t)y * c->w + x) * 4, 4);
             }
-            memcpy(d, c->px + ((size_t)y * c->w + x) * 4, 4);
-        }
-    rotary(c, cx, cy, r, pos);
-    for (int j = 0; j < bs; j++)
-        for (int i = 0; i < bs; i++) {
-            int x = bx + i, y = by + j;
-            if (x < 0 || y < 0 || x >= c->w || y >= c->h)
-                continue;
-            c->px[((size_t)y * c->w + x) * 4 + 3] = K.bg[which][((size_t)j * bs + i) * 4 + 3];
-        }
-    K.place[which][0] = cx;
-    K.place[which][1] = cy;
-    K.place[which][2] = r;
+    }
+    /* then both knobs over it, the alpha under them left as the case's */
+    knobs_onto(c, 0.0f, 0.0f);
+    for (int k = 0; k < 2; k++)
+        for (int j = 0; j < K.bs[k] && K.bg[k]; j++)
+            for (int i = 0; i < K.bs[k]; i++) {
+                int x = K.bx[k] + i, y = K.by[k] + j;
+                if (x >= 0 && y >= 0 && x < c->w && y < c->h)
+                    c->px[((size_t)y * c->w + x) * 4 + 3] =
+                        K.bg[k][((size_t)j * K.bs[k] + i) * 4 + 3];
+            }
 }
 
 const uint8_t *chassis_knob_set(int which, float pos, int *x, int *y, int *w, int *h) {
@@ -282,19 +332,16 @@ const uint8_t *chassis_knob_set(int which, float pos, int *x, int *y, int *w, in
     K.patch = realloc(K.patch, (size_t)bs * bs * 4);
     if (!K.patch)
         return NULL;
+    K.pos[which] = pos < 0.0f ? 0.0f : pos > 1.0f ? 1.0f : pos;
+    /* the plastic, with no knob in it, and both knobs back over it */
     memcpy(K.patch, K.bg[which], (size_t)bs * bs * 4);
     canvas P;
     P.w = bs;
     P.h = bs;
     P.px = K.patch;
-    if (pos < 0.0f)
-        pos = 0.0f;
-    if (pos > 1.0f)
-        pos = 1.0f;
-    rotary(&P, K.place[which][0] - K.bx[which], K.place[which][1] - K.by[which], K.place[which][2],
-           pos);
-    for (size_t k = 0; k < (size_t)bs * bs; k++)
-        K.patch[k * 4 + 3] = K.bg[which][k * 4 + 3];
+    knobs_onto(&P, (float)K.bx[which], (float)K.by[which]);
+    for (size_t n = 0; n < (size_t)bs * bs; n++)
+        K.patch[n * 4 + 3] = K.bg[which][n * 4 + 3];
     *x = K.bx[which];
     *y = K.by[which];
     *w = bs;
@@ -302,10 +349,6 @@ const uint8_t *chassis_knob_set(int which, float pos, int *x, int *y, int *w, in
     return K.patch;
 }
 
-void knobs_draw(canvas *c) {
-    for (int k = 0; k < 2; k++)
-        knob_place(c, k, K.place[k][0], K.place[k][1], K.place[k][2], 0.5f);
-}
 void knobs_layout(dxm_layout *L) {
     for (int k = 0; k < 2; k++)
         for (int m = 0; m < 3; m++)
