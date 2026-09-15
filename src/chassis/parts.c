@@ -1061,7 +1061,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
         return 0;
     /* centred between the holes and the foot of the pod, then lowered a
      * little, as one group - but never past the foot */
-    const float GROUP_DROP = 3.0f; /* mm */
+    const float GROUP_DROP = 6.0f; /* mm */
     float top = (y0 + y1) * 0.5f - h * 0.5f + GROUP_DROP * mm;
     if (top + h > y1)
         top = y1 - h;
@@ -1194,9 +1194,14 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
 /* One cap of the button cluster: a flat cap on the module's plate (flat_key),
  * with its function printed on it as on the other keys - placed here, drawn
  * last with them.  Records its outline in out, for the mouse. */
+#define SIGN_SCALE 1.6f /* how much larger + and - are set than MODE */
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
+    /* + and - are small marks in a face whose capitals they are sized by,
+     * so they are set larger to read as big as MODE does */
+    if (!strcmp(label, "+") || !strcmp(label, "-"))
+        cap *= SIGN_SCALE;
     keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, 1, out);
 }
 
