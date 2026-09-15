@@ -32,6 +32,7 @@ void catalog_key(int sdl_scancode, int shift);
 void catalog_mouse(int dx, int dy);
 void catalog_click(int down);
 void catalog_wheel(int by);
+void catalog_mouse_held(int held); /* as setup_mouse_held */
 
 /* the picture for the tube, with its overscan */
 const uint8_t *catalog_render(int *w, int *h);

@@ -410,6 +410,8 @@ int main(int argc, char **argv) {
             }
         }
         if (setup_visible() || catalog_visible()) {
+            setup_mouse_held(in.holding == 1);
+            catalog_mouse_held(in.holding == 1);
             /* the machine's own program has the tube, in its own mode */
             int sw, sh;
             const uint8_t *px = setup_visible() ? setup_render(&sw, &sh) : catalog_render(&sw, &sh);

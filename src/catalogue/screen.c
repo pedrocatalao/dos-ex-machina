@@ -114,6 +114,7 @@ static struct {
     int more_row;                  /* where its cursor is: a filter, or Reset */
     int shown[CAT_TITLES], nshown; /* the titles that pass, as indices */
     int mx, my, held, hover;
+    int mouse_out; /* the host has the mouse: no pointer, nothing lit under it */
     int fixed_clock;
     Uint64 open_t0, slide_t0, click_t0; /* open_t0 is 0 when there was no loading */
     Uint64 close_t0;                    /* when the fade out began, or 0 */
@@ -685,6 +686,10 @@ static int hit_at(int x, int y) {
     return -1;
 }
 
+void catalog_mouse_held(int held) {
+    S.mouse_out = !held;
+}
+
 void catalog_mouse(int dx, int dy) {
     S.mx += dx;
     S.my += dy;
@@ -1172,9 +1177,10 @@ const uint8_t *catalog_render(int *w, int *h) {
         float u = (float)(now - S.slide_t0) / (float)SLIDE_MS;
         cv_slide_bands(BANDS, u * u * (3.0f - 2.0f * u));
         S.nhit = 0; /* nothing is where it will be yet */
-    } else if (!S.fixed_clock)
+    } else if (!S.fixed_clock && !S.mouse_out)
         cv_pointer(S.mx, S.my); /* not in a golden frame: a real mouse can move it */
-    S.hover = hit_at(S.mx, S.my);
+    /* nothing lights under a pointer the host has taken away */
+    S.hover = S.mouse_out ? -1 : hit_at(S.mx, S.my);
     *w = CANVAS_W;
     *h = CANVAS_H;
     return cv_rgb();

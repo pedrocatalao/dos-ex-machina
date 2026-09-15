@@ -80,6 +80,7 @@ static struct {
     Uint64 open_t0;           /* when it was asked for */
     int in_pane, row, scroll; /* where the eye is, and what it can see */
     int mx, my, held;         /* the pointer, and the button */
+    int mouse_out;            /* the host has the mouse: no pointer */
     int reboot;               /* SAVE & REBOOT: the machine is to start again */
     int fixed_clock;          /* a golden frame has to be the same every time */
     gpu_knobs *knobs;
@@ -341,6 +342,10 @@ void setup_wheel(int by) {
         S.scroll = max;
 }
 
+void setup_mouse_held(int held) {
+    S.mouse_out = !held;
+}
+
 void setup_mouse(int dx, int dy) {
     S.mx += dx;
     S.my += dy;
@@ -504,7 +509,8 @@ const uint8_t *setup_render(int *w, int *h) {
         pen += cv_text(pen, FOOT_Y, KEYS[i][1], C_GREY, -1) + 18;
     }
 
-    cv_pointer(S.mx, S.my);
+    if (!S.mouse_out)
+        cv_pointer(S.mx, S.my);
 
     *w = CANVAS_W; /* the picture and its overscan, as the tube wants it */
     *h = CANVAS_H;

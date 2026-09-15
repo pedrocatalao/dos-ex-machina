@@ -46,6 +46,10 @@ void setup_key(int sdl_scancode, int shift);
 void setup_mouse(int dx, int dy);
 void setup_click(int down);
 void setup_wheel(int by); /* notches, positive away from the hand */
+/* Whether the machine holds the mouse.  Its pointer is drawn only then:
+ * released to the host, the arrow is out on the case and this one would
+ * be a second pointer that nothing moves. */
+void setup_mouse_held(int held);
 
 /* The picture, for the tube: 640x480 RGB8. */
 const uint8_t *setup_render(int *w, int *h);

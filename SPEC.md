@@ -327,9 +327,14 @@ surface, and SETUP (§6.9) has taken over what it is for; it goes when the
 OSD replaces it.
 
 **The mouse** is the machine's while it holds it: SDL's relative mode, no
-pointer, motion to DOSBox. Ctrl+F10 releases it to the desktop, as in
-DOSBox, where it wears a period arrow and works the knobs and buttons. On a
-Mac, whose F10 is a media key, a tap of Command alone does the same.
+pointer over the glass, motion to whatever is on the tube - DOSBox, SETUP
+or CATALOG. Ctrl+F10 releases it to the desktop, as in DOSBox, where it
+wears a period arrow and works the knobs and keys; the Shift+F1 panel
+borrows it the same way while it is up. Released, nothing on the tube hears
+it: SETUP and CATALOG hide their pointers and light nothing under them, and
+whatever the machine held down as the mouse left - a SETUP slider, a DOS
+game's fire - is let go, so nothing stays pressed. On a Mac, whose F10 is a
+media key, a tap of Command alone does the same.
 
 **The MOUSE key.** On the left speaker pod under the holes, in the manner
 of an eighties hi-fi front: CTRL+F10 printed over a MOUSE key - a grey
