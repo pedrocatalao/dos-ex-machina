@@ -694,16 +694,26 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
  * its hole, so a band of the hole's dark wall shows above it and less of
  * the front slope below; the shadow it throws draws in and fades, and the
  * lit slope and the face lose a little light as they go under the rim.
- * `stained` gives the cap the grime of the key most pressed.  (cx, cy) is
+ * `stained` gives the cap the grime of a key that is pressed a lot.  (cx, cy) is
  * its centre, w x h the whole cap.  The key is drawn after the case's
  * finish, so it takes the finish itself: (ox, oy) is where canvas c sits
  * on the cw x ch case, so the yellowing and the key light are the ones at
  * that spot. */
+/* how many pixels the keycap's outline eases over, at its outer edge and
+ * where it meets the cap: 1 is a hard line */
+#define OUTLINE_SOFT 1.5f
+/* the outline's colour: a very dark warm brown, a little short of black */
+static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
+/* the slight well round a keycap: how far out it reaches, mm, and how much
+ * it darkens the case at the gap */
+#define WELL_REACH 0.9f
+#define WELL_DEPTH 0.12f
+
 static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
                      float cap, int stained, float press, float ox, float oy, int cw, int ch) {
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float rad = h * 0.14f;
-    float line = fmaxf(1.5f, 0.48f * mm); /* the outline */
+    float line = fmaxf(1.2f, 0.38f * mm); /* the outline */
     float slope = h * 0.12f;              /* the angled faces, in from the outline */
     float top_slope = slope * 0.80f;      /* the top one is foreshortened */
     const float R = KEY_R, G = KEY_G, B = KEY_B;
@@ -721,6 +731,24 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             float t = fmaxf(0.0f, sd) / reach;
             px_shade(c, i, j, 1.0f - shade * (1.0f - t) * (1.0f - t), 0.0f);
         }
+    /* A very slight well round the key: the case dips a little as it runs
+     * into the gap, so the dark outline has a soft surround rather than
+     * starting straight off the flat plastic - shaded a touch more along the
+     * top, where the rim stands between it and the light, and no lit lip
+     * along the bottom, where the key's own shadow already falls. */
+    {
+        float well = WELL_REACH * mm;
+        for (int j = (int)(y - well) - 1; j <= (int)(y + h + well) + 1; j++)
+            for (int i = (int)(x - well) - 1; i <= (int)(x + w + well) + 1; i++) {
+                float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, cy, hw, hh, rad);
+                if (sd <= -0.5f || sd >= well)
+                    continue;
+                float t = fmaxf(0.0f, sd) / well; /* 0 at the gap, 1 at the rim */
+                float up = fminf(1.0f, fmaxf(0.0f, (cy - ((float)j + 0.5f)) / hh));
+                float dip = WELL_DEPTH * (1.0f + 0.6f * up) * (1.0f - t) * (1.0f - t);
+                px_shade(c, i, j, 1.0f - dip, 0.0f);
+            }
+    }
     canvas_grain = saved;
     /* the flat face: the cap inset by the outline and the slopes, sunk by
      * `sink`; the bottom slope loses that much, the hole's wall gains it */
@@ -731,23 +759,27 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
         for (int i = (int)x - 1; i <= (int)(x + w) + 1; i++) {
             float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
             float sd = rr_sd(fx, fy, cx, cy, hw, hh, rad);
-            float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
+            /* the outer edge, eased over a pixel and a half rather than one */
+            float cov = fminf(1.0f, fmaxf(0.0f, (0.75f - sd) / OUTLINE_SOFT));
             if (cov <= 0.0f)
                 continue;
-            int r, g, b;
-            if (sd > -line) {
-                /* the outline: the gap round the key, in shadow */
-                r = 30;
-                g = 28;
-                b = 23;
+            /* the outline - the gap round the key, in shadow - and how much
+             * of it this pixel is: eased into the cap over a pixel too, so
+             * it softens into the slopes instead of stopping on a hard line */
+            float o = fminf(1.0f, fmaxf(0.0f, (sd + line) / OUTLINE_SOFT + 0.5f));
+            float r, g, b;
+            if (o >= 1.0f) {
+                r = OUTLINE_RGB[0];
+                g = OUTLINE_RGB[1];
+                b = OUTLINE_RGB[2];
             } else if (fy < wall) {
                 /* the hole's wall, seen above the sunk cap: darker the
                  * deeper, with the cap's own shadow at its foot */
                 float u = (wall - fy) / fmaxf(sink, 1.0f);
                 float k = 0.34f + 0.10f * u;
-                r = (int)(R * k);
-                g = (int)(G * k);
-                b = (int)(B * k);
+                r = R * k;
+                g = G * k;
+                b = B * k;
             } else {
                 float k;
                 /* which slope, if any: the one whose edge this pixel is
@@ -777,17 +809,23 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                     float blot = vnoise(u * 0.45f, v * 0.5f, 51) * 0.6f +
                                  vnoise(u * 1.3f, v * 1.2f, 53) * 0.4f;
                     float d = fmaxf(0.0f, blot - 0.42f) / 0.58f;
-                    d = d * d * 0.30f + (vnoise(u * 2.5f, v * 2.5f, 57) - 0.5f) * 0.05f;
+                    /* blotches, then the fine mottle under them */
+                    d = d * d * 0.22f + (vnoise(u * 2.5f, v * 2.5f, 57) - 0.5f) * 0.037f;
                     mr = 1.0f - d * 0.70f;
                     mg = 1.0f - d;
                     mb = 1.0f - d * 1.40f;
                 }
-                r = (int)(R * k * mr);
-                g = (int)(G * k * mg);
-                b = (int)(B * k * mb);
+                r = R * k * mr;
+                g = G * k * mg;
+                b = B * k * mb;
+            }
+            if (o > 0.0f && o < 1.0f) {
+                r += (OUTLINE_RGB[0] - r) * o;
+                g += (OUTLINE_RGB[1] - g) * o;
+                b += (OUTLINE_RGB[2] - b) * o;
             }
             {
-                float rgb[3] = {(float)r, (float)g, (float)b};
+                float rgb[3] = {r, g, b};
                 finish_rgb((float)i + ox, (float)j + oy, cw, ch, rgb);
                 px_blend(c, i, j, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
             }
@@ -951,7 +989,7 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
 void osd_button(float cx, float cy, float mm, float btn[4]) {
-    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 0, 0,
+    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1, 0,
               btn);
 }
 
