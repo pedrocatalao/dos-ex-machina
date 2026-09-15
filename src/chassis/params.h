@@ -21,10 +21,10 @@
 /* The plastic the knobs are moulded in: a warm brown, darker than the case,
  * at the shade below, which their face is and their tones (knobs.c) start
  * from. */
-#define CONTROL_R (PLASTIC_R * 0.84f)
+#define CONTROL_R (PLASTIC_R * 0.81f)
 #define CONTROL_G (PLASTIC_G * 0.82f)
 #define CONTROL_B (PLASTIC_B * 0.86f)
-#define KNOB_SHADE 0.92f
+#define KNOB_SHADE 0.90f
 
 /* The plastic the keys and the drive are moulded in - the MOUSE, OSD and
  * turbo keys, the power cap, the floppy drive's faceplate: a greyer brown
