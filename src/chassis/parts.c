@@ -340,9 +340,21 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
         if (k == 0) {
             /* With a diskette inserted the spring door has swung INWARD, so
              * the top cut is an empty hole into the drive - not a moulded
-             * floor.  Near-black, lifting a little at the bottom where light
-             * from the room reaches in past the lip. */
-            rrect(c, cx0, y0, cw0, ch0 + rr, rr, 17, 17, 19, 0.55f, 1.55f);
+             * floor: a dark grey at the top, where the room's light reaches
+             * in, fading down to near black where it meets the disk.  Its
+             * top corners round; it runs on under the slot's face below. */
+            const int HOLE_TOP = 46, HOLE_BOT = 7;
+            for (int j2 = (int)floorf(y0); j2 < (int)ceilf(y1 + rr); j2++)
+                for (int i2 = (int)floorf(cx0); i2 < (int)ceilf(cx0 + cw0); i2++) {
+                    float sd = rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, cx0 + cw0 * 0.5f,
+                                     y0 + (ch0 + rr) * 0.5f, cw0 * 0.5f, (ch0 + rr) * 0.5f, rr);
+                    float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
+                    if (cov <= 0.0f)
+                        continue;
+                    float t = fminf(1.0f, fmaxf(0.0f, ((float)j2 + 0.5f - y0) / ch0));
+                    float v = (float)HOLE_TOP + (float)(HOLE_BOT - HOLE_TOP) * t;
+                    px_blend(c, i2, j2, (int)v, (int)v, (int)(v + 2.0f), cov);
+                }
         } else
             rrect(c, cx0, y0 - rr, cw0, ch0 + rr, rr, pr, pg, pb, 0.46f, 0.84f);
         /* eased side walls (the hole needs no lit walls - it is open) */
@@ -351,13 +363,14 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             soft_vedge(c, y0 + rr * 0.4f, y1 - rr * 0.4f, cx0 + cw0 - 0.2f * mm, 1.1f * mm, 0.72f,
                        0);
         }
-        /* eased overhang shadow at the top of the cut - deeper on the hole */
-        soft_hedge(c, cx0, cx0 + cw0, y0, (k == 0) ? 2.4f * mm : 1.8f * mm,
-                   (k == 0) ? 0.22f : 0.42f, 0.0f, 1);
-        /* lit lip at the bottom inner wall; on the hole this is the front
-         * face catching light at the opening's edge, so it stays subtle */
-        soft_hedge(c, cx0 + 0.8f * mm, cx0 + cw0 - 0.8f * mm, y1 - 1, 1.3f * mm,
-                   (k == 1) ? 1.34f : 1.12f, (k == 1) ? 0.05f : 0.0f, 0);
+        /* the overhang shadow at the top of the cut, and the lit lip along
+         * the bottom inner wall - on the floor cut only: the hole is a fade
+         * of its own, grey at the top to black at the disk */
+        if (k == 1) {
+            soft_hedge(c, cx0, cx0 + cw0, y0, 1.8f * mm, 0.42f, 0.0f, 1);
+            soft_hedge(c, cx0 + 0.8f * mm, cx0 + cw0 - 0.8f * mm, y1 - 1, 1.3f * mm, 1.34f, 0.05f,
+                       0);
+        }
     }
 
     /* slot: chamfered opening, eased interior faces.  Where the open door
@@ -523,7 +536,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
      * There is no cast shadow and no exposed stem: the whole cue is that
      * hairline gap plus the cap being brighter than its surroundings. */
     float ew = 11.6f * mm, eh = 5.3f * mm;
-    float ex = x + fw - ew - 9.0f * mm, ey = y + 16.2f * mm;
+    float ex = x + fw - ew - 11.0f * mm, ey = y + 17.0f * mm;
     float gap = 0.40f * mm; /* the dark outline */
 
     float top = 1.05f * mm; /* how far it stands proud */
@@ -586,10 +599,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f);
 
     /* activity light: rectangular window, as in the reference */
-    led_rect(c, x + 16.5f * mm, y + 18.6f * mm, 4.6f * mm, 2.2f * mm, 26, 44, 26); /* UNLIT */
-    led_out[0] = x + 16.5f * mm - 2.3f * mm;
+    led_rect(c, x + 21.0f * mm, y + 18.6f * mm, 5.4f * mm, 2.2f * mm, 26, 44, 26); /* UNLIT */
+    led_out[0] = x + 21.0f * mm - 2.7f * mm;
     led_out[1] = y + 18.6f * mm - 1.1f * mm;
-    led_out[2] = 4.6f * mm;
+    led_out[2] = 5.4f * mm;
     led_out[3] = 2.2f * mm;
     canvas_grain = grain_was;
 }
