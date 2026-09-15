@@ -4,7 +4,7 @@
  * has to be loaded there.  Everywhere else, the system's libGL/opengl32
  * exports only GL 1.1 and every function past that has to be fetched at run
  * time from the driver.  Rather than take a dependency on a generated loader
- * for forty-four functions, this lists them once and the two macros below
+ * for a few dozen functions, this lists them once and the two macros below
  * build the pointers and the loader from it.
  *
  * If gpu.c starts using a function that is not here, the link fails with the
@@ -37,6 +37,7 @@ GLF(void, glUniform1f, (GLint, GLfloat))
 GLF(void, glUniform1fv, (GLint, GLsizei, const GLfloat *))
 GLF(void, glUniform1i, (GLint, GLint))
 GLF(void, glUniform2f, (GLint, GLfloat, GLfloat))
+GLF(void, glUniform2i, (GLint, GLint, GLint))
 GLF(void, glUniform3fv, (GLint, GLsizei, const GLfloat *))
 GLF(void, glUniform4f, (GLint, GLfloat, GLfloat, GLfloat, GLfloat))
 GLF(void, glUniform4fv, (GLint, GLsizei, const GLfloat *))
