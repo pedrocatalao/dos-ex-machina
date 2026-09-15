@@ -73,21 +73,17 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             }
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
-            /* The MULTIMEDIA sticker, on the RIGHT pod under the holes,
-             * centred between them and the foot of the pod.  A FIXED
-             * physical size, like every sticker: sized off the pod it was
-             * 4 mm wide on a 4:3 screen and 59 mm on an ultrawide, because
-             * the pods are whatever is left beside the tube.  A real sticker
-             * is one size; when the pod cannot hold it, it is not there. */
+            /* The OSD key, on the RIGHT pod under the holes, centred between
+             * them and the foot of the pod.  A pod too small for it goes
+             * without, and Shift+F1 still opens the OSD. */
             {
                 float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
-                multimedia_sticker(c, pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, 24.0f * mm, 2.0f * mm,
-                                   pw * 0.80f, (y1 - y0) / 1.30f);
+                if (y1 - y0 >= 10.0f * mm && pw * 0.90f >= 20.0f * mm)
+                    osd_button(pxs[1] + pw * 0.5f, (y0 + y1) * 0.5f, mm, L->osd_btn);
             }
-            /* The mouse lamps, printed on the LEFT pod in the same place:
-             * centred between the holes and the foot of the pod, the
-             * sticker's opposite number, and like it something to read.
-             * A pod without the room goes without. */
+            /* The mouse lamps, on the LEFT pod in the same place: centred
+             * between the holes and the foot of the pod, the OSD key's
+             * opposite number.  A pod without the room goes without. */
             mouse_lamps(c, pxs[0] + pw * 0.5f, gy + gh * 0.94f, py + ph, pw * 0.90f, mm,
                         L->mouse_btn, L->mouse_led);
             /* The monitor's two knobs, brightness and contrast, in the
@@ -108,9 +104,19 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     knobs_slot(0, kx0, ky, kr);
                     knobs_slot(1, kx1, ky, kr);
                     *knobs_placed = 1;
-                    /* and the OSD button in the same strip under the LEFT pod,
-                     * level with them: the monitor's controls in one row */
-                    osd_button(pxs[0] + pw * 0.5f, ky, mm, L->osd_btn);
+                    /* The MULTIMEDIA sticker, in the same strip under the LEFT
+                     * pod, centred between the pod and the parting to the base.  A FIXED physical size, like every
+                     * sticker: sized off the pod it was 4 mm wide on a 4:3
+                     * screen and 59 mm on an ultrawide.  A real sticker is one
+                     * size; when the strip cannot hold it, it is not there. */
+                    /* as big as the strip allows, up to 34 mm across: the
+                     * sticker's height is a third of its width and 2 mm */
+                    float sy = (top + gap_lo) * 0.5f;
+                    float room = (gap_lo - top) * 0.5f - 1.0f * mm;
+                    float sw = fminf(34.0f * mm, fminf(pw * 0.80f, (2.0f * room - 2.0f * mm) * 3.0f));
+                    if (sw >= 12.0f * mm)
+                        multimedia_sticker(c, pxs[0] + pw * 0.5f, sy, sw, 2.0f * mm, sw,
+                                           2.0f * room);
                 }
             }
             /* The dotted mark, engraved above the LEFT pod and centred on

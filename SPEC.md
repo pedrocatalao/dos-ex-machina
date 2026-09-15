@@ -178,17 +178,19 @@ The solve is tube-first:
    on every side, with the dished bezel band inside it.
 3. **The speaker columns** take what is left on either side, each a raised
    pod with its grille, the dotted mark engraved above the left one and the
-   MULTIMEDIA sticker under the right one's holes. On a display too narrow
+   MULTIMEDIA sticker under it, centred between the pod and the base. On a display too narrow
    for them, the tube shrinks rather than the speakers vanishing.
 4. **The base band** below holds, from the left, the power button and its
    LED, the turbo module, the DXM mark engraved on the centre line, the
    vents and the floppy drive, at real-world sizes in millimetres. The
    sticker and the marks are left off where they do not fit.
 5. **The knobs** go under the right speaker when there is room, and on the
-   band beside the turbo module when there is not. **The OSD button**
-   goes under the left speaker, level with them, when they are there. The
-   MOUSE key and its lamps go on the left pod under the holes, opposite the
-   MULTIMEDIA sticker, and are left off where the pod is too small for them.
+   band beside the turbo module when there is not; the MULTIMEDIA sticker
+   goes under the left speaker, centred between the pod and the base, when
+   they are there. The
+   MOUSE key and its lamps go on the left pod under the holes, and **the OSD
+   button** opposite them on the right pod; each is left off where its pod is
+   too small for it.
 
 One arrangement serves every aspect. Every real-world size is in
 millimetres of one scale tied to the display's height, so a wide display
@@ -375,9 +377,9 @@ the mouse to the machine; that is the only way a press can move it, since
 while the machine holds it there is no pointer to press with, and CTRL+F10
 takes it back.
 
-**The OSD button.** A momentary button under the left speaker pod, level
-with the knobs under the right one, a raised key like the MOUSE key with
-OSD printed on it. It opens the OSD, and a second press closes it.
+**The OSD button.** A momentary button on the right speaker pod under the
+holes, opposite the MOUSE key, a raised key the MOUSE key's size with OSD
+printed on it. It opens the OSD, and a second press closes it.
 
 ### 6.9 SETUP
 

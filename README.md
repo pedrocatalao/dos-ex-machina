@@ -139,7 +139,7 @@ own does the same. Under the left speaker's holes, two lamps, **HOST** and
 **DXM**, say which has it, and the **MOUSE** key over them gives it to the
 machine.
 
-**The OSD button** under the left speaker opens the monitor's on-screen
+**The OSD button** on the right speaker opens the monitor's on-screen
 display, and a second press closes it.
 
 **The two knobs** under the right speaker are brightness and contrast: grab

@@ -195,17 +195,28 @@ static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]
  * and coverage within a few percent of full is taken as full, so the body
  * of a printed sticker is solid rather than faintly see-through.  `fade`
  * washes it out, 0 not at all: the colour drains by that share and the
- * darks lift toward the warm grey a sun-faded print goes to. */
+ * darks lift toward the warm grey a sun-faded print goes to.  `tilt` turns
+ * it that many degrees clockwise about its centre, the way a sticker is
+ * never put on quite square. */
 static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w, float h,
-                  float white, float fade) {
+                  float white, float fade, float tilt) {
     float sx = w / (float)iw, sy = h / (float)ih;
-    for (int py = (int)floorf(y); py <= (int)ceilf(y + h); py++)
-        for (int px = (int)floorf(x); px <= (int)ceilf(x + w); px++) {
+    float cx = x + w * 0.5f, cy = y + h * 0.5f;
+    float ang = tilt * 3.14159265f / 180.0f, ca = cosf(ang), sa = sinf(ang);
+    /* the turned sticker reaches this much further than its own box */
+    float pad = 0.5f * (w * fabsf(sa) + h * fabsf(sa)) + 1.0f;
+    for (int py = (int)floorf(y - pad); py <= (int)ceilf(y + h + pad); py++)
+        for (int px = (int)floorf(x - pad); px <= (int)ceilf(x + w + pad); px++) {
             float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
             for (int ty = 0; ty < 4; ty++)
                 for (int tx = 0; tx < 4; tx++) {
-                    float u = ((float)px + (tx + 0.5f) / 4.0f - x) / sx - 0.5f;
-                    float v = ((float)py + (ty + 0.5f) / 4.0f - y) / sy - 0.5f;
+                    /* the sample, turned back into the sticker's own square
+                     * frame: y runs down, so this undoes a clockwise turn */
+                    float qx = (float)px + (tx + 0.5f) / 4.0f - cx;
+                    float qy = (float)py + (ty + 0.5f) / 4.0f - cy;
+                    float rx = qx * ca + qy * sa, ry = -qx * sa + qy * ca;
+                    float u = (rx + w * 0.5f) / sx - 0.5f;
+                    float v = (ry + h * 0.5f) / sy - 0.5f;
                     int i = (int)floorf(u), j = (int)floorf(v);
                     float fu = u - (float)i, fv = v - (float)j, t[4][4];
                     texel(img, iw, ih, i, j, t[0]);
@@ -239,13 +250,14 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
 /* The MULTIMEDIA sticker: the artwork in assets/multimedia-sticker.png,
  * the word over the colour stripes, `w` wide and `taller` beyond its own
  * proportions, centred on (cx, cy), a little washed out, the way thirty
- * years of light leave a print.  Not drawn at all if it would not fit in
+ * years of light leave a print, and a degree off square.  Not drawn at all if it would not fit in
  * maxw x maxh. */
+#define STICKER_TILT 1.0f /* degrees, clockwise */
 void multimedia_sticker(canvas *c, float cx, float cy, float w, float taller, float maxw,
                         float maxh) {
     float h = w * (float)DXM_MULTIMEDIA_HT / (float)DXM_MULTIMEDIA_W + taller;
     if (w > maxw || h > maxh)
         return;
     decal(c, dxm_multimedia, DXM_MULTIMEDIA_W, DXM_MULTIMEDIA_HT, cx - w * 0.5f, cy - h * 0.5f, w,
-          h, 255.0f, 0.30f);
+          h, 255.0f, 0.30f, STICKER_TILT);
 }
