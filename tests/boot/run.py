@@ -7,6 +7,9 @@ Boots the machine the whole way: the POST, DOSBox taking the tube, a DOS
 command, and EXIT powering the machine off.  It types MEM and then EXIT at
 the prompt and reads the log the machine writes to stderr, which must show
 each step in order, and the program must end on its own with status 0.
+The last steps, the DOS saying EXIT and the machine powering off, are
+logged by two threads - the core's, as it shuts down, and the main loop's,
+as it sees that - so they are only required after MEM, in either order.
 
 This is the half of the machine the golden frames cannot see: once DOSBox
 has the tube its picture runs on its own clock, so what is checked here is
@@ -24,8 +27,11 @@ STEPS = [
     ("the core booted", "dosbox: booted"),
     ("DOSBox took the tube", "dosbox: has the tube"),
     ("MEM ran", "Program: MEM"),
-    ("the machine powered off", "power off"),
+]
+# and then both of these, in whichever order the two threads logged them
+LAST = [
     ("DOS said EXIT", "DOS said EXIT"),
+    ("the machine powered off", "power off"),
 ]
 
 
@@ -51,6 +57,12 @@ def main():
             break
         print(f"ok   {what}")
         pos = i + len(text)
+    for what, text in LAST if not failed else []:
+        if log.find(text, pos) < 0:
+            print(f"FAIL: {what} - no \"{text}\" in the log after MEM ran")
+            failed = True
+        else:
+            print(f"ok   {what}")
     if r.returncode != 0:
         print(f"FAIL: dxm exited {r.returncode}")
         failed = True
