@@ -127,6 +127,15 @@ void main(){
   vec3 col = vec3(0.0);
   float inside = 0.0;
   if (t.x>-0.15 && t.x<1.15 && t.y>-0.15 && t.y<1.15) {
+    // Two things meet at every point of the tube, and they must not be
+    // confused.  The GLASS is fixed: the chassis cut its aperture once, at
+    // the default curvature, and nothing the picture does moves it.  The
+    // PICTURE is the beam, which the deflection bends - curvature, jitter,
+    // sync - and which may land anywhere, including past the glass's edge,
+    // where the bezel stands in front of it and it is not seen.  So the
+    // glass is found from the undeflected point with the chassis's own
+    // curvature, and the picture from the deflected one.
+    vec2 g = barrel_k(t, u_dish_warp); // this point of the glass
     // ---- deflection errors, applied BEFORE the barrel so they behave
     // like real deflection rather than like a moving texture ----
     // JITTER: the whole raster twitching frame to frame
@@ -139,11 +148,11 @@ void main(){
              + 0.6*sin(t.y*38.0 + time*5.0);
     t.x += hs * u_hsync * 0.012;
 
-    vec2 b = barrel(t);
-    // The glass must be cut to the SAME rounded box the chassis carved,
-    // evaluated in the same warped space.
+    vec2 b = barrel(t); // where the deflected picture is, at this point
+    // The glass is cut to the SAME rounded box the chassis carved, in the
+    // same warped space - the glass's, never the beam's.
     vec2 halfpx = rect.zw*outsize*0.5;
-    vec2 apx    = abs(b*2.0-1.0)*halfpx;
+    vec2 apx    = abs(g*2.0-1.0)*halfpx;
     vec2 qq     = apx - (halfpx - aper_r);
     float asd   = (qq.x>0.0 && qq.y>0.0) ? length(qq)-aper_r
                                          : max(apx.x-halfpx.x, apx.y-halfpx.y);
@@ -212,10 +221,12 @@ void main(){
       col += vec3(0.55,0.85,1.0) * u_glowline * 0.055
            * exp(-pow((gl-0.5)/0.06, 2.0));
 
-      vec2 c2 = b*2.0-1.0;
+      // the glass's own darkening toward its edges and its sheen belong to
+      // the glass, so they stay put while the picture moves under them
+      vec2 c2 = g*2.0-1.0;
       col *= 1.0 - 0.30*dot(c2,c2)*0.5;
       col += ambient*0.016*vec3(0.9,0.95,1.0);
-      float sheen = smoothstep(0.42,0.0, distance(b, vec2(0.28,0.16)));
+      float sheen = smoothstep(0.42,0.0, distance(g, vec2(0.28,0.16)));
       col += sheen*(0.008+0.022*ambient);
 
       // STATIC NOISE: snow on the phosphor
