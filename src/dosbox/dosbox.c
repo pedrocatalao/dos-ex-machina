@@ -94,6 +94,8 @@ static const char *const GREETING[] = {
     /* HELP in bright white: DOS's CON device reads the ANSI escapes, the
      * way ANSI.SYS did, and ECHO passes them straight through */
     "For a list of available commands, type \033[1;37mHELP\033[0m.",
+    /* CATALOG in light blue, the VGA palette's bright blue */
+    "To open the Catalogue, type \033[1;34mCATALOG\033[0m.",
 };
 
 /* The one option that changes while the machine runs: the CPU speed, from

@@ -17,7 +17,6 @@ static const char *const MOTD[] = {
     "It's not a bug. It's undocumented nostalgia.",
     "Wake up. The machine is dreaming.",
     "Somewhere, a 486 is still waiting.",
-    "Your memory is insufficient. Ours is 640K.",
     "The pixels remember.",
     "Insert disk. Change reality.",
     "You can't kill what still runs in DOS.",
