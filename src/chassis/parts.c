@@ -401,13 +401,44 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             e *= e;
             int vt = (int)(14.0f + 52.0f * e);
             int vb = (int)(14.0f + 86.0f * e);
-            for (int i2 = (int)(slx + 1.2f * mm); i2 < (int)(slx + slw - 1.2f * mm); i2++) {
+            /* right across, into the rounded ends: the faces carry on round
+             * the corners and meet the end walls, rather than stopping short
+             * and leaving the ends bare */
+            for (int i2 = (int)slx; i2 < (int)(slx + slw); i2++) {
+                float rad = slh * 0.24f;
+                int yt = (int)sly + j2, yb = (int)(sly + slh) - 1 - j2;
                 /* the top wall only where there is plastic above it */
-                if ((float)i2 + 0.5f < tcx || (float)i2 + 0.5f > tcx + tcw)
-                    px_blend(c, i2, (int)sly + j2, vt, vt - 2, vt - 4, 1.0f);
-                px_blend(c, i2, (int)(sly + slh) - 1 - j2, (int)(vb * 1.05f), vb, (int)(vb * 0.88f),
-                         1.0f);
+                if (((float)i2 + 0.5f < tcx || (float)i2 + 0.5f > tcx + tcw) &&
+                    rr_sd((float)i2 + 0.5f, (float)yt + 0.5f, slx + slw * 0.5f, sly + slh * 0.5f,
+                          slw * 0.5f, slh * 0.5f, rad) <= 0.0f)
+                    px_blend(c, i2, yt, vt, vt - 2, vt - 4, 1.0f);
+                if (rr_sd((float)i2 + 0.5f, (float)yb + 0.5f, slx + slw * 0.5f, sly + slh * 0.5f,
+                          slw * 0.5f, slh * 0.5f, rad) <= 0.0f)
+                    px_blend(c, i2, yb, (int)(vb * 1.05f), vb, (int)(vb * 0.88f), 1.0f);
             }
+        }
+        /* the ends' inner walls, as the top and bottom faces are: a band
+         * at each end easing from the wall's own tone at the edge to the
+         * dark of the slot, the right-hand wall turned to the light and the
+         * left-hand one away from it, rounded off with the slot's corners */
+        {
+            float cw1 = 1.2f * mm, rad = slh * 0.24f;
+            for (int j2 = (int)sly; j2 < (int)(sly + slh); j2++)
+                for (int k2 = 0; k2 < (int)cw1; k2++) {
+                    float t2 = (float)k2 / cw1;
+                    float e = sinf((1.0f - t2) * 1.5708f);
+                    e *= e;
+                    for (int side = 0; side < 2; side++) {
+                        int i2 = side ? (int)(slx + slw) - 1 - k2 : (int)slx + k2;
+                        if (rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, slx + slw * 0.5f,
+                                  sly + slh * 0.5f, slw * 0.5f, slh * 0.5f, rad) > 0.0f)
+                            continue;
+                        /* lit toward the top, as the end walls of a slot are */
+                        float v = (float)(j2 - (int)sly) / slh;
+                        int lit = (int)(14.0f + (side ? 70.0f : 38.0f) * e * (1.0f - 0.35f * v));
+                        px_blend(c, i2, j2, lit, lit - 2, lit - 4, e);
+                    }
+                }
         }
         soft_hedge(c, slx + 1.5f * mm, slx + slw - 1.5f * mm, sly + slh, 1.0f * mm, 1.30f, 0.04f,
                    1);
@@ -418,10 +449,16 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
      * The shell is thicker at the two ends than in the middle, because the
      * centre section is recessed to take the label - and that label wraps
      * around the bottom edge, so a pale band shows along the lower half of
-     * the middle. */
+     * the middle.  Fully inserted, the mechanism has dropped it about a
+     * millimetre down into the drive: it is the 3.3 mm of a real disk, its
+     * lower edge hidden behind the slot's bottom lip, and it sits back in
+     * the dark of the slot, where little light reaches it. */
     {
         float dkw = 90.0f * mm, dkx = x + (fw - dkw) * 0.5f;
-        float dky = sly + 1.2f * mm, dkh = slh - 2.4f * mm;
+        float dky = sly + 2.2f * mm, dkh = 3.3f * mm;
+        float clip = sly + slh - 0.5f * mm; /* the bottom lip stands in front below this */
+        const float INSIDE = 0.70f;         /* how much of the light reaches it in there */
+        const float LABEL_T = 0.22f;        /* where the label starts, down the edge */
         float corner = 2.6f * mm; /* the shell's rounded corners */
         float recess = 0.5f * mm; /* label recess in the middle  */
         float lab_x0 = dkx + 11.0f * mm, lab_x1 = dkx + dkw - 11.0f * mm;
@@ -437,13 +474,15 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             int inLabel = (i2 >= (int)lab_x0 && i2 < (int)lab_x1);
             float top = dky + (inLabel ? recess : 0.0f);
             float bot = dky + dkh - (inLabel ? recess * 0.5f : 0.0f);
-            for (int j2 = (int)top; j2 < (int)bot; j2++) {
+            for (int j2 = (int)top; j2 < (int)bot && (float)j2 < clip; j2++) {
                 float t2 = (bot > top) ? ((float)j2 - top) / (bot - top) : 0.0f;
                 float n = hash2(i2, j2, 7) * 5.0f;
                 int r2, g2, b2;
-                if (inLabel && t2 > 0.42f) {
-                    /* the paper label, wrapped around the bottom edge */
-                    float lt = (t2 - 0.42f) / 0.58f;
+                if (inLabel && t2 > LABEL_T) {
+                    /* the paper label, wrapped around the bottom edge: it
+                     * starts high on the edge, so the part of the edge the
+                     * lip leaves in view is mostly label */
+                    float lt = (t2 - LABEL_T) / (1.0f - LABEL_T);
                     int v = (int)(196.0f - 46.0f * lt);
                     r2 = v;
                     g2 = (int)(v * 0.985f);
@@ -454,21 +493,24 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                     g2 = v;
                     b2 = v + 4;
                 }
-                px_blend(c, i2, j2, (int)((r2 + n) * curve), (int)((g2 + n) * curve),
-                         (int)((b2 + n) * curve), 1.0f);
+                /* in the slot's shade: darker still near the top, under
+                 * the slot's top wall */
+                float shade = INSIDE * (0.80f + 0.20f * fminf(1.0f, t2 * 2.5f));
+                px_blend(c, i2, j2, (int)((r2 + n) * curve * shade),
+                         (int)((g2 + n) * curve * shade), (int)((b2 + n) * curve * shade), 1.0f);
             }
-            /* grazing light along the disk's top edge */
-            px_blend(c, i2, (int)top, (int)(210 * curve), (int)(210 * curve), (int)(216 * curve),
-                     0.55f);
-            px_blend(c, i2, (int)top + 1, (int)(150 * curve), (int)(150 * curve),
-                     (int)(156 * curve), 0.30f);
-            /* and the shadow it casts into the slot below itself */
-            px_blend(c, i2, (int)bot - 1, 12, 12, 14, 0.45f);
+            /* the faint catch of what little light gets in, along the
+             * disk's top edge */
+            px_blend(c, i2, (int)top, (int)(150 * curve), (int)(150 * curve), (int)(156 * curve),
+                     0.16f);
+            /* and the shadow it casts below itself, where that shows */
+            if ((float)bot - 1.0f < clip)
+                px_blend(c, i2, (int)bot - 1, 12, 12, 14, 0.45f);
         }
         /* the step where the recessed label area meets the thicker ends */
         for (int e = 0; e < 2; e++) {
             float ex2 = e ? lab_x1 : lab_x0;
-            for (int j2 = (int)(dky); j2 < (int)(dky + dkh); j2++)
+            for (int j2 = (int)(dky); j2 < (int)(dky + dkh) && (float)j2 < clip; j2++)
                 px_blend(c, (int)ex2, j2, 18, 18, 20, 0.35f);
         }
     }
