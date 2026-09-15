@@ -24,7 +24,7 @@
 #define CONTROL_R (PLASTIC_R * 0.84f)
 #define CONTROL_G (PLASTIC_G * 0.82f)
 #define CONTROL_B (PLASTIC_B * 0.86f)
-#define KNOB_SHADE 0.82f
+#define KNOB_SHADE 0.92f
 
 /* The plastic the keys and the drive are moulded in - the MOUSE, OSD and
  * turbo keys, the power cap, the floppy drive's faceplate: a greyer brown

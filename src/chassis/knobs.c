@@ -29,6 +29,10 @@ static void finished(canvas *c, int i, int j, float r, float g, float b, float a
  * and the finish takes some light away; this puts both back. */
 #define KNOB_GAIN (1.09f / (0.74f * KNOB_SHADE))
 
+/* The highlight on the knob's face: how strong, where 0.16 was the old
+ * domed face's full one */
+#define FACE_SHEEN 0.05f
+
 /* Where a knob goes.  The knob itself is drawn by knobs_draw, last, so the
  * plastic saved under it is the finished case. */
 void knobs_slot(int which, float cx, float cy, float r) {
@@ -55,7 +59,7 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
     /* The tones of the chamfer and the knurled side, as multipliers on the
      * knobs' plastic; the face is the plastic itself.  Each is its own
      * number so one can be tuned without moving the others. */
-    const float TONE_RING = 1.31f; /* the chamfer round the face */
+    const float TONE_RING = 1.41f; /* the chamfer round the face */
     const float TONE_GRIP = 1.20f; /* the knurled side: a touch above, lit */
     const float SQ = 0.98f;        /* ellipse: vertical/horizontal */
     float ry = r * SQ;             /* face half-height */
@@ -166,9 +170,9 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                          CONTROL_B * KNOB_SHADE * f, cov);
             } else {
                 /* the face: flat, as the MOUSE key's face is - one colour with
-                 * the moulding's grain in it, no light running off it and no
-                 * highlight - but in the knob's own warmer plastic, the one
-                 * its chamfer and its knurled side are */
+                 * the moulding's grain in it and no light running off it - but
+                 * in the knob's own warmer plastic, the one its chamfer and its
+                 * knurled side are */
                 int saved_grain = canvas_grain;
                 canvas_grain = 1;
                 float g = 1.0f + plastic_tex(i2 + (int)K.ox, j2 + (int)K.oy) * 0.25f;
@@ -197,24 +201,48 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                 }
                 finished(c, i2, j2, CONTROL_R * KNOB_SHADE * g * mr,
                          CONTROL_G * KNOB_SHADE * g * mg, CONTROL_B * KNOB_SHADE * g * mb, cov);
+                /* a faint sheen toward the upper left, where the room's light
+                 * catches the moulding: the highlight the domed face had, at a
+                 * fraction of its strength, so the face still reads as flat */
+                {
+                    float hx = (ux + 0.30f) / 0.34f, hy = (dy / ry + 0.36f) / 0.34f;
+                    float sheen = expf(-(hx * hx + hy * hy)) * FACE_SHEEN;
+                    if (sheen > 0.002f)
+                        px_shade(c, i2, j2, 1.0f, sheen * cov);
+                }
             }
-            /* the index: a painted mark across the face, an off-white that
-             * has seen thirty years of thumbs, sitting in a shallow groove so
-             * it reads as filled rather than printed */
+            /* The index: a groove cut across the face and filled with an
+             * off-white that has seen thirty years of thumbs.  Engraved, so it
+             * is lit as a cut: of its two walls the one facing the light
+             * catches it and the one turned away is in shade, and that shaded
+             * wall throws a little shadow over the paint beside it.  Built as
+             * the distance to a rounded stroke, so the ends are walls too. */
             {
-                float px = sinf(ang), py = -cosf(ang);
-                float ex = ux * r, ey = (dy / ry) * r; /* un-squashed */
-                float along = ex * px + ey * py, across = fabsf(ex * py - ey * px);
-                float hw = r * 0.075f + 0.5f;
-                if (along > r * 0.20f && along < r * 0.66f) {
-                    if (across < hw) {
-                        float a = fminf(1.0f, (hw - across)) * 0.86f;
-                        finished(c, i2, j2, 214.0f, 208.0f, 192.0f, a);
-                    } else if (across < hw + 1.0f) {
-                        /* the groove's edge, a hair darker all round */
-                        float e = 1.0f - (across - hw);
-                        px_shade(c, i2, j2, 1.0f - 0.12f * e, 0.0f);
-                    }
+                float px = sinf(ang), py = -cosf(ang); /* along the stroke */
+                float ex = ux * r, ey = (dy / ry) * r; /* on the face, unsquashed */
+                float a0 = r * 0.20f, a1 = r * 0.66f;
+                float along = fminf(a1, fmaxf(a0, ex * px + ey * py));
+                float qx = ex - px * along, qy = ey - py * along; /* from the stroke's spine */
+                float dist = sqrtf(qx * qx + qy * qy);
+                float hw = r * 0.075f + 0.5f;      /* the paint, either side of the spine */
+                float ww = fmaxf(1.2f, r * 0.07f); /* the groove's walls, beyond it */
+                float nx = dist > 1e-4f ? qx / dist : 0.0f, ny = dist > 1e-4f ? qy / dist : 0.0f;
+                /* how much this side of the cut faces the light: the wall's
+                 * normal points back into the groove, -n */
+                float toward = nx * LIGHT_X + ny * LIGHT_Y;
+                if (dist < hw + 0.5f) {
+                    /* the paint, darker in the shade of the wall nearest the
+                     * light, which stands over it */
+                    float a = fminf(1.0f, hw + 0.5f - dist) * 0.86f;
+                    float shade = 1.0f - 0.30f * fmaxf(0.0f, toward) * (dist / hw);
+                    finished(c, i2, j2, 214.0f * shade, 208.0f * shade, 192.0f * shade, a);
+                } else if (dist < hw + 0.5f + ww) {
+                    /* a wall: lit if it faces the light, in shade if not,
+                     * strongest at the paint's edge where the cut is deepest */
+                    float prof = 1.0f - (dist - hw - 0.5f) / ww;
+                    float lam = -toward;
+                    px_shade(c, i2, j2, 1.0f + (lam > 0.0f ? 0.30f : 0.42f) * lam * prof,
+                             lam > 0.0f ? 0.05f * lam * prof : 0.0f);
                 }
             }
         }
