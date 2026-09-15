@@ -177,19 +177,19 @@ The solve is tube-first:
 2. **The monitor housing** wraps the tube by a fixed fraction of its height
    on every side, with the dished bezel band inside it.
 3. **The speaker columns** take what is left on either side, each a raised
-   pod with its grille, the dotted mark engraved above the left one and the
-   MULTIMEDIA sticker under it, centred between the pod and the base. On a display too narrow
-   for them, the tube shrinks rather than the speakers vanishing.
+   pod with its grille, and the dotted mark engraved above the left one. On
+   a display too narrow for them, the tube shrinks rather than the speakers
+   vanishing.
 4. **The base band** below holds, from the left, the power button and its
    LED, the turbo module, the DXM mark engraved on the centre line, the
    vents and the floppy drive, at real-world sizes in millimetres. The
    sticker and the marks are left off where they do not fit.
 5. **The knobs** go under the right speaker when there is room, and on the
    band beside the turbo module when there is not; the MULTIMEDIA sticker
-   goes under the left speaker, centred between the pod and the base, when
-   they are there. The
-   MOUSE key and its lamps go on the left pod under the holes, and **the OSD
-   button** opposite them on the right pod; each is left off where its pod is
+   goes under the left speaker, centred between the pod and the base and a
+   degree off square, when they are there. The MOUSE key and its lamps go on
+   the left pod under the holes, and **the OSD button** opposite them on the
+   right pod, lowered toward the knobs; each is left off where its pod is
    too small for it.
 
 One arrangement serves every aspect. Every real-world size is in
@@ -315,20 +315,25 @@ the machine controls:
 
 **The power button.** Pressed with the mouse released, it goes down and
 stays down while held; let go of over the button, it switches the machine
-off - slide off it first and nothing happens: the same power-down EXIT at the prompt runs, after which the
-program ends.
+off - the same power-down EXIT at the prompt runs, after which the program
+ends. Slide off it before letting go and nothing happens.
 
 **The knobs.** Brightness and contrast, turned by dragging with the mouse
 released to the desktop. Each is drawn over the finished plastic and redrawn
 alone when turned.
 
-**The keys.** MOUSE, OSD, MODE, − and + and the power button are momentary: a click sends one
-down and it comes back up on its own, down in 60 ms, a moment at the
-bottom, up in 130. The cap sinks into its outline, showing a band of the
-hole's wall above it; its shadow draws in and its lit slope dims. Like the
-knobs, each is drawn over the finished plastic, taking the case's
-yellowing and key light where it sits, and a press redraws that key and
-any neighbour its square reaches, each at its own depth.
+**The keys.** MOUSE, OSD, MODE, − and + and the power button are momentary:
+a click sends one down and it comes back up on its own, down in 60 ms, a
+moment at the bottom, up in 130. Each shows it its own way. The MOUSE and
+OSD keycaps sink into their outline, a band of the hole's wall showing
+above, their shadow drawing in and their lit slope dimming; the turbo
+module's flat caps dim, lose their shadow and turn their bevel in; the
+power cap does not move at all - its highlight fades to a faint shade and
+its face darkens a little - and it fades rather than snaps, slower both
+ways, staying down for as long as it is held. Like the knobs, each is drawn
+over the finished plastic, taking the case's yellowing and key light where
+it sits, and a press redraws that key and any neighbour its square reaches,
+each at its own depth.
 
 **The turbo module.** A display and three keys beside the power switch:
 flat caps lying on the module's plate, the power cap's construction at a
@@ -374,7 +379,7 @@ media key, a tap of Command alone does the same.
 
 **The MOUSE key.** On the left speaker pod under the holes, in the manner
 of an eighties hi-fi front: CTRL+F10 printed over a MOUSE key - a grey
-keycap with a firm outline and wide angled slopes in to its face - and from
+keycap with a firm outline and angled slopes in to its face - and from
 under the key a printed line that drops and branches down to two LEDs side
 by side, HOST and DXM under them. The lit LED says who holds the mouse,
 cross-fading like the mode LEDs and dark with the machine. The key gives

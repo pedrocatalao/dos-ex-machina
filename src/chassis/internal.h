@@ -97,6 +97,10 @@ void corner_engraving(canvas *c, float cx, float cy, float w);
 
 /* parts.c, the keys: placed while the case is drawn, drawn LAST over the
  * finished plastic - like the knobs - so a press can redraw one alone */
+/* The two wide keys, MOUSE and OSD: one size, so they read as one part */
+#define WIDE_KEY_W 17.4f  /* mm */
+#define WIDE_KEY_H 7.5f   /* mm */
+#define WIDE_KEY_CAP 2.1f /* mm, the legend's capitals */
 /* how a key is drawn: a keycap, a flat cap on a plate, the power cap */
 enum { KEY_STYLE_CAP, KEY_STYLE_FLAT, KEY_STYLE_POWER };
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,

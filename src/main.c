@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
     key_anim keys;
     memset(&keys, 0, sizeof keys);
     const char *autocmd = o.autocmd;
-    int power_pressed = 0; /* the power button was clicked */
+    int power_pressed = 0; /* the power button was let go of over itself */
     while (!quit) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {

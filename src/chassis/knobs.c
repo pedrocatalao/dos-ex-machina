@@ -25,17 +25,17 @@ static void finished(canvas *c, int i, int j, float r, float g, float b, float a
 }
 
 /* The chamfer and the knurled side are the knobs' plastic (params.h) at
- * the tones in rotary().  The tones were set against the plain case colour,
- * and the finish takes some light away; this puts both back. */
-#define KNOB_GAIN (1.09f / (0.74f * KNOB_SHADE))
+ * the tones in rotary(), times this: the tones were set against the case
+ * colour at the plastic's old 0.74, and the finish takes some light away,
+ * so this puts both back. */
+#define TONE_GAIN (1.09f / 0.74f)
 
 /* The highlight on the knob's face: how strong, where 0.16 was the old
  * domed face's full one */
 #define FACE_SHEEN 0.05f
 
 /* How light the whole knob is - its knurled body, its chamfer ring and its
- * face together, 1 as drawn.  (KNOB_SHADE moves the face alone: the body's
- * and the ring's tones divide it back out through KNOB_GAIN.) */
+ * face together, 1 as drawn.  KNOB_FACE (params.h) moves the face alone. */
 #define KNOB_LEVEL 0.85f
 
 /* Where a knob goes.  The knob itself is drawn by knobs_draw, last, so the
@@ -150,10 +150,8 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                  * again at the far edge into the panel */
                 base *= 0.76f + 0.24f * fminf(1.0f, above / (hs * 0.5f));
                 base *= 1.0f - 0.28f * fmaxf(0.0f, (above - hs * 0.55f) / (hs * 0.45f));
-                float f = TONE_GRIP * KNOB_GAIN * base;
-                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * KNOB_LEVEL * f,
-                         CONTROL_G * KNOB_SHADE * KNOB_LEVEL * f,
-                         CONTROL_B * KNOB_SHADE * KNOB_LEVEL * f, cov);
+                float f = TONE_GRIP * TONE_GAIN * KNOB_LEVEL * base;
+                finished(c, i2, j2, CONTROL_R * f, CONTROL_G * f, CONTROL_B * f, cov);
                 continue;
             }
             /* the face */
@@ -175,10 +173,8 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                 const float RING_TOP_LIFT = 0.05f;
                 base = (0.54f + 0.08f * up + RING_TOP_LIFT * fmaxf(0.0f, up)) * (1.0f - 0.22f * k) +
                        0.02f * ridge * k;
-                float f = TONE_RING * KNOB_GAIN * base;
-                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * KNOB_LEVEL * f,
-                         CONTROL_G * KNOB_SHADE * KNOB_LEVEL * f,
-                         CONTROL_B * KNOB_SHADE * KNOB_LEVEL * f, cov);
+                float f = TONE_RING * TONE_GAIN * KNOB_LEVEL * base;
+                finished(c, i2, j2, CONTROL_R * f, CONTROL_G * f, CONTROL_B * f, cov);
             } else {
                 /* the face: flat, as the MOUSE key's face is - one colour with
                  * the moulding's grain in it and no light running off it - but
@@ -210,9 +206,9 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                     mg = 1.0f - d;
                     mb = 1.0f - d * 1.40f;
                 }
-                finished(c, i2, j2, CONTROL_R * KNOB_SHADE * KNOB_LEVEL * g * mr,
-                         CONTROL_G * KNOB_SHADE * KNOB_LEVEL * g * mg,
-                         CONTROL_B * KNOB_SHADE * KNOB_LEVEL * g * mb, cov);
+                finished(c, i2, j2, CONTROL_R * KNOB_FACE * KNOB_LEVEL * g * mr,
+                         CONTROL_G * KNOB_FACE * KNOB_LEVEL * g * mg,
+                         CONTROL_B * KNOB_FACE * KNOB_LEVEL * g * mb, cov);
                 /* a faint sheen toward the upper left, where the room's light
                  * catches the moulding: the highlight the domed face had, at a
                  * fraction of its strength, so the face still reads as flat */

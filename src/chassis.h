@@ -14,8 +14,8 @@ typedef struct {
     float fdd_led[4]; /* x,y,w,h, output px  */
     float pwr_led[4];
     float pwr_btn[4]; /* the power button's well, x,y,w,h, for the mouse */
-    float pwr_shelf; /* y of the power cap's lower edge: the LED's light
-                            reaches the plastic below it, not the cap's face */
+    float pwr_shelf;  /* y of the power cap's lower edge: the LED's light
+                             reaches the plastic below it, not the cap's face */
     /* The digit display's window, x,y,w,h in output px: the digits are lit
      * live by the shader, like the LEDs; the case holds the window.  And
      * its three push buttons, MODE, - and +, for the mouse to find. */
@@ -39,7 +39,15 @@ dxm_layout chassis_layout(int out_w, int out_h);
 uint8_t *chassis_render(dxm_layout *L, int out_w, int out_h);
 
 /* The keys of the case, in the order chassis_key_set takes them. */
-typedef enum { KEY_MOUSE, KEY_OSD, KEY_MODE, KEY_MINUS, KEY_PLUS, KEY_POWER, KEY_COUNT } chassis_key;
+typedef enum {
+    KEY_MOUSE,
+    KEY_OSD,
+    KEY_MODE,
+    KEY_MINUS,
+    KEY_PLUS,
+    KEY_POWER,
+    KEY_COUNT
+} chassis_key;
 /* Press a key: `press` is 0 up to 1 fully down.  Returns a small RGBA8
  * patch of the key redrawn over the plastic saved beneath it, and where
  * it goes, as chassis_knob_set does; NULL for a key the case has not

@@ -18,13 +18,13 @@
 #define PLASTIC_G 0xAF
 #define PLASTIC_B 0x8A
 
-/* The plastic the knobs are moulded in: a warm brown, darker than the case,
- * at the shade below, which their face is and their tones (knobs.c) start
- * from. */
+/* The plastic the knobs are moulded in: a warm brown, darker than the case.
+ * Their chamfer and knurled side shade it by their tones (knobs.c); their
+ * face is it at KNOB_FACE. */
 #define CONTROL_R (PLASTIC_R * 0.81f)
 #define CONTROL_G (PLASTIC_G * 0.82f)
 #define CONTROL_B (PLASTIC_B * 0.86f)
-#define KNOB_SHADE 0.90f
+#define KNOB_FACE 0.90f
 
 /* The plastic the keys and the drive are moulded in - the MOUSE, OSD and
  * turbo keys, the power cap, the floppy drive's faceplate: a greyer brown

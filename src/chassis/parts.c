@@ -586,8 +586,9 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
      * key drawn last (power_key), so a click can press it */
     {
         float kw = pw * 0.91f, kh = pw * 0.70f, dummy[4];
-        keys_slot(KEY_POWER, px0 + pw * 0.045f + kw * 0.5f, mid - pw * 0.39f + pw * 0.04f + kh * 0.5f,
-                  kw, kh, mm, "", 0.0f, 0, KEY_STYLE_POWER, dummy);
+        keys_slot(KEY_POWER, px0 + pw * 0.045f + kw * 0.5f,
+                  mid - pw * 0.39f + pw * 0.04f + kh * 0.5f, kw, kh, mm, "", 0.0f, 0,
+                  KEY_STYLE_POWER, dummy);
     }
     /* power LED: a small round lens under the button */
     {
@@ -686,8 +687,8 @@ static void power_key(canvas *c, float cx, float cy, float w, float h, float mm,
      * where it sits */
     for (int j = (int)floorf(y) - 1; j <= (int)floorf(y + h) + 1; j++)
         for (int i = (int)floorf(x) - 1; i <= (int)floorf(x + w) + 1; i++) {
-            float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, y + h * 0.5f, w * 0.5f, h * 0.5f,
-                             rad);
+            float sd =
+                rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, y + h * 0.5f, w * 0.5f, h * 0.5f, rad);
             float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
             if (cov <= 0.0f)
                 continue;
@@ -756,8 +757,8 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
      * strokes and a third of the cap across - in the legends' cream. */
     if (!strcmp(label, "+") || !strcmp(label, "-")) {
         float mx = cx - (float)ox, my = cy - (float)oy + press * 0.35f * mm;
-        float half = fminf(w, h) * 0.16f; /* half the bar's length */
-        float t = fmaxf(1.4f, cap * 0.20f);           /* the stroke */
+        float half = fminf(w, h) * 0.16f;   /* half the bar's length */
+        float t = fmaxf(1.4f, cap * 0.20f); /* the stroke */
         float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
                         202.0f * (1.0f - 0.04f * press)};
         finish_rgb(cx, cy, cw, ch, ink);
@@ -1089,17 +1090,12 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
     return KEYS.patch;
 }
 
-/* The two wide keys, MOUSE and OSD: one size, so they read as one part */
-#define WIDE_KEY_W 17.4f  /* mm */
-#define WIDE_KEY_H 7.5f   /* mm */
-#define WIDE_KEY_CAP 2.1f /* mm, the legend's capitals */
-
 /* The OSD button, under the left pod, level with the knobs under the right
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
 void osd_button(float cx, float cy, float mm, float btn[4]) {
-    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1, KEY_STYLE_CAP,
-              btn);
+    keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1,
+              KEY_STYLE_CAP, btn);
 }
 
 /* A printed rule, axis-aligned and antialiased: x,y,w,h in px. */
@@ -1130,8 +1126,8 @@ static void printed_corner(canvas *c, float ax, float ay, float rc, int sx, int 
         }
 }
 
-/* The mouse key and its lamps, on the left pod under the holes where the
- * right one carries the MULTIMEDIA sticker.  CTRL+F10 printed over a MOUSE
+/* The mouse key and its lamps, on the left pod under the holes, the OSD
+ * key's opposite number.  CTRL+F10 printed over a MOUSE
  * key; from under the key a printed line drops and branches, the way a
  * hi-fi front of the eighties drew a selector's outputs, down to two LEDs
  * side by side with HOST and DXM under them.  Which lamp is lit says who
