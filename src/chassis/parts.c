@@ -395,40 +395,50 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
         }
     }
 
-    /* its bevels: the chamfer round the opening and the faces inside it,
-     * narrow and firm - a moulded slot has a sharp lip, not a soft roll */
-    const float SLOT_CHAMFER = 0.7f, SLOT_FACE = 0.9f, SLOT_WALL = 0.8f; /* mm */
-    /* slot: chamfered opening, eased interior faces.  Where the open door
-     * hole above meets the slot there is no plastic between them, so no
-     * chamfer along the slot's top and no top wall inside it: those run
-     * only either side of the hole.  The chamfer is drawn round the whole
-     * slot and the hole's pixels put back over it. */
+    /* its bevels: the faces inside it, narrow and firm - a moulded slot has
+     * a sharp lip, not a soft roll */
+    const float SLOT_FACE = 0.9f, SLOT_WALL = 0.8f; /* mm */
+    /* The slot's LEAD-IN: the angled faces moulded round the opening that
+     * funnel a disk into it and centre it as it goes in - a narrow chamfer
+     * along the top and the bottom, flaring wide at the two ends, where the
+     * disk's corners are caught.  Each face is a plane, so each takes one
+     * tone from the way it faces the light: the bottom turned up to it and
+     * lit, the top turned down and in shade, the right end toward it, the
+     * left away; deepening a little toward the slot, where the face is
+     * furthest in.  Where the door hole above meets the slot there is no
+     * plastic, so no lead-in along the top there. */
     {
-        int hx0 = (int)ceilf(tcx), hx1 = (int)floorf(tcx + tcw);
-        int hy0 = (int)floorf(sly - SLOT_CHAMFER * mm) - 2, hy1 = (int)floorf(sly);
-        int hw = hx1 - hx0, hh = hy1 - hy0;
-        uint8_t *keep = (hw > 0 && hh > 0) ? malloc((size_t)hw * hh * 4) : NULL;
-        if (keep)
-            for (int j2 = 0; j2 < hh; j2++)
-                for (int i2 = 0; i2 < hw; i2++) {
-                    int xx = hx0 + i2, yy = hy0 + j2;
-                    uint8_t *d = keep + ((size_t)j2 * hw + i2) * 4;
-                    if (xx < 0 || yy < 0 || xx >= c->w || yy >= c->h)
-                        memset(d, 0, 4);
-                    else
-                        memcpy(d, c->px + ((size_t)yy * c->w + xx) * 4, 4);
-                }
-        chamfer_ring(c, slx, sly, slw, slh, slh * 0.24f, SLOT_CHAMFER * mm);
-        if (keep) {
-            for (int j2 = 0; j2 < hh; j2++)
-                for (int i2 = 0; i2 < hw; i2++) {
-                    int xx = hx0 + i2, yy = hy0 + j2;
-                    if (xx >= 0 && yy >= 0 && xx < c->w && yy < c->h)
-                        memcpy(c->px + ((size_t)yy * c->w + xx) * 4,
-                               keep + ((size_t)j2 * hw + i2) * 4, 4);
-                }
-            free(keep);
-        }
+        const float LEAD_TB = 1.0f, LEAD_END = 2.8f, LEAD_RAD = 0.5f; /* mm */
+        float lt = LEAD_TB * mm, le = LEAD_END * mm, r0 = slh * 0.24f;
+        float scx = slx + slw * 0.5f, scy = sly + slh * 0.5f;
+        float ohw = slw * 0.5f + le, ohh = slh * 0.5f + lt;
+        for (int j2 = (int)floorf(scy - ohh) - 1; j2 <= (int)ceilf(scy + ohh) + 1; j2++)
+            for (int i2 = (int)floorf(scx - ohw) - 1; i2 <= (int)ceilf(scx + ohw) + 1; i2++) {
+                float px = (float)i2 + 0.5f, py = (float)j2 + 0.5f;
+                /* the lead-in's outer edge: square-cut at the ends, the
+                 * corners barely eased */
+                float so = rr_sd(px, py, scx, scy, ohw, ohh, LEAD_RAD * mm);
+                float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - so));
+                if (cov <= 0.0f)
+                    continue;
+                if (rr_sd(px, py, scx, scy, slw * 0.5f, slh * 0.5f, r0) <= -0.5f)
+                    continue; /* inside the slot itself */
+                if (py < sly && px > tcx && px < tcx + tcw)
+                    continue; /* the door hole: no plastic */
+                /* how far out onto each face, 0 at the slot's edge */
+                float ex = fmaxf(0.0f, fabsf(px - scx) - slw * 0.5f) / le;
+                float ey = fmaxf(0.0f, fabsf(py - scy) - slh * 0.5f) / lt;
+                float wsum = ex + ey;
+                float wx = wsum > 1e-4f ? ex / wsum : 0.0f, wy = 1.0f - wx;
+                float tone_y = py < scy ? 0.66f : 1.24f; /* top in shade, bottom lit */
+                float tone_x = px < scx ? 0.80f : 1.12f; /* left away, right toward */
+                float tone = tone_x * wx + tone_y * wy;
+                float depth = 1.0f - fmaxf(ex, ey); /* 1 at the slot, 0 at the rim */
+                tone *= 1.0f - 0.10f * depth;
+                float mul = 1.0f + (tone - 1.0f) * cov;
+                float spec = (py >= scy && wy > 0.5f) ? 0.02f * (1.0f - depth) * cov : 0.0f;
+                px_shade(c, i2, j2, mul, spec);
+            }
     }
     rrect(c, slx, sly, slw, slh, slh * 0.24f, 12, 11, 10, 1.0f, 1.0f);
     {
