@@ -6,6 +6,26 @@
 /* the condensed cut the case's printed legends are set in (text_helv) */
 #define KEY_SQUEEZE 0.82f
 
+/* The grime of a part that is handled: soft warm blotches over a fine
+ * mottle, taking more blue out than red, as the case's own does.  (u, v)
+ * is the point on the case in millimetres, so the stains stay put and look
+ * the same at any size; `seed` gives each part its own; `strength` is how
+ * dark the worst of it gets.  Fills m with the multipliers for R, G, B. */
+/* how dark the stains on the eject button, MODE and the power cap get */
+#define HANDLED_STAIN 0.12f
+#define FLAT_STAIN_SEED 81   /* the turbo module's MODE cap */
+#define KEYCAP_STAIN 0.22f   /* the MOUSE and OSD keycaps, heavier */
+#define KEYCAP_STAIN_SEED 51
+static void handled_stain(float u, float v, int seed, float strength, float m[3]) {
+    float blot =
+        vnoise(u * 0.45f, v * 0.5f, seed) * 0.6f + vnoise(u * 1.3f, v * 1.2f, seed + 2) * 0.4f;
+    float d = fmaxf(0.0f, blot - 0.42f) / 0.58f;
+    d = d * d * strength + (vnoise(u * 2.5f, v * 2.5f, seed + 6) - 0.5f) * strength * 0.16818f;
+    m[0] = 1.0f - d * 0.70f;
+    m[1] = 1.0f - d;
+    m[2] = 1.0f - d * 1.40f;
+}
+
 static void led(canvas *c, float cx, float cy, float rad, int r, int g, int b) {
     /* Matched to the reference PNG's LEDs at 16x magnification:
      *  - a THIN dark outline hugging the lens (heavier at the top), not a
@@ -589,7 +609,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
      * reads as flush no matter how the gap is drawn. */
     for (int k = 0; k < (int)top; k++) {
         float u = (float)k / top;     /* 0 at the front, 1 far edge */
-        float inset = u * 0.9f * mm;  /* the trapezoid narrowing    */
+        float inset = u * 0.7f * mm;  /* the trapezoid narrowing    */
         float sh = 1.40f - 0.14f * u; /* lit, a shade above the front face */
         int yy = (int)(ey - k);
         for (int i2 = (int)(ex + inset); i2 < (int)(ex + ew - inset); i2++) {
@@ -605,6 +625,19 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     /* the cap face */
     rrect(c, ex, ey, ew, eh, rad, (int)(pr * 1.10f), (int)(pg * 1.10f), (int)(pb * 1.10f), 1.02f,
           0.92f);
+    /* the grime of the thumb that pushes it, on the front face */
+    for (int j2 = (int)floorf(ey); j2 < (int)ceilf(ey + eh); j2++)
+        for (int i2 = (int)floorf(ex); i2 < (int)ceilf(ex + ew); i2++) {
+            if (rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, ex + ew * 0.5f, ey + eh * 0.5f, ew * 0.5f,
+                      eh * 0.5f, rad) > 0.0f ||
+                i2 < 0 || j2 < 0 || i2 >= c->w || j2 >= c->h)
+                continue;
+            float m[3];
+            handled_stain((float)i2 / mm, (float)j2 / mm, 91, HANDLED_STAIN, m);
+            uint8_t *q = c->px + ((size_t)j2 * c->w + i2) * 4;
+            for (int ch2 = 0; ch2 < 3; ch2++)
+                q[ch2] = (uint8_t)((float)q[ch2] * m[ch2]);
+        }
     housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f);
 
     /* activity light: rectangular window, as in the reference */
@@ -709,7 +742,8 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
  * the case's finish is taken at (fx, fy) on the case, and it dims a little
  * as the key goes down.  The same on every key, whatever its cap is like. */
 static void key_legend(canvas *c, float mid, float ty, const char *label, float cap, float press,
-                       float fx, float fy, int cw, int ch) {
+                       float fx, float fy, int cw, int ch, int stain_seed, float stain,
+                       float mm, float ox, float oy) {
     const float sq = 0.92f; /* a little condensed */
     float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
     float tw = helv_width(label, cap, sq, track) + fat;
@@ -717,11 +751,40 @@ static void key_legend(canvas *c, float mid, float ty, const char *label, float 
     float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
                     202.0f * (1.0f - 0.04f * press)};
     finish_rgb(fx, fy, cw, ch, ink);
-    int lr = (int)ink[0], lg = (int)ink[1], lb = (int)ink[2];
     int saved = canvas_grain;
     canvas_grain = 0;
-    text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
-    text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
+    if (stain_seed < 0) {
+        int lr = (int)ink[0], lg = (int)ink[1], lb = (int)ink[2];
+        text_helv(c, lx, ty, label, cap, sq, track, lr, lg, lb);
+        text_helv(c, lx + fat, ty, label, cap, sq, track, lr, lg, lb);
+        canvas_grain = saved;
+        return;
+    }
+    /* Printed on a stained cap, the paint is stained with it: the words are
+     * drawn as coverage into a scratch mask and laid down pixel by pixel,
+     * each in the ink darkened by the grime at that point of the case - the
+     * same grime (handled_stain) as the plastic around it.  (ox, oy) is
+     * where canvas c sits on the case. */
+    int x0 = (int)floorf(lx) - 2, y0 = (int)floorf(ty) - 2;
+    int mw = (int)ceilf(tw + fat) + 5, mh = (int)ceilf(cap * 1.6f) + 5;
+    canvas m = {calloc((size_t)mw * mh, 4), mw, mh};
+    if (m.px) {
+        text_helv(&m, lx - (float)x0, ty - (float)y0, label, cap, sq, track, 255, 255, 255);
+        text_helv(&m, lx + fat - (float)x0, ty - (float)y0, label, cap, sq, track, 255, 255, 255);
+        for (int j = 0; j < mh; j++)
+            for (int i = 0; i < mw; i++) {
+                float a = m.px[((size_t)j * mw + i) * 4] / 255.0f;
+                if (a <= 0.0f)
+                    continue;
+                int px = x0 + i, py = y0 + j;
+                float st[3];
+                handled_stain(((float)px + 0.5f + ox) / mm, ((float)py + 0.5f + oy) / mm,
+                              stain_seed, stain, st);
+                px_blend(c, px, py, (int)(ink[0] * st[0]), (int)(ink[1] * st[1]),
+                         (int)(ink[2] * st[2]), a);
+            }
+        free(m.px);
+    }
     canvas_grain = saved;
 }
 
@@ -791,7 +854,9 @@ static void power_key(canvas *c, float cx, float cy, float w, float h, float mm,
             float ty = ((float)j + 0.5f - y) / h;
             /* the face, a very little darker as it goes down */
             float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.03f * press);
-            float rgb[3] = {KEY_R * sh, KEY_G * sh, KEY_B * sh};
+            float m[3];
+            handled_stain((float)i / mm, (float)j / mm, 71, HANDLED_STAIN, m);
+            float rgb[3] = {KEY_R * sh * m[0], KEY_G * sh * m[1], KEY_B * sh * m[2]};
             finish_rgb((float)i, (float)j, cw, ch, rgb);
             px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
         }
@@ -810,7 +875,7 @@ static void power_key(canvas *c, float cx, float cy, float w, float h, float mm,
  * with it.  Its legend is the other keys' (key_legend), but for + and -,
  * which are drawn as bars. */
 static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
-                     float cap, float press, int ox, int oy, int cw, int ch) {
+                     float cap, int stained, float press, int ox, int oy, int cw, int ch) {
     /* Everything is worked out in the case's own coordinates and only
      * written ox, oy in: a redraw into a patch then lands on exactly the
      * pixels the bake drew, where shifting the geometry itself would round
@@ -841,7 +906,10 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 continue;
             float ty = ((float)j + 0.5f - y) / h;
             float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.08f * press);
-            float rgb[3] = {KEY_R * sh, KEY_G * sh, KEY_B * sh};
+            float m[3] = {1.0f, 1.0f, 1.0f};
+            if (stained)
+                handled_stain((float)i / mm, (float)j / mm, FLAT_STAIN_SEED, HANDLED_STAIN, m);
+            float rgb[3] = {KEY_R * sh * m[0], KEY_G * sh * m[1], KEY_B * sh * m[2]};
             finish_rgb((float)i, (float)j, cw, ch, rgb);
             px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
         }
@@ -878,7 +946,8 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
         return;
     }
     key_legend(c, cx - (float)ox, cy - cap * 0.5f - 0.5f + press * 0.35f * mm - (float)oy, label,
-               cap, press, cx, cy, cw, ch);
+               cap, press, cx, cy, cw, ch, stained ? FLAT_STAIN_SEED : -1, HANDLED_STAIN, mm,
+               (float)ox, (float)oy);
 }
 
 /* A key of the case's own, standing proud of the plastic: a keycap in
@@ -1004,15 +1073,11 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                                 0.25f; /* a smoother moulding than the case */
                 float mr = 1.0f, mg = 1.0f, mb = 1.0f;
                 if (stained) {
-                    float u = (fx + ox) / mm, v = (fy + oy) / mm;
-                    float blot = vnoise(u * 0.45f, v * 0.5f, 51) * 0.6f +
-                                 vnoise(u * 1.3f, v * 1.2f, 53) * 0.4f;
-                    float d = fmaxf(0.0f, blot - 0.42f) / 0.58f;
-                    /* blotches, then the fine mottle under them */
-                    d = d * d * 0.22f + (vnoise(u * 2.5f, v * 2.5f, 57) - 0.5f) * 0.037f;
-                    mr = 1.0f - d * 0.70f;
-                    mg = 1.0f - d;
-                    mb = 1.0f - d * 1.40f;
+                    float m[3];
+                    handled_stain((fx + ox) / mm, (fy + oy) / mm, KEYCAP_STAIN_SEED, KEYCAP_STAIN, m);
+                    mr = m[0];
+                    mg = m[1];
+                    mb = m[2];
                 }
                 r = R * k * mr;
                 g = G * k * mg;
@@ -1030,7 +1095,8 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             }
         }
     /* the legend, going down with the face */
-    key_legend(c, cx, (fy0 + fy1) * 0.5f - cap * 0.5f, label, cap, press, cx + ox, cy + oy, cw, ch);
+    key_legend(c, cx, (fy0 + fy1) * 0.5f - cap * 0.5f, label, cap, press, cx + ox, cy + oy, cw, ch,
+               stained ? KEYCAP_STAIN_SEED : -1, KEYCAP_STAIN, mm, ox, oy);
 }
 
 /* The keys, kept the way the knobs are: where each goes, and the plastic
@@ -1082,8 +1148,8 @@ static void key_draw_at(canvas *c, int k, float ox, float oy) {
     }
     if (KEYS.k[k].style == KEY_STYLE_FLAT) {
         flat_key(c, KEYS.k[k].cx, KEYS.k[k].cy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
-                 KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].depth, (int)ox, (int)oy, KEYS.cw,
-                 KEYS.ch);
+                 KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].stained, KEYS.k[k].depth, (int)ox,
+                 (int)oy, KEYS.cw, KEYS.ch);
         return;
     }
     case_key(c, KEYS.k[k].cx - ox, KEYS.k[k].cy - oy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
@@ -1389,7 +1455,9 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
-    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, KEY_STYLE_FLAT, out);
+    /* MODE is the one of the three a hand goes to most: it carries the grime */
+    keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, which == KEY_MODE,
+              KEY_STYLE_FLAT, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power
