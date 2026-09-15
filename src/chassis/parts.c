@@ -360,8 +360,38 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                    (k == 1) ? 1.34f : 1.12f, (k == 1) ? 0.05f : 0.0f, 0);
     }
 
-    /* slot: chamfered opening, eased interior faces */
-    chamfer_ring(c, slx, sly, slw, slh, slh * 0.24f, 1.2f * mm);
+    /* slot: chamfered opening, eased interior faces.  Where the open door
+     * hole above meets the slot there is no plastic between them, so no
+     * chamfer along the slot's top and no top wall inside it: those run
+     * only either side of the hole.  The chamfer is drawn round the whole
+     * slot and the hole's pixels put back over it. */
+    {
+        int hx0 = (int)ceilf(tcx), hx1 = (int)floorf(tcx + tcw);
+        int hy0 = (int)floorf(sly - 1.2f * mm) - 2, hy1 = (int)floorf(sly);
+        int hw = hx1 - hx0, hh = hy1 - hy0;
+        uint8_t *keep = (hw > 0 && hh > 0) ? malloc((size_t)hw * hh * 4) : NULL;
+        if (keep)
+            for (int j2 = 0; j2 < hh; j2++)
+                for (int i2 = 0; i2 < hw; i2++) {
+                    int xx = hx0 + i2, yy = hy0 + j2;
+                    uint8_t *d = keep + ((size_t)j2 * hw + i2) * 4;
+                    if (xx < 0 || yy < 0 || xx >= c->w || yy >= c->h)
+                        memset(d, 0, 4);
+                    else
+                        memcpy(d, c->px + ((size_t)yy * c->w + xx) * 4, 4);
+                }
+        chamfer_ring(c, slx, sly, slw, slh, slh * 0.24f, 1.2f * mm);
+        if (keep) {
+            for (int j2 = 0; j2 < hh; j2++)
+                for (int i2 = 0; i2 < hw; i2++) {
+                    int xx = hx0 + i2, yy = hy0 + j2;
+                    if (xx >= 0 && yy >= 0 && xx < c->w && yy < c->h)
+                        memcpy(c->px + ((size_t)yy * c->w + xx) * 4,
+                               keep + ((size_t)j2 * hw + i2) * 4, 4);
+                }
+            free(keep);
+        }
+    }
     rrect(c, slx, sly, slw, slh, slh * 0.24f, 12, 11, 10, 1.0f, 1.0f);
     {
         float ch1 = 1.4f * mm;
@@ -372,7 +402,9 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             int vt = (int)(14.0f + 52.0f * e);
             int vb = (int)(14.0f + 86.0f * e);
             for (int i2 = (int)(slx + 1.2f * mm); i2 < (int)(slx + slw - 1.2f * mm); i2++) {
-                px_blend(c, i2, (int)sly + j2, vt, vt - 2, vt - 4, 1.0f);
+                /* the top wall only where there is plastic above it */
+                if ((float)i2 + 0.5f < tcx || (float)i2 + 0.5f > tcx + tcw)
+                    px_blend(c, i2, (int)sly + j2, vt, vt - 2, vt - 4, 1.0f);
                 px_blend(c, i2, (int)(sly + slh) - 1 - j2, (int)(vb * 1.05f), vb, (int)(vb * 0.88f),
                          1.0f);
             }
