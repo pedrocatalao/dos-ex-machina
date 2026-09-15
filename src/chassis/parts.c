@@ -452,7 +452,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     float ex = x + fw - ew - 9.0f * mm, ey = y + 16.2f * mm;
     float gap = 0.40f * mm; /* the dark outline */
 
-    float top = 1.45f * mm; /* how far it stands proud */
+    float top = 1.05f * mm; /* how far it stands proud */
     float rad = 0.65f * mm; /* a slight ease on the corners */
 
     /* Only the RECESS ABOVE the cap is dark - that is the opening the
@@ -464,8 +464,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
 
     /* soft blurred shadow cast below the extended cap.  Two passes of a
      * widening, fading band read as penumbra rather than a drawn line. */
-    for (int k = 0; k < (int)(2.2f * mm); k++) {
-        float u = (float)k / (2.2f * mm);
+    /* the shadow's length follows how far the cap stands out */
+    float slen = 2.2f * mm * (top / (1.45f * mm));
+    for (int k = 0; k < (int)slen; k++) {
+        float u = (float)k / slen;
         float a = (1.0f - u) * (1.0f - u) * 0.34f;
         float spread = u * 1.4f * mm;
         int yy = (int)(ey + eh) + k;
