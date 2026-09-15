@@ -306,6 +306,9 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     float mm = h / 25.4f;
     (void)w;
     float fw = 101.6f * mm;
+    /* the drive is smooth moulding: none of the case's grain on it */
+    int grain_was = canvas_grain;
+    canvas_grain = 0;
     /* the drive is a separate moulding, in the keys' plastic */
     int pr = (int)KEY_R, pg = (int)KEY_G, pb = (int)KEY_B;
     /* chassis cut-out: chamfered case edge, thin gap, recessed plate */
@@ -512,6 +515,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     led_out[1] = y + 18.6f * mm - 1.1f * mm;
     led_out[2] = 4.6f * mm;
     led_out[3] = 2.2f * mm;
+    canvas_grain = grain_was;
 }
 
 /* The well a rectangular part sits in, built the way the LED's and the
@@ -554,6 +558,9 @@ static void well_rect(canvas *c, float x, float y, float w, float h, float rad, 
  * the LED under it.  Records the LED and the cap's underside in L. */
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h,
                   dxm_layout *L) {
+    /* smooth moulding: none of the case's grain on the cap or its well */
+    int grain_was = canvas_grain;
+    canvas_grain = 0;
     /* painted, and centred over the cap */
     {
         /* in the face the mouse lamps' words are set in, and clear of the
@@ -607,6 +614,7 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
         L->pwr_led[3] = lr * 2.0f;
         L->pwr_shelf = cap_lo;
     }
+    canvas_grain = grain_was;
 }
 
 /* ---- the OSD button ----------------------------------------------------- */
@@ -660,8 +668,8 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
         }
     }
     canvas_grain = saved;
-    /* the face: lit at the top, falling off down it, with the plastic's
-     * grain, and the case's finish where it sits */
+    /* the face: lit at the top, falling off down it, smooth, and the
+     * case's finish where it sits */
     for (int j = (int)floorf(y) - 1; j <= (int)floorf(y + h) + 1; j++)
         for (int i = (int)floorf(x) - 1; i <= (int)floorf(x + w) + 1; i++) {
             float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, cy, w * 0.5f, h * 0.5f, rad);
@@ -670,7 +678,6 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 continue;
             float ty = ((float)j + 0.5f - y) / h;
             float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.08f * press);
-            sh += plastic_tex(i, j);
             float rgb[3] = {KEY_R * sh, KEY_G * sh, KEY_B * sh};
             finish_rgb((float)i, (float)j, cw, ch, rgb);
             px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
