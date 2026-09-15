@@ -73,7 +73,7 @@ dos-ex-machina/
 │   │                       by the chassis and the shader
 │   ├── font.c/.h           the CP437 8x8 lettering font and the VGA 8x16 text font
 │   ├── sound.c/.h          the machine's own sounds: fans, spindle, relay, drive, beep
-│   ├── ui.c/.h             the Shift+F1 panel: the CRT parameters, crt.cfg
+│   ├── osd.c/.h            the monitor's OSD: the CRT settings on the glass, crt.cfg
 │   ├── crt.h               the barrel and bezel geometry, shared by the case and the shader
 │   ├── version.h
 │   └── gen/                generated data, committed; see its README
@@ -106,8 +106,8 @@ files are over the first line and due a split: `chassis/parts.c`,
    as SDL scancodes (`dosbox_key`); during the POST a key only hurries it
    along. The mouse belongs to the machine (locked to the window in SDL's
    relative mode, its motion going to DOSBox) or to the operating system
-   (the arrow, the knobs, the turbo buttons); Ctrl+F10 switches. Shift+F1
-   opens the panel.
+   (the arrow, the knobs, the keys); Ctrl+F10 switches. The OSD key and
+   Shift+F1 open the OSD, which takes its keys while it is up.
 2. **Time** is `app_now_ns()`: the wall clock, or under `--deterministic`
    a counter advancing one sixtieth of a second per frame.
 3. **The POST** advances (`dos_update`) until it ends, on a cleared screen
@@ -131,11 +131,12 @@ files are over the first line and due a split: `chassis/parts.c`,
    starting or ending, and runs the floppy drive.
 7. **The knobs** that moved are redrawn into the chassis texture
    (`chassis_knob_set`, `gpu_patch_chassis`).
-8. **The GPU** draws it all (`gpu_draw`): the persistence and burn-in
-   passes, the light the picture's edges throw on the case, the bloom, and
-   one composite pass: curvature, beam and mask, bloom, glass, and the
-   chassis lit by the picture. The panel goes on as an overlay; the room
-   fades come last (`theatre_room`).
+8. **The GPU** draws it all (`gpu_draw`): first the signal, the picture
+   with the monitor's OSD mixed into it, which is all the rest sees; then
+   the persistence and burn-in passes, the light the picture's edges throw
+   on the case, the bloom, and one composite pass: curvature, beam and
+   mask, bloom, glass, and the chassis lit by the picture. The room fades
+   come last (`theatre_room`).
 
 The chassis is drawn once, on a worker thread behind the splash, into an
 RGBA8 image whose alpha channel says how much each pixel faces the tube.

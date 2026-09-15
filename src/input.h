@@ -32,6 +32,6 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
                          const SDL_Event *e);
 /* Make SDL's idea of who holds the mouse match this state; call it once a
  * frame.  The arrow exists only while the mouse has been given back to the
- * operating system, or while the panel is up. */
+ * operating system. */
 void input_mouse_sync(input_state *in, app *a);
 #endif

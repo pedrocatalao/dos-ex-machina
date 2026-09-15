@@ -6,7 +6,7 @@
 #include "dosbox.h"
 #include "setup.h"
 #include "catalog.h"
-#include "ui.h"
+#include "osd.h"
 
 /* Which of the display's buttons, if any, is under a point in drawable
  * pixels; -1 for none. */
@@ -35,12 +35,13 @@ static int knob_at(const dxm_layout *L, float x, float y) {
     return -1;
 }
 
-/* Whether the machine holds the mouse: given to it, and not borrowed back
- * by the panel.  Everything on the tube - DOSBox, SETUP, CATALOG - is the
- * machine's, and hears the mouse only then; otherwise it is the arrow's,
- * out on the case, and the lamps say HOST. */
+/* Whether the machine holds the mouse.  Everything on the tube - DOSBox,
+ * SETUP, CATALOG - is the machine's, and hears the mouse only then;
+ * otherwise it is the arrow's, out on the case, and the lamps say HOST.
+ * The OSD is the monitor's and takes nothing from the mouse: it is worked
+ * from the case's OSD key and the keyboard. */
 static int machine_has_mouse(const input_state *in) {
-    return in->captured && !ui_visible();
+    return in->captured;
 }
 
 /* The mouse is leaving the machine: whatever it was holding down there it
@@ -98,6 +99,13 @@ static void knob_turn(input_state *in, const app *a, gpu_knobs *k, float my) {
         k->contrast = 0.4f + 1.4f * v;
 }
 
+/* While the OSD is up it has the keys that work it; any other key goes on
+ * to the machine as ever, so a game does not freeze while its picture is
+ * adjusted. */
+static int osd_keys(const SDL_Event *e) {
+    return osd_visible() && osd_key(e->key.scancode, (e->key.mod & SDL_KMOD_SHIFT) != 0);
+}
+
 static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k,
                       const SDL_Event *e) {
     int down = (e->type == SDL_EVENT_KEY_DOWN);
@@ -119,17 +127,19 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
             gui_alone = 0;
     }
 #endif
-    /* Shift+F1 for the panel, from anywhere - a game, DOSBox, the prompt -
+    /* Shift+F1 for the OSD, from anywhere - a game, DOSBox, the prompt -
      * and never a bare F1, which belongs to whatever is running.  Not
      * Ctrl+F1: macOS binds that to keyboard-access and eats it before
      * the window hears it.  Ctrl is still accepted where it gets through. */
-    int panel = down && e->key.key == SDLK_F1 && (e->key.mod & (SDL_KMOD_SHIFT | SDL_KMOD_CTRL));
+    int osd = down && e->key.key == SDLK_F1 && (e->key.mod & (SDL_KMOD_SHIFT | SDL_KMOD_CTRL));
     if (toggle) {
         input_capture(in, a, !in->captured);
         in->knob_drag = -1;
-    } else if (panel) {
-        let_go(in);
-        ui_toggle();
+    } else if (osd) {
+        osd_toggle();
+    } else if (down && osd_keys(e)) {
+        /* the OSD is up and that key was its own: the machine never sees it
+         * go down, and the release, when it comes, reaches it harmlessly */
     } else if (setup_visible()) {
         /* SETUP has the keys while it is up - but not the releases of keys
          * DOS is still holding down.  The RETURN that ran the SETUP command
@@ -172,8 +182,8 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         return INPUT_QUIT;
     case SDL_EVENT_MOUSE_BUTTON_DOWN: {
         float mx = e->button.x * a->W / a->win_wf, my = e->button.y * a->H / a->win_hf;
-        /* out on the case - released, or borrowed by the panel - the arrow
-         * works the case's own controls */
+        /* out on the case, released to the host, the arrow works the case's
+         * own controls */
         int machine = machine_has_mouse(in);
         int kn = !machine ? knob_at(L, mx, my) : -1;
         int bt = !machine ? button_at(L, mx, my) : -1;
@@ -186,17 +196,14 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         else if (machine) {
             /* the machine has it, and nothing on the tube wants it yet */
         } else if (e->button.button == SDL_BUTTON_LEFT && key_at(L->osd_btn, mx, my)) {
-            /* the OSD button: for now the panel Shift+F1 opens, and a second
-             * press puts it away */
+            /* the OSD key: opens the monitor's display, and closes it */
             in->key_hit = KEY_OSD;
-            ui_toggle();
+            osd_toggle();
         } else if (e->button.button == SDL_BUTTON_LEFT && key_at(L->mouse_btn, mx, my)) {
             /* the MOUSE key: out on the case the host has the mouse, so a
              * press can only give it to the machine; CTRL+F10, printed over
              * the key, takes it back */
             in->key_hit = KEY_MOUSE;
-            if (ui_visible())
-                ui_toggle(); /* the panel was borrowing it: put the panel away */
             input_capture(in, a, 1);
             in->knob_drag = -1;
         } else if (bt >= 0 && e->button.button == SDL_BUTTON_LEFT) {
@@ -208,8 +215,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             in->knob_drag = kn;
             in->knob_y0 = my;
             in->knob_v0 = (kn == 0) ? k->brightness : (k->contrast - 0.4f) / 1.4f;
-        } else
-            ui_mouse((int)mx, (int)my, 1, 0);
+        }
         break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -221,9 +227,6 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             dosbox_mouse_button(e->button.button, 0);
         else if (in->knob_drag >= 0)
             in->knob_drag = -1;
-        else
-            ui_mouse((int)(e->button.x * a->W / a->win_wf), (int)(e->button.y * a->H / a->win_hf),
-                     0, 0);
         break;
     case SDL_EVENT_MOUSE_WHEEL:
         /* A trackpad sends fractions of a notch, so they are added up until
@@ -240,7 +243,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
         }
         break;
     case SDL_EVENT_MOUSE_MOTION: {
-        float mx = e->motion.x * a->W / a->win_wf, my = e->motion.y * a->H / a->win_hf;
+        float my = e->motion.y * a->H / a->win_hf;
         int machine = machine_has_mouse(in);
         if (machine && setup_visible())
             setup_mouse((int)e->motion.xrel, (int)e->motion.yrel);
@@ -252,8 +255,6 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
             /* held by the machine, before anything on the tube wants it */
         } else if (in->knob_drag >= 0)
             knob_turn(in, a, k, my);
-        else
-            ui_mouse((int)mx, (int)my, (e->motion.state & SDL_BUTTON_LMASK) ? 1 : 0, 1);
         break;
     }
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
@@ -275,9 +276,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
 }
 
 void input_mouse_sync(input_state *in, app *a) {
-    /* The panel is worked with the arrow, so it borrows the mouse back for
-     * as long as it is up. */
-    int want = in->captured && !ui_visible();
+    int want = in->captured;
     if (want == in->holding)
         return;
     in->holding = want;

@@ -36,7 +36,7 @@ endif()
 
 add_executable(dxm
     src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/input.c src/cursor.c
-    src/gpu.c src/font.c src/sound.c src/ui.c src/gen/splash.c src/gen/banners.c
+    src/gpu.c src/font.c src/sound.c src/osd.c src/gen/splash.c src/gen/banners.c
     src/dos/dos.c src/dos/term.c src/dos/boot.c
     src/setup/setup.c src/setup/canvas.c src/setup/banner.c src/setup/machine.c
     src/chassis/chassis.c src/chassis/canvas.c src/chassis/surface.c src/chassis/bezel.c
@@ -58,8 +58,8 @@ target_include_directories(dxm PRIVATE src src/third_party ${CMAKE_BINARY_DIR}/g
 # The shaders are GLSL files under shaders/, baked into one header at build
 # time so the binary stays self-contained.  Editing a shader rebuilds gpu.c.
 set(DXM_SHADERS
-    shaders/quad.vert shaders/persist.frag shaders/blur.frag shaders/composite.frag
-    shaders/burn.frag shaders/splash.frag shaders/fade.frag shaders/overlay.frag
+    shaders/quad.vert shaders/signal.frag shaders/persist.frag shaders/blur.frag shaders/composite.frag
+    shaders/burn.frag shaders/splash.frag shaders/fade.frag
     shaders/edge.frag shaders/ease.frag shaders/glow.frag)
 list(TRANSFORM DXM_SHADERS PREPEND ${CMAKE_SOURCE_DIR}/)
 # The list crosses a command line, where ';' would split it into separate

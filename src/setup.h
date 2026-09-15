@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 /* What SETUP is allowed to change, handed over once at startup: the live
- * CRT parameters - the same struct the panel writes and the shader reads,
+ * CRT parameters - the same struct the OSD writes and the shader reads,
  * so a slider moved here shows on the glass at once - and where they are
  * kept between runs. */
 void setup_bind(gpu_knobs *knobs, const char *crt_cfg, const char *dxm_cfg, const char *c_drive);

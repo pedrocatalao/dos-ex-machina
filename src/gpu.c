@@ -118,6 +118,10 @@ static int gl_load(void) {
  * columns; a 640x480 picture lost eighty rows. */
 #define PERSIST_W 640
 #define PERSIST_H 400
+/* the least the signal is scaled up to: the OSD's raster (osd.h) across,
+ * and a VGA monitor's 400 lines down */
+#define SIGNAL_MIN_W 640
+#define SIGNAL_MIN_H 400
 #define BLOOM_W 160
 #define BLOOM_H 100
 /* The picture's light at its edges, for the case: four profiles, one per
@@ -136,12 +140,16 @@ static int gl_load(void) {
 struct gpu {
     int out_w, out_h;
     GLuint vao, vbo;
-    GLuint prog_persist, prog_blur, prog_composite;
+    GLuint prog_signal, prog_persist, prog_blur, prog_composite;
     GLuint tex_tube, tex_chassis;
     int tube_w, tube_h, chassis_w, chassis_h;
+    /* The monitor's input: the PC's picture with the OSD mixed in, at the
+     * signal's size, which every target after it shares (signal_size) */
+    GLuint fbo_signal, tex_signal;
     GLuint fbo_persist[2], tex_persist[2];
     int persist_cur;
-    int persist_w, persist_h; /* the targets' size: the tube texture's */
+    int persist_w, persist_h; /* the targets' size: the signal's */
+    float signal_k;           /* how many times the source the signal is, down */
     GLuint fbo_bloom, tex_bloom, fbo_bloom2, tex_bloom2;
     GLuint fbo_edge, tex_edge;
     GLuint fbo_glow, tex_glow;
@@ -150,19 +158,17 @@ struct gpu {
     GLuint prog_edge, prog_ease, prog_glow;
     GLuint fbo_burn[2], tex_burn[2];
     int burn_cur;
-    GLuint prog_burn, prog_overlay, tex_overlay;
+    GLuint prog_burn, tex_osd;
     GLuint prog_splash, tex_splash;
     int spl_w, spl_h;
     GLuint prog_fade;
-    int ov_w, ov_h;
+    int osd_on; /* the OSD is up, and tex_osd holds it */
     double last_t;
     int have_last;
     float led[6][4], led_col[6][3], led_on[6], led_round[6], led_clip[6];
     float seg[4], seg_on, seg_lvl[21];
     float raster_h, raster_v, tube_gain;
 };
-
-/* the settings panel, straight alpha over the finished frame */
 
 static GLuint mkshader(GLenum t, const char *src) {
     GLuint s = glCreateShader(t);
@@ -205,10 +211,11 @@ static GLuint mkprog(const char *fs) {
  * this was seen on - while any stray +Inf shows as a speckle that never
  * decays.  Apple and Windows hand out zeroed memory, which is why it
  * never showed there. */
-static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
+static void mktarget_as(GLuint *fbo, GLuint *tex, int w, int h, GLenum format) {
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, *tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, (GLint)format, w, h, 0, GL_RGBA,
+                 format == GL_RGBA8 ? GL_UNSIGNED_BYTE : GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -219,6 +226,10 @@ static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+static void mktarget(GLuint *fbo, GLuint *tex, int w, int h) {
+    mktarget_as(fbo, tex, w, h, GL_RGBA16F);
 }
 
 /* A target that the bloom and spill passes shrink FROM samples through a
@@ -250,6 +261,8 @@ gpu *gpu_create(int w, int h) {
     g->out_w = w;
     g->out_h = h;
     g->raster_h = g->raster_v = g->tube_gain = 1.0f;
+    g->tube_w = g->tube_h = 1; /* no picture yet: the signal is black */
+    g->signal_k = 1.0f;
     static const float quad[] = {-1, -1, 3, -1, -1, 3};
     glGenVertexArrays(1, &g->vao);
     glBindVertexArray(g->vao);
@@ -258,6 +271,7 @@ gpu *gpu_create(int w, int h) {
     glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    g->prog_signal = mkprog(shader_signal_frag);
     g->prog_persist = mkprog(shader_persist_frag);
     g->prog_blur = mkprog(shader_blur_frag);
     g->prog_edge = mkprog(shader_edge_frag);
@@ -265,7 +279,6 @@ gpu *gpu_create(int w, int h) {
     g->prog_glow = mkprog(shader_glow_frag);
     g->prog_composite = mkprog(shader_composite_frag);
     g->prog_burn = mkprog(shader_burn_frag);
-    g->prog_overlay = mkprog(shader_overlay_frag);
     g->prog_splash = mkprog(shader_splash_frag);
     g->prog_fade = mkprog(shader_fade_frag);
     glGenTextures(1, &g->tex_splash);
@@ -276,9 +289,8 @@ gpu *gpu_create(int w, int h) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glGenTextures(1, &g->tex_tube);
     glBindTexture(GL_TEXTURE_2D, g->tex_tube);
-    /* LINEAR, but the shader snaps to texel centres when sharp() is off,
-     * which reproduces NEAREST exactly - so the filter never has to change
-     * between the DOS screen and a running game. */
+    /* The PC's picture as sent.  Only the signal pass reads it, and that
+     * fetches whole texels, so the filter never comes into it. */
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -291,6 +303,9 @@ gpu *gpu_create(int w, int h) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     g->persist_w = PERSIST_W;
     g->persist_h = PERSIST_H;
+    /* the signal is video, eight bits a channel as the picture arrived:
+     * a float target would round the picture's own levels on the way in */
+    mktarget_as(&g->fbo_signal, &g->tex_signal, PERSIST_W, PERSIST_H, GL_RGBA8);
     mktarget(&g->fbo_persist[0], &g->tex_persist[0], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_persist[1], &g->tex_persist[1], PERSIST_W, PERSIST_H);
     mktarget(&g->fbo_bloom, &g->tex_bloom, BLOOM_W, BLOOM_H);
@@ -303,8 +318,9 @@ gpu *gpu_create(int w, int h) {
     mktarget(&g->fbo_burn[1], &g->tex_burn[1], PERSIST_W, PERSIST_H);
     mipmapped(g->tex_persist[0]);
     mipmapped(g->tex_persist[1]);
-    glGenTextures(1, &g->tex_overlay);
-    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
+    /* the OSD, mixed into the picture by the composite pass */
+    glGenTextures(1, &g->tex_osd);
+    glBindTexture(GL_TEXTURE_2D, g->tex_osd);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -388,26 +404,46 @@ void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba) 
 }
 /* Give an existing target new storage at a new size, cleared: the
  * framebuffer keeps its attachment, only the texels change. */
-static void retarget(GLuint fbo, GLuint tex, int w, int h) {
+static void retarget_as(GLuint fbo, GLuint tex, int w, int h, GLenum format) {
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, (GLint)format, w, h, 0, GL_RGBA,
+                 format == GL_RGBA8 ? GL_UNSIGNED_BYTE : GL_FLOAT, NULL);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
+static void retarget(GLuint fbo, GLuint tex, int w, int h) {
+    retarget_as(fbo, tex, w, h, GL_RGBA16F);
+}
+/* The signal's size for a picture: the picture's own, scaled by whole
+ * numbers until it is at least the OSD's raster.  Whole numbers, so each
+ * source pixel becomes an exact block and nothing of the PC's picture is
+ * resampled; that raster, so the OSD has the lines to be read on. */
+static void signal_size(int w, int h, int *sw, int *sh) {
+    w = w < 1 ? 1 : w;
+    h = h < 1 ? 1 : h;
+    int kx = (SIGNAL_MIN_W + w - 1) / w, ky = (SIGNAL_MIN_H + h - 1) / h;
+    *sw = w * (kx < 1 ? 1 : kx);
+    *sh = h * (ky < 1 ? 1 : ky);
+}
+
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h) {
-    if (w != g->persist_w || h != g->persist_h) {
+    int sw, sh;
+    signal_size(w, h, &sw, &sh);
+    if (sw != g->persist_w || sh != g->persist_h) {
         /* a mode change: the phosphor's memory restarts at this size, black,
          * as the picture did on a real tube while the monitor re-synced */
+        retarget_as(g->fbo_signal, g->tex_signal, sw, sh, GL_RGBA8);
         for (int i = 0; i < 2; i++) {
-            retarget(g->fbo_persist[i], g->tex_persist[i], w, h);
+            retarget(g->fbo_persist[i], g->tex_persist[i], sw, sh);
             remip(g->tex_persist[i]);
-            retarget(g->fbo_burn[i], g->tex_burn[i], w, h);
+            retarget(g->fbo_burn[i], g->tex_burn[i], sw, sh);
         }
-        g->persist_w = w;
-        g->persist_h = h;
+        g->persist_w = sw;
+        g->persist_h = sh;
     }
+    g->signal_k = (float)sh / (float)(h < 1 ? 1 : h);
     g->tube_w = w;
     g->tube_h = h;
     glBindTexture(GL_TEXTURE_2D, g->tex_tube);
@@ -428,10 +464,21 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     g->last_t = t;
     g->have_last = 1;
     int prev = g->persist_cur, cur = 1 - prev;
+    /* pass 0: the signal - the PC's picture, and the monitor's OSD in it */
+    glUseProgram(g->prog_signal);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g->tex_tube);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, g->tex_osd);
+    glUniform1i(glGetUniformLocation(g->prog_signal, "src"), 0);
+    glUniform1i(glGetUniformLocation(g->prog_signal, "osd"), 1);
+    glUniform2i(glGetUniformLocation(g->prog_signal, "srcsize"), g->tube_w, g->tube_h);
+    glUniform1f(glGetUniformLocation(g->prog_signal, "osd_on"), g->osd_on ? 1.0f : 0.0f);
+    pass(g, g->prog_signal, g->fbo_signal, g->persist_w, g->persist_h);
     /* pass 1: persistence */
     glUseProgram(g->prog_persist);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_tube);
+    glBindTexture(GL_TEXTURE_2D, g->tex_signal);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, g->tex_persist[prev]);
     glUniform1i(glGetUniformLocation(g->prog_persist, "src"), 0);
@@ -447,6 +494,10 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glBindTexture(GL_TEXTURE_2D, g->tex_persist[cur]);
     glUniform1i(glGetUniformLocation(g->prog_edge, "src"), 0);
     glUniform1f(glGetUniformLocation(g->prog_edge, "reach"), 0.18f);
+    /* two levels down the SOURCE's chain, whatever the signal scaled it by,
+     * so a low-resolution picture lights the case as it did before it was
+     * a signal */
+    glUniform1f(glGetUniformLocation(g->prog_edge, "lod"), 2.0f + log2f(g->signal_k));
     pass(g, g->prog_edge, g->fbo_edge, EDGE_W, EDGE_H);
     /* and a little inertia: the plastic's light eases toward the picture
      * over a tenth of a second, in and out alike, rather than following
@@ -554,10 +605,11 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1f(glGetUniformLocation(p, "u_gain"), g->tube_gain);
     glUniform1f(glGetUniformLocation(p, "crt_lines"), (float)k->crt_lines);
     glUniform1f(glGetUniformLocation(p, "crt_cols"), (float)k->crt_cols);
-    glUniform2f(glGetUniformLocation(p, "texsize"), (float)g->tube_w, (float)g->tube_h);
+    /* the tube draws the signal, so its texels are the signal's */
+    glUniform2f(glGetUniformLocation(p, "texsize"), (float)g->persist_w, (float)g->persist_h);
     glUniform2f(glGetUniformLocation(p, "texelpx"),
-                (float)g->tube_w / fmaxf(tw * (float)g->out_w, 1.0f),
-                (float)g->tube_h / fmaxf(th * (float)g->out_h, 1.0f));
+                (float)g->persist_w / fmaxf(tw * (float)g->out_w, 1.0f),
+                (float)g->persist_h / fmaxf(th * (float)g->out_h, 1.0f));
     glUniform1f(glGetUniformLocation(p, "u_sharp"), k->sharp_text);
     glUniform1f(glGetUniformLocation(p, "u_overscan"), k->overscan);
     glUniform1f(glGetUniformLocation(p, "u_shoulder"), DXM_BEZEL_BAND);
@@ -647,32 +699,13 @@ void gpu_draw_fade(gpu *g, float a) {
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glDisable(GL_BLEND);
 }
-void gpu_set_overlay(gpu *g, const uint8_t *rgba, int w, int h) {
-    if (!rgba || w <= 0 || h <= 0) {
-        g->ov_w = 0;
-        g->ov_h = 0;
+void gpu_set_osd(gpu *g, const uint8_t *rgba, int w, int h, int changed) {
+    g->osd_on = rgba != NULL && w > 0 && h > 0;
+    if (!g->osd_on || !changed)
         return;
-    }
-    g->ov_w = w;
-    g->ov_h = h;
-    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
+    glBindTexture(GL_TEXTURE_2D, g->tex_osd);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-}
-void gpu_draw_overlay(gpu *g) {
-    if (g->ov_w <= 0)
-        return;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, g->out_w, g->out_h);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glUseProgram(g->prog_overlay);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g->tex_overlay);
-    glUniform1i(glGetUniformLocation(g->prog_overlay, "src"), 0);
-    glBindVertexArray(g->vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glDisable(GL_BLEND);
 }
 
 const char *gpu_describe(void) {

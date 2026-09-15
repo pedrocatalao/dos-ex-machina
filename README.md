@@ -139,8 +139,8 @@ own does the same. Under the left speaker's holes, two lamps, **HOST** and
 **DXM**, say which has it, and the **MOUSE** key over them gives it to the
 machine.
 
-**The OSD button** under the left speaker opens the panel of the tube's
-settings, the same one Shift+F1 opens; press it again to put it away.
+**The OSD button** under the left speaker opens the monitor's on-screen
+display, and a second press closes it.
 
 **The two knobs** under the right speaker are brightness and contrast: grab
 one and drag up or down.
@@ -189,11 +189,12 @@ looked at and kept in `artwork/` in the preferences, so the shelf works
 offline afterwards. Every title in the bundled catalogues is freeware or
 shareware from its author's own site; the machine carries none of it.
 
-**Shift+F1** opens a panel over the tube with the rest of the CRT: bloom,
-burn-in, static, jitter, glow line, ambient light, flicker, h-sync, RGB
-shift, chassis glow, persistence, scanlines, pixel grid, curvature,
-brightness and contrast. Everything saves to `crt.cfg` in the preferences
-directory.
+**The OSD**, from that button or **Shift+F1** anywhere, is the monitor's
+own display on the glass, over the lower half of the picture: every CRT
+setting, on three pages - PICTURE, GEOMETRY and TUBE. The arrows choose and
+adjust one step at a time (Shift for ten), TAB changes page, ESC puts
+it away, and every other key still reaches DOS. Everything saves to
+`crt.cfg` in the preferences directory.
 
 Every run writes `dxm.log` to the preferences directory, one folder up from
 C:, with a timestamp for each startup step, the GL driver in use and what

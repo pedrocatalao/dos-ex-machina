@@ -35,10 +35,11 @@ SETUP (§6.9) is not an exception to this: a machine of the period had a
 setup screen of its own, reached from the POST, and this one is reached the
 same way and drawn as a program of its day.
 
-One exception is deliberate: the Shift+F1 panel, which exposes every CRT
-parameter as a slider. It is a tuning surface, outside the fiction, for the
-parameters a real set would have had behind a service door. It is opened by
-a chord no DOS program would use, it saves to a file, and nothing needs it.
+The OSD (§6.8) is not an exception either: the monitor's own on-screen
+display, generated inside the monitor and mixed into the picture, the way a
+digital monitor of the period put its menu on the glass. It exposes every
+tube setting - including the ones a real set kept behind a service door -
+and is opened from the case's OSD key or a chord no DOS program would use.
 
 ### 2.2 The DOS is real
 
@@ -208,12 +209,12 @@ happens once, at the end.
 
 | # | Pass | Target |
 |---|---|---|
-| 0 | Upload | the source's own size |
-| 1 | Phosphor persistence: a decaying accumulator, green longest (P22) | the source's size, mipmapped |
+| 0 | Signal: the source, with the monitor's OSD mixed into it | the signal's size |
+| 1 | Phosphor persistence: a decaying accumulator, green longest (P22) | the signal's size, mipmapped |
 | 2 | Edge profiles: the light at each of the picture's four edges, weighted by distance from it | 96 x 4 |
 | 3 | Ease: the edge light follows the picture with a tenth of a second of inertia | 96 x 4 |
 | 4 | Glow field: every point of every edge an emitter, summed over the case | 128 x 96 |
-| 5 | Burn-in: a far slower average of the same signal | the source's size |
+| 5 | Burn-in: a far slower average of the same signal | the signal's size |
 | 6 | Bloom: separable blur at a fixed size, twice | fixed |
 | 7 | Composite: curvature, beam, mask, bloom, glass, the lit case, the LEDs and digits, encode | the display |
 
@@ -237,9 +238,20 @@ The beam is integrated over each output pixel's footprint rather than
 point-sampled. Without that, scanlines alias into moiré whenever the tube's
 height is not a multiple of the line count, which is almost always.
 
-The persistence and burn-in targets follow the source's size. A fixed-size
-target resamples every other mode onto its grid and reads it back as its
-own size, which is what once compressed every picture that was not 640x400.
+**The signal is the monitor's input,** and everything after it sees only
+that: the PC's picture with the monitor's OSD (§6.8) switched into it, the
+way a monitor's OSD generator mixed its display into the video ahead of
+the tube. So the OSD is not laid over the finished picture: it persists,
+burns in, blooms, lights the case, and takes brightness, contrast, the
+beam, the mask and the curvature exactly as the picture does.
+
+The signal's size is the source's, scaled by whole numbers until it is at
+least 640x400 - the OSD's raster, and a VGA monitor's lines. Whole numbers,
+so each source pixel becomes an exact block and the PC's picture passes
+through unresampled; the persistence and burn-in targets take that size.
+A fixed-size target would resample every other mode onto its grid and read
+it back as its own size, which is what once compressed every picture that
+was not 640x400.
 
 ### 6.5 Shaders, and one file that knows the API
 
@@ -319,18 +331,34 @@ step the clock through period speeds, each set in DOSBox as a cycle count
 (§7). The segments and the mode LEDs cross-fade over a fifth of a second
 rather than snapping.
 
-**The panel.** Shift+F1 opens every CRT parameter as a slider over the tube
-(§2.1). Its values, and the knobs', persist in `crt.cfg` in the preferences
-directory. Under `--deterministic` the file is neither read nor written, so
-a golden frame never measures somebody's contrast setting. It is a tuning
-surface, and SETUP (§6.9) has taken over what it is for; it goes when the
-OSD replaces it.
+**The OSD.** The monitor's on-screen display, over whatever is showing -
+the POST, DOS, a game, SETUP, CATALOG. It is drawn into an RGBA image the
+size of a 640x480 picture and mixed into the monitor's signal at the head
+of the tube pipeline (§6.4), so from there on it is the picture: it leaves
+a phosphor trail as it closes, lights the case, blooms, and takes
+brightness and contrast, the scanlines, the mask and the curvature.
+A nearly opaque dark blue box with light grey lettering in a doubled 8x8,
+across the lower half of the picture, so the upper half stays in view while
+it is adjusted. All sixteen tube settings, on three pages: PICTURE
+(brightness, contrast, bloom, persistence, scanlines, pixel grid), GEOMETRY
+(curvature, jitter, horizontal sync, RGB shift) and TUBE (burn-in, static,
+flicker, glow line, chassis glow, ambient light), each a bar and a value
+from 0 to 100.
+
+It never takes the mouse. The OSD key on the case opens it and closes it
+again, and so does Shift+F1 from anywhere. While it is up it has the arrows
+- up and down to choose, left and right to adjust by one of the hundred,
+Shift by ten - TAB and Shift+TAB (or PAGE UP and PAGE DOWN) for the pages,
+HOME and END for either end, and ESC; every other key goes on to
+the machine, so a game does not stop while its picture is adjusted. The
+values, and the knobs', persist in `crt.cfg` in the preferences directory.
+Under `--deterministic` the file is neither read nor written, so a golden
+frame never measures somebody's contrast setting.
 
 **The mouse** is the machine's while it holds it: SDL's relative mode, no
 pointer over the glass, motion to whatever is on the tube - DOSBox, SETUP
 or CATALOG. Ctrl+F10 releases it to the desktop, as in DOSBox, where it
-wears a period arrow and works the knobs and keys; the Shift+F1 panel
-borrows it the same way while it is up. Released, nothing on the tube hears
+wears a period arrow and works the knobs and keys. Released, nothing on the tube hears
 it: SETUP and CATALOG hide their pointers and light nothing under them, and
 whatever the machine held down as the mouse left - a SETUP slider, a DOS
 game's fire - is let go, so nothing stays pressed. On a Mac, whose F10 is a
@@ -348,8 +376,7 @@ takes it back.
 
 **The OSD button.** A momentary button under the left speaker pod, level
 with the knobs under the right one, a raised key like the MOUSE key with
-OSD printed on it. It opens the panel below, as Shift+F1 does, until the
-OSD replaces it.
+OSD printed on it. It opens the OSD, and a second press closes it.
 
 ### 6.9 SETUP
 
@@ -634,8 +661,8 @@ Next, roughly in order:
 ## 11. Non-goals, and the dev flags
 
 - Windowed mode, except the `--windowed` dev flag.
-- A settings screen in the fiction. The panel (§2.1) is the one tuning
-  surface.
+- A settings screen outside the fiction. SETUP and the OSD (§2.1) are the
+  machine's and the monitor's own.
 - Save states, netplay, gamepads, and more than one DOS at once.
 - Shipping any DOS software or data. The catalogue (§8) downloads what its
   publisher gives away; the machine carries none of it.

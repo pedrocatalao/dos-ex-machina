@@ -12,7 +12,7 @@
 #include "catalog.h"
 #include "crt.h"
 #include "sound.h"
-#include "ui.h"
+#include "osd.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,12 +88,12 @@ static options parse(int argc, char **argv) {
     return o;
 }
 
-/* The shipped look: a machine that has been used, tuned by eye on the
- * panel and copied from its crt.cfg.  The imperfections are all small -
+/* The shipped look: a machine that has been used, tuned by eye and copied
+ * from its crt.cfg.  The imperfections are all small -
  * h-sync and RGB shift in particular are kept low, since past a point they
  * put every character at a different sub-pixel phase and the same glyph
- * reads thin-edged on one side here and the other there.  The panel's own
- * file overrides all of this once it exists. */
+ * reads thin-edged on one side here and the other there.  The user's own
+ * crt.cfg overrides all of this once it exists. */
 static gpu_knobs shipped_knobs(float ambient) {
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
@@ -105,7 +105,7 @@ static gpu_knobs shipped_knobs(float ambient) {
     return k;
 }
 
-/* The knobs show the live values - turned by hand, by the panel, or
+/* The knobs show the live values - turned by hand, by the OSD or SETUP, or
  * loaded from the file - and only a knob that moved is redrawn. */
 static void show_knobs(gpu *g, const gpu_knobs *k, float *last_b, float *last_c) {
     if (k->brightness != *last_b) {
@@ -231,11 +231,11 @@ int main(int argc, char **argv) {
     dxm_log("chassis uploaded");
 
     gpu_knobs k = shipped_knobs(o.ambient);
-    ui_init(&k);
+    osd_init(&k);
     static char cfgpath[1024];
     snprintf(cfgpath, sizeof cfgpath, "%scrt.cfg", a.pref ? a.pref : "./");
     if (!a.deterministic)
-        ui_load(cfgpath);
+        osd_load(cfgpath);
     static char setpath[1024];
     snprintf(setpath, sizeof setpath, "%sdxm.cfg", a.pref ? a.pref : "./");
     setup_bind(&k, cfgpath, setpath, c_drive(&o, &a));
@@ -440,18 +440,16 @@ int main(int argc, char **argv) {
         k.aperture_r = L.aperture_r; /* match the chassis hole */
         /* the wall clock, not the machine's: SETUP stops the boot, not the
          * tube - its noise, flicker and jitter are the glass's own */
+        {
+            /* the monitor's OSD, into the picture this frame draws */
+            int changed;
+            const uint8_t *osd = osd_frame(&changed);
+            gpu_set_osd(a.gpu, osd, OSD_W, OSD_H, changed);
+        }
         gpu_draw(a.gpu, L.tube_x / a.W, 1.0f - (L.tube_y + L.tube_h) / a.H, L.tube_w / a.W,
                  L.tube_h / a.H, &k, raw);
         if (held)
             dosbox_frame_done();
-        {
-            int ow, oh;
-            const uint8_t *ov = ui_render(a.W, a.H, &ow, &oh);
-            if (ov) {
-                gpu_set_overlay(a.gpu, ov, ow, oh);
-                gpu_draw_overlay(a.gpu);
-            }
-        }
         theatre_room(&th, a.gpu, t);
         input_mouse_sync(&in, &a);
         SDL_GL_SwapWindow(a.win);
@@ -474,7 +472,7 @@ int main(int argc, char **argv) {
         }
     }
     if (!a.deterministic)
-        ui_save(cfgpath);
+        osd_save(cfgpath);
     dosbox_stop();
     app_shutdown(&a);
     return 0;

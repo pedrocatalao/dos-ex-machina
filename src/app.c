@@ -61,7 +61,7 @@ static void fail(SDL_Window *win, const char *msg) {
 void app_measure(app *a) {
     /* HiDPI: size from the DRAWABLE, never the window (SPEC §6.3) */
     SDL_GetWindowSizeInPixels(a->win, &a->W, &a->H);
-    /* mouse arrives in WINDOW units; the panel works in drawable px */
+    /* mouse arrives in WINDOW units; the case's controls are in drawable px */
     int ww, wh;
     SDL_GetWindowSize(a->win, &ww, &wh);
     a->win_wf = (float)(ww > 0 ? ww : a->W);

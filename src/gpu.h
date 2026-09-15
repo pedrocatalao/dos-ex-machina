@@ -20,8 +20,8 @@ void gpu_patch_chassis(gpu *g, int x, int y, int w, int h, const uint8_t *rgba);
 void gpu_set_tube(gpu *g, const uint8_t *rgb, int w, int h);
 
 /* knob values, 0..1 (SPEC §6.8) */
-/* The adjustable CRT parameters.  Ordered as they are presented in the
- * on-screen panel; every one is 0..1 except where noted. */
+/* The adjustable CRT parameters, as the OSD (osd.h) and SETUP present them;
+ * every one is 0..1 except where noted. */
 typedef struct gpu_knobs {
     float brightness, contrast;
     float bloom;        /* light bleed between lit pixels             */
@@ -64,9 +64,11 @@ void gpu_draw_fade(gpu *g, float a);
  * nothing.  Room light and the glass are unaffected - only the picture. */
 void gpu_set_tube_power(gpu *g, float h, float v, float gain);
 
-/* The settings panel, drawn on the CPU and composited last. */
-void gpu_set_overlay(gpu *g, const uint8_t *rgba, int w, int h);
-void gpu_draw_overlay(gpu *g);
+/* The monitor's OSD (osd.h): RGBA over the whole picture, mixed into the
+ * signal ahead of everything the tube does with it (signal.frag).  NULL
+ * takes it off; `changed` uploads the image, otherwise the last one is
+ * kept. */
+void gpu_set_osd(gpu *g, const uint8_t *rgba, int w, int h, int changed);
 
 /* Live LED emission painted over the baked chassis, which contains only the
  * UNLIT lens.  idx 0 = floppy activity, 1 = power, 2 and 3 the turbo

@@ -9,6 +9,7 @@
 in vec2 uv; out vec4 o;
 uniform sampler2D src;   // the persisted picture; v = 0 is its top row
 uniform float reach;     // how far in the light is gathered, of the picture
+uniform float lod;       // the mip level that averages a few of the SOURCE's rows
 void main(){
   int side = int(uv.y*4.0);
   float a = uv.x;        // along the edge
@@ -24,7 +25,7 @@ void main(){
     else if (side == 2) p = vec2(d, 1.0-a);      // left edge, inward
     else                p = vec2(1.0-d, 1.0-a);  // right edge, inward
     // a few rows averaged per tap: the mip chain, so motion is continuous
-    sum += textureLod(src, p, 2.0).rgb * w;
+    sum += textureLod(src, p, lod).rgb * w;
     wsum += w;
   }
   o = vec4(sum/wsum, 1.0);

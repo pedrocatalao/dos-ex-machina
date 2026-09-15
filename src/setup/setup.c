@@ -15,7 +15,7 @@
 #include "setup.h"
 #include "internal.h"
 #include "log.h"
-#include "ui.h"
+#include "osd.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -125,9 +125,8 @@ static void add(const char *name, float *val, float lo, float hi) {
         SET[nset++] = (setting){.name = name, .kind = SET_SLIDER, .val = val, .lo = lo, .hi = hi};
 }
 
-/* What the chosen section has to offer.  MONITOR is the tube, and its
- * values are the ones the panel has always had; the rest are still to
- * come. */
+/* What the chosen section has to offer.  MONITOR is the tube: the same
+ * settings the OSD has; the rest come from machine.c. */
 static void fill(int section) {
     nset = 0;
     if (section != SEC_MONITOR) {
@@ -297,7 +296,7 @@ int setup_take_reboot(void) {
 
 void setup_save(void) {
     if (S.crt_cfg)
-        ui_save(S.crt_cfg);
+        osd_save(S.crt_cfg);
     if (S.dxm_cfg)
         machine_save(S.dxm_cfg);
     dxm_log("setup: kept");
