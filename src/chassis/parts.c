@@ -6,16 +6,20 @@
 /* the condensed cut the case's printed legends are set in (text_helv) */
 #define KEY_SQUEEZE 0.82f
 
+/* How dark the stains of handling get, and whose pattern is whose: each
+ * part has its own seed, so no two carry the same grime. */
+#define HANDLED_STAIN 0.12f /* the eject button, MODE and the power cap */
+#define KEYCAP_STAIN 0.22f  /* the MOUSE and OSD keycaps, heavier */
+#define KEYCAP_STAIN_SEED 51
+#define POWER_STAIN_SEED 71
+#define FLAT_STAIN_SEED 81 /* the turbo module's MODE cap */
+#define EJECT_STAIN_SEED 91
+
 /* The grime of a part that is handled: soft warm blotches over a fine
  * mottle, taking more blue out than red, as the case's own does.  (u, v)
  * is the point on the case in millimetres, so the stains stay put and look
- * the same at any size; `seed` gives each part its own; `strength` is how
- * dark the worst of it gets.  Fills m with the multipliers for R, G, B. */
-/* how dark the stains on the eject button, MODE and the power cap get */
-#define HANDLED_STAIN 0.12f
-#define FLAT_STAIN_SEED 81   /* the turbo module's MODE cap */
-#define KEYCAP_STAIN 0.22f   /* the MOUSE and OSD keycaps, heavier */
-#define KEYCAP_STAIN_SEED 51
+ * the same at any size; `strength` is how dark the worst of it gets.
+ * Fills m with the multipliers for R, G, B. */
 static void handled_stain(float u, float v, int seed, float strength, float m[3]) {
     float blot =
         vnoise(u * 0.45f, v * 0.5f, seed) * 0.6f + vnoise(u * 1.3f, v * 1.2f, seed + 2) * 0.4f;
@@ -398,6 +402,11 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     /* its bevels: the faces inside it, narrow and firm - a moulded slot has
      * a sharp lip, not a soft roll */
     const float SLOT_FACE = 0.9f, SLOT_WALL = 0.8f; /* mm */
+    /* the slot's own rounded box, which every part of it is cut to */
+    float scx = slx + slw * 0.5f, scy = sly + slh * 0.5f, srad = slh * 0.24f;
+    /* the door hole meets the slot along the top, from tcx across tcw: no
+     * plastic there, so no lead-in and no top wall across it */
+    float hole0 = tcx, hole1 = tcx + tcw;
     /* The slot's LEAD-IN: the angled faces moulded round the opening that
      * funnel a disk into it and centre it as it goes in - a narrow chamfer
      * along the top and the bottom, flaring wide at the two ends, where the
@@ -409,8 +418,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
      * plastic, so no lead-in along the top there. */
     {
         const float LEAD_TB = 1.0f, LEAD_END = 2.8f, LEAD_RAD = 0.5f; /* mm */
-        float lt = LEAD_TB * mm, le = LEAD_END * mm, r0 = slh * 0.24f;
-        float scx = slx + slw * 0.5f, scy = sly + slh * 0.5f;
+        float lt = LEAD_TB * mm, le = LEAD_END * mm;
         float ohw = slw * 0.5f + le, ohh = slh * 0.5f + lt;
         for (int j2 = (int)floorf(scy - ohh) - 1; j2 <= (int)ceilf(scy + ohh) + 1; j2++)
             for (int i2 = (int)floorf(scx - ohw) - 1; i2 <= (int)ceilf(scx + ohw) + 1; i2++) {
@@ -421,10 +429,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                 float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - so));
                 if (cov <= 0.0f)
                     continue;
-                if (rr_sd(px, py, scx, scy, slw * 0.5f, slh * 0.5f, r0) <= -0.5f)
+                if (rr_sd(px, py, scx, scy, slw * 0.5f, slh * 0.5f, srad) <= -0.5f)
                     continue; /* inside the slot itself */
-                if (py < sly && px > tcx && px < tcx + tcw)
-                    continue; /* the door hole: no plastic */
+                if (py < sly && px > hole0 && px < hole1)
+                    continue;
                 /* how far out onto each face, 0 at the slot's edge */
                 float ex = fmaxf(0.0f, fabsf(px - scx) - slw * 0.5f) / le;
                 float ey = fmaxf(0.0f, fabsf(py - scy) - slh * 0.5f) / lt;
@@ -440,7 +448,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                 px_shade(c, i2, j2, mul, spec);
             }
     }
-    rrect(c, slx, sly, slw, slh, slh * 0.24f, 12, 11, 10, 1.0f, 1.0f);
+    rrect(c, slx, sly, slw, slh, srad, 12, 11, 10, 1.0f, 1.0f);
     {
         float ch1 = SLOT_FACE * mm;
         for (int j2 = 0; j2 < (int)ceilf(ch1); j2++) {
@@ -455,16 +463,13 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             /* right across, into the rounded ends: the faces carry on round
              * the corners and meet the end walls, rather than stopping short
              * and leaving the ends bare */
+            int yt = (int)sly + j2, yb = (int)(sly + slh) - 1 - j2;
             for (int i2 = (int)slx; i2 < (int)(slx + slw); i2++) {
-                float rad = slh * 0.24f;
-                int yt = (int)sly + j2, yb = (int)(sly + slh) - 1 - j2;
-                /* the top wall only where there is plastic above it */
-                if (((float)i2 + 0.5f < tcx || (float)i2 + 0.5f > tcx + tcw) &&
-                    rr_sd((float)i2 + 0.5f, (float)yt + 0.5f, slx + slw * 0.5f, sly + slh * 0.5f,
-                          slw * 0.5f, slh * 0.5f, rad) <= 0.0f)
+                float px = (float)i2 + 0.5f;
+                if (!(px > hole0 && px < hole1) &&
+                    rr_sd(px, (float)yt + 0.5f, scx, scy, slw * 0.5f, slh * 0.5f, srad) <= 0.0f)
                     px_blend(c, i2, yt, vt, vt - 2, vt - 4, 1.0f);
-                if (rr_sd((float)i2 + 0.5f, (float)yb + 0.5f, slx + slw * 0.5f, sly + slh * 0.5f,
-                          slw * 0.5f, slh * 0.5f, rad) <= 0.0f)
+                if (rr_sd(px, (float)yb + 0.5f, scx, scy, slw * 0.5f, slh * 0.5f, srad) <= 0.0f)
                     px_blend(c, i2, yb, (int)(vb * 1.05f), vb, (int)(vb * 0.88f), 1.0f);
             }
         }
@@ -473,7 +478,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
          * dark of the slot, the right-hand wall turned to the light and the
          * left-hand one away from it, rounded off with the slot's corners */
         {
-            float cw1 = SLOT_WALL * mm, rad = slh * 0.24f;
+            float cw1 = SLOT_WALL * mm;
             for (int j2 = (int)sly; j2 < (int)(sly + slh); j2++)
                 for (int k2 = 0; k2 < (int)ceilf(cw1); k2++) {
                     float t2 = ((float)k2 + 0.5f) / cw1;
@@ -482,8 +487,8 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                     float e = 1.0f - t2 * t2 * t2;
                     for (int side = 0; side < 2; side++) {
                         int i2 = side ? (int)(slx + slw) - 1 - k2 : (int)slx + k2;
-                        if (rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, slx + slw * 0.5f,
-                                  sly + slh * 0.5f, slw * 0.5f, slh * 0.5f, rad) > 0.0f)
+                        if (rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, scx, scy, slw * 0.5f,
+                                  slh * 0.5f, srad) > 0.0f)
                             continue;
                         /* lit toward the top, as the end walls of a slot are */
                         float v = (float)(j2 - (int)sly) / slh;
@@ -512,10 +517,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
          * the slot's bottom face shows under the disk, not the dark of the
          * face's far part, which the disk hides */
         float clip = sly + slh - 0.35f * mm;
-        const float INSIDE = 0.70f;         /* how much of the light reaches it in there */
-        const float LABEL_T = 0.22f;        /* where the label starts, down the edge */
-        float corner = 2.6f * mm; /* the shell's rounded corners */
-        float recess = 0.5f * mm; /* label recess in the middle  */
+        const float INSIDE = 0.70f;  /* how much of the light reaches it in there */
+        const float LABEL_T = 0.22f; /* where the label starts, down the edge */
+        float corner = 2.6f * mm;    /* the shell's rounded corners */
+        float recess = 0.5f * mm;    /* label recess in the middle  */
         float lab_x0 = dkx + 11.0f * mm, lab_x1 = dkx + dkw - 11.0f * mm;
         for (int i2 = (int)dkx; i2 < (int)(dkx + dkw); i2++) {
             float fx = (float)i2 - dkx;
@@ -558,9 +563,6 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
              * disk's top edge */
             px_blend(c, i2, (int)top, (int)(150 * curve), (int)(150 * curve), (int)(156 * curve),
                      0.16f);
-            /* and the shadow it casts below itself, where that shows */
-            if ((float)bot - 1.0f < clip)
-                px_blend(c, i2, (int)bot - 1, 12, 12, 14, 0.45f);
         }
         /* the step where the recessed label area meets the thicker ends */
         for (int e = 0; e < 2; e++) {
@@ -646,7 +648,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                 i2 < 0 || j2 < 0 || i2 >= c->w || j2 >= c->h)
                 continue;
             float m[3];
-            handled_stain((float)i2 / mm, (float)j2 / mm, 91, HANDLED_STAIN, m);
+            handled_stain((float)i2 / mm, (float)j2 / mm, EJECT_STAIN_SEED, HANDLED_STAIN, m);
             uint8_t *q = c->px + ((size_t)j2 * c->w + i2) * 4;
             for (int ch2 = 0; ch2 < 3; ch2++)
                 q[ch2] = (uint8_t)((float)q[ch2] * m[ch2]);
@@ -654,11 +656,14 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f);
 
     /* activity light: rectangular window, as in the reference */
-    led_rect(c, x + 21.0f * mm, y + 18.6f * mm, 5.4f * mm, 2.2f * mm, 26, 44, 26); /* UNLIT */
-    led_out[0] = x + 21.0f * mm - 2.7f * mm;
-    led_out[1] = y + 18.6f * mm - 1.1f * mm;
-    led_out[2] = 5.4f * mm;
-    led_out[3] = 2.2f * mm;
+    {
+        float lcx = x + 21.0f * mm, lcy = y + 18.6f * mm, lw = 5.4f * mm, lh = 2.2f * mm;
+        led_rect(c, lcx, lcy, lw, lh, 26, 44, 26); /* UNLIT */
+        led_out[0] = lcx - lw * 0.5f;
+        led_out[1] = lcy - lh * 0.5f;
+        led_out[2] = lw;
+        led_out[3] = lh;
+    }
     canvas_grain = grain_was;
 }
 
@@ -753,10 +758,13 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
 /* A key's legend: its function in lightly condensed Helvetica Bold, cream,
  * `cap` px capitals from `ty` down, centred across on `mid`, on canvas c;
  * the case's finish is taken at (fx, fy) on the case, and it dims a little
- * as the key goes down.  The same on every key, whatever its cap is like. */
+ * as the key goes down.  The same on every key, whatever its cap is like.
+ * On a stained key - `stain_seed` 0 or more - the paint takes the cap's
+ * grime (handled_stain, at `stain`, in `mm`); (ox, oy) is where canvas c
+ * sits on the case.  -1 for a clean one. */
 static void key_legend(canvas *c, float mid, float ty, const char *label, float cap, float press,
-                       float fx, float fy, int cw, int ch, int stain_seed, float stain,
-                       float mm, float ox, float oy) {
+                       float fx, float fy, int cw, int ch, int stain_seed, float stain, float mm,
+                       float ox, float oy) {
     const float sq = 0.92f; /* a little condensed */
     float track = cap * 0.06f, fat = fmaxf(0.5f, cap * 0.05f);
     float tw = helv_width(label, cap, sq, track) + fat;
@@ -868,7 +876,7 @@ static void power_key(canvas *c, float cx, float cy, float w, float h, float mm,
             /* the face, a very little darker as it goes down */
             float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.03f * press);
             float m[3];
-            handled_stain((float)i / mm, (float)j / mm, 71, HANDLED_STAIN, m);
+            handled_stain((float)i / mm, (float)j / mm, POWER_STAIN_SEED, HANDLED_STAIN, m);
             float rgb[3] = {KEY_R * sh * m[0], KEY_G * sh * m[1], KEY_B * sh * m[2]};
             finish_rgb((float)i, (float)j, cw, ch, rgb);
             px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
@@ -1087,7 +1095,8 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
                 float mr = 1.0f, mg = 1.0f, mb = 1.0f;
                 if (stained) {
                     float m[3];
-                    handled_stain((fx + ox) / mm, (fy + oy) / mm, KEYCAP_STAIN_SEED, KEYCAP_STAIN, m);
+                    handled_stain((fx + ox) / mm, (fy + oy) / mm, KEYCAP_STAIN_SEED, KEYCAP_STAIN,
+                                  m);
                     mr = m[0];
                     mg = m[1];
                     mb = m[2];
