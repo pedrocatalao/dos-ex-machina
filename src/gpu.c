@@ -102,6 +102,7 @@ static int gl_load(void) {
 #    define glUniform1fv p_glUniform1fv
 #    define glUniform1i p_glUniform1i
 #    define glUniform2f p_glUniform2f
+#    define glUniform2i p_glUniform2i
 #    define glUniform3fv p_glUniform3fv
 #    define glUniform4f p_glUniform4f
 #    define glUniform4fv p_glUniform4fv

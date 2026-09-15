@@ -7,8 +7,11 @@
  * for a few dozen functions, this lists them once and the two macros below
  * build the pointers and the loader from it.
  *
- * If gpu.c starts using a function that is not here, the link fails with the
- * name of the one that is missing - which is the failure you want. */
+ * A function added here also needs its `#define name p_name` line in gpu.c,
+ * which maps the plain name onto the loaded pointer.  If gpu.c starts using
+ * a function that is in neither, the compile fails on Linux and Windows
+ * with the name of the one that is missing - macOS takes the whole profile
+ * from its own header and will not notice. */
 
 /*      return type          name                     parameter list        */
 GLF(void, glActiveTexture, (GLenum))
