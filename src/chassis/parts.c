@@ -320,8 +320,10 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     rrect(c, x, y, fw, h, 1.3f * mm, pr, pg, pb, 0.97f, 1.01f);
     housing_edge(c, x, y, fw, h, 1.3f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
 
-    float sly = y + 8.6f * mm, slh = 4.8f * mm;
-    float slx = x + 5.0f * mm, slw = fw - 10.0f * mm;
+    /* the slot sits on whole pixels, so its edges land crisply instead of
+     * smearing across two - and the cuts above and below it follow it */
+    float sly = roundf(y + 8.6f * mm), slh = roundf(4.8f * mm);
+    float slx = roundf(x + 5.0f * mm), slw = roundf(fw - 10.0f * mm);
     float tcw = 36.0f * mm, tcx = x + (fw - tcw) * 0.5f, tcy0 = y + 3.4f * mm;
     float bcw = 41.0f * mm, bcx = x + (fw - bcw) * 0.5f, bcy1 = y + 21.2f * mm;
     chamfer_ring(c, tcx, tcy0, tcw, sly - tcy0, 1.6f * mm, 0.9f * mm);
@@ -373,6 +375,9 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
         }
     }
 
+    /* its bevels: the chamfer round the opening and the faces inside it,
+     * narrow and firm - a moulded slot has a sharp lip, not a soft roll */
+    const float SLOT_CHAMFER = 0.7f, SLOT_FACE = 0.9f, SLOT_WALL = 0.8f; /* mm */
     /* slot: chamfered opening, eased interior faces.  Where the open door
      * hole above meets the slot there is no plastic between them, so no
      * chamfer along the slot's top and no top wall inside it: those run
@@ -380,7 +385,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
      * slot and the hole's pixels put back over it. */
     {
         int hx0 = (int)ceilf(tcx), hx1 = (int)floorf(tcx + tcw);
-        int hy0 = (int)floorf(sly - 1.2f * mm) - 2, hy1 = (int)floorf(sly);
+        int hy0 = (int)floorf(sly - SLOT_CHAMFER * mm) - 2, hy1 = (int)floorf(sly);
         int hw = hx1 - hx0, hh = hy1 - hy0;
         uint8_t *keep = (hw > 0 && hh > 0) ? malloc((size_t)hw * hh * 4) : NULL;
         if (keep)
@@ -393,7 +398,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                     else
                         memcpy(d, c->px + ((size_t)yy * c->w + xx) * 4, 4);
                 }
-        chamfer_ring(c, slx, sly, slw, slh, slh * 0.24f, 1.2f * mm);
+        chamfer_ring(c, slx, sly, slw, slh, slh * 0.24f, SLOT_CHAMFER * mm);
         if (keep) {
             for (int j2 = 0; j2 < hh; j2++)
                 for (int i2 = 0; i2 < hw; i2++) {
@@ -407,13 +412,16 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     }
     rrect(c, slx, sly, slw, slh, slh * 0.24f, 12, 11, 10, 1.0f, 1.0f);
     {
-        float ch1 = 1.4f * mm;
-        for (int j2 = 0; j2 < (int)ch1; j2++) {
-            float t2 = (float)j2 / ch1;
-            float e = sinf((1.0f - t2) * 1.5708f);
-            e *= e;
+        float ch1 = SLOT_FACE * mm;
+        for (int j2 = 0; j2 < (int)ceilf(ch1); j2++) {
+            float t2 = ((float)j2 + 0.5f) / ch1;
+            if (t2 > 1.0f)
+                continue;
+            /* full tone right up to the lip, then dropping away: the face
+             * reads as a surface with an edge, not a glow */
+            float e = 1.0f - t2 * t2 * t2;
             int vt = (int)(14.0f + 52.0f * e);
-            int vb = (int)(14.0f + 86.0f * e);
+            int vb = (int)(14.0f + 60.0f * e); /* the bottom face, turned up to the light */
             /* right across, into the rounded ends: the faces carry on round
              * the corners and meet the end walls, rather than stopping short
              * and leaving the ends bare */
@@ -435,12 +443,13 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
          * dark of the slot, the right-hand wall turned to the light and the
          * left-hand one away from it, rounded off with the slot's corners */
         {
-            float cw1 = 1.2f * mm, rad = slh * 0.24f;
+            float cw1 = SLOT_WALL * mm, rad = slh * 0.24f;
             for (int j2 = (int)sly; j2 < (int)(sly + slh); j2++)
-                for (int k2 = 0; k2 < (int)cw1; k2++) {
-                    float t2 = (float)k2 / cw1;
-                    float e = sinf((1.0f - t2) * 1.5708f);
-                    e *= e;
+                for (int k2 = 0; k2 < (int)ceilf(cw1); k2++) {
+                    float t2 = ((float)k2 + 0.5f) / cw1;
+                    if (t2 > 1.0f)
+                        continue;
+                    float e = 1.0f - t2 * t2 * t2;
                     for (int side = 0; side < 2; side++) {
                         int i2 = side ? (int)(slx + slw) - 1 - k2 : (int)slx + k2;
                         if (rr_sd((float)i2 + 0.5f, (float)j2 + 0.5f, slx + slw * 0.5f,
@@ -453,7 +462,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
                     }
                 }
         }
-        soft_hedge(c, slx + 1.5f * mm, slx + slw - 1.5f * mm, sly + slh, 1.0f * mm, 1.30f, 0.04f,
+        soft_hedge(c, slx + 1.5f * mm, slx + slw - 1.5f * mm, sly + slh, 0.6f * mm, 1.18f, 0.02f,
                    1);
     }
     /* ---- the inserted diskette --------------------------------------
