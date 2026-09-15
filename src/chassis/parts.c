@@ -647,7 +647,8 @@ static void key_legend(canvas *c, float mid, float ty, const char *label, float 
  * down it, an edge bevel, and the shadow it throws on the plate below - the
  * power cap's construction at a fraction of the size.  Pressed, the face
  * dims, the bevel turns in and the shadow goes, and the legend goes down
- * with it.  Its legend is the other keys' (key_legend). */
+ * with it.  Its legend is the other keys' (key_legend), but for + and -,
+ * which are drawn as bars. */
 static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
                      float cap, float press, int ox, int oy, int cw, int ch) {
     /* Everything is worked out in the case's own coordinates and only
@@ -686,7 +687,36 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
         }
     /* the bevel, raised; turned in once it is most of the way down */
     bevel(c, x - (float)ox, y - (float)oy, w, h, fmaxf(1.0f, 0.45f * mm), press < 0.5f);
-    /* the legend, going down with the face */
+    /* the legend, going down with the face.  + and - are not set in type:
+     * a font's signs are small marks cut for text, and blown up they go
+     * thin and soft.  They are drawn as bars instead - as heavy as MODE's
+     * strokes and a third of the cap across - in the legends' cream. */
+    if (!strcmp(label, "+") || !strcmp(label, "-")) {
+        float mx = cx - (float)ox, my = cy - (float)oy + press * 0.35f * mm;
+        float half = fminf(w, h) * 0.16f; /* half the bar's length */
+        float t = fmaxf(1.4f, cap * 0.20f);           /* the stroke */
+        float ink[3] = {232.0f * (1.0f - 0.04f * press), 224.0f * (1.0f - 0.04f * press),
+                        202.0f * (1.0f - 0.04f * press)};
+        finish_rgb(cx, cy, cw, ch, ink);
+        int plus = label[0] == '+';
+        int saved_grain = canvas_grain;
+        canvas_grain = 0;
+        for (int j = (int)floorf(my - half) - 1; j <= (int)ceilf(my + half) + 1; j++)
+            for (int i = (int)floorf(mx - half) - 1; i <= (int)ceilf(mx + half) + 1; i++) {
+                float px = (float)i + 0.5f - mx, py = (float)j + 0.5f - my;
+                /* coverage of a bar: box-filtered along both axes */
+                float hb = fminf(1.0f, fmaxf(0.0f, half + 0.5f - fabsf(px))) *
+                           fminf(1.0f, fmaxf(0.0f, t * 0.5f + 0.5f - fabsf(py)));
+                float vb = plus ? fminf(1.0f, fmaxf(0.0f, t * 0.5f + 0.5f - fabsf(px))) *
+                                      fminf(1.0f, fmaxf(0.0f, half + 0.5f - fabsf(py)))
+                                : 0.0f;
+                float a = fmaxf(hb, vb);
+                if (a > 0.0f)
+                    px_blend(c, i, j, (int)ink[0], (int)ink[1], (int)ink[2], a);
+            }
+        canvas_grain = saved_grain;
+        return;
+    }
     key_legend(c, cx - (float)ox, cy - cap * 0.5f - 0.5f + press * 0.35f * mm - (float)oy, label,
                cap, press, cx, cy, cw, ch);
 }
@@ -1194,14 +1224,9 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
 /* One cap of the button cluster: a flat cap on the module's plate (flat_key),
  * with its function printed on it as on the other keys - placed here, drawn
  * last with them.  Records its outline in out, for the mouse. */
-#define SIGN_SCALE 1.6f /* how much larger + and - are set than MODE */
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
-    /* + and - are small marks in a face whose capitals they are sized by,
-     * so they are set larger to read as big as MODE does */
-    if (!strcmp(label, "+") || !strcmp(label, "-"))
-        cap *= SIGN_SCALE;
     keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, 0, 1, out);
 }
 
