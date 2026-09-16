@@ -5,7 +5,7 @@
   "origin": "bundled",
   "drive": "C",
   "about": "DOS software its makers give away. Every title here is free to download, install and pass on, and comes from where its author put it.",
-  "updated": "2026-09-13",
+  "updated": "2026-09-15",
   "titles": [
     {
       "id": "SKYROADS",
@@ -286,6 +286,36 @@
       "artwork": {
         "url": "https://t.gamesnostalgia.net/screenshots/s/t/stargunner/35625.jpg",
         "sha256": "76aaeba6fbb939b3966dd55ca52b8022469aa32199836c315393cb18f94c1a6b"
+      }
+    },
+    {
+      "id": "TIMMY",
+      "name": "Timmy Time Adventure",
+      "creator": "Warcom Soft.",
+      "year": 2026,
+      "version": "1.2",
+      "category": "GAMES",
+      "genre": "platformer",
+      "description": "A boy inventor switches on his time machine, it explodes, and the pieces land in the Jurassic, ancient Egypt, the Middle Ages and the Wild West. Run, climb and jump after them, throwing whatever you can pick up at whatever is chasing you. Z jumps, X throws and punches. A new DOS game, written for real hardware and given away under the GPL.",
+      "multiplayer": false,
+      "network": false,
+      "video": "VGA",
+      "sound": [
+        "adlib",
+        "sb"
+      ],
+      "controls": [
+        "keyboard"
+      ],
+      "run": "TIMMY.EXE",
+      "download": {
+        "url": "https://github.com/warrior-rockk/timmy-time-adventure/releases/download/v1.2/Timmy.Time.Adventure.v1.2.zip",
+        "size": 1327019,
+        "sha256": "8b34158152951bb8b1734ef2491e55e709b07886769c2fe0bd56a9dd71e7def8"
+      },
+      "artwork": {
+        "url": "https://img.itch.zone/aW1hZ2UvNDk2NDkyMS8yOTcxNDAzMS5wbmc=/347x500/OzIqrK.png",
+        "sha256": "1d46f8657b9ee6fd64b0795a9623d328d45cdf558b6c46721c661ebf57753a93"
       }
     }
   ]
