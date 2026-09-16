@@ -206,13 +206,14 @@ static const char *c_drive(const options *o, const app *a) {
 }
 
 /* What SETUP says the machine is, told to the core while it will still
- * listen: memory, the processor core and the MIDI device are read as it
- * starts, and the keyboard is fixed once DOS is up.  Said again before a
- * restart, since that is the point of restarting. */
+ * listen: memory, the processor core, the MIDI device and where the boot
+ * ends up are read as it starts, and the keyboard is fixed once DOS is up.
+ * Said again before a restart, since that is the point of restarting. */
 static void tell_the_core(const options *o) {
     dosbox_set_option("dosbox_pure_memory_size", setup_memory());
     dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
     dosbox_set_midi(setup_midi());
+    dosbox_set_boot_catalogue(setup_boot_catalogue());
     if (o->keyboard)
         dosbox_set_layout(o->keyboard); /* the flag wins over everything */
     else if (strcmp(setup_keyboard(), "auto"))

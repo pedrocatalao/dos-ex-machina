@@ -172,8 +172,7 @@ int machine_settings(int section, setting *out, int max) {
                        .opts = BOOT_NAME,
                        .nopts = 2,
                        .next_boot = 1,
-                       .fixed = 1,
-                       .note = "There is no catalogue yet."}));
+                       .note = "Leaving the catalogue drops to the DOS prompt."}));
     }
 #undef PUT
     return n;

@@ -152,6 +152,11 @@ void dosbox_set_drives(const char *list) {
     snprintf(g_drives, sizeof g_drives, "%s", list ? list : "");
 }
 static char g_midi[16] = "auto";
+/* where SETUP says the boot ends up: 0 the prompt, 1 the catalogue */
+static int g_boot_cat;
+void dosbox_set_boot_catalogue(int on) {
+    g_boot_cat = on != 0;
+}
 /* SETUP, asked for at the DOS prompt: the core's thread asks, the frame
  * loop answers, since the screen is the main thread's to open. */
 static SDL_AtomicInt g_setup_req, g_setup_up;
@@ -743,8 +748,15 @@ static void write_autoexec(const char *c_drive) {
     for (size_t i = 0; i < sizeof GREETING / sizeof GREETING[0]; i++)
         fprintf(f, GREETING[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", GREETING[i]);
     fprintf(f, "ECHO.\r\n");
+    /* SETUP's BOOT: the catalogue is reached by running the command the
+     * prompt would have run, so DOS waits in it the way it does when it is
+     * typed, and leaving the screen comes back to the prompt under the
+     * greeting.  A setting the other way simply does not write the line -
+     * the file is written out whole every boot. */
+    if (g_boot_cat)
+        fprintf(f, "CATALOG\r\n");
     fclose(f);
-    dxm_log("dosbox: wrote %s", path);
+    dxm_log("dosbox: wrote %s%s", path, g_boot_cat ? ", booting into CATALOG" : "");
 }
 
 /* Where the core is looked for: beside the program, which is where every
