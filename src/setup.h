@@ -30,6 +30,8 @@ const char *setup_memory(void);   /* megabytes, as the core wants it */
 const char *setup_cpu_core(void);
 const char *setup_midi(void); /* which MIDI device, or none */
 int setup_boot_catalogue(void);
+/* the 3dfx card, as the core's option wants it: "off", "4mb", "8mb", "12mb" */
+const char *setup_voodoo(void);
 
 void setup_open(void);
 void setup_close(void);

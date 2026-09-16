@@ -115,6 +115,23 @@ elseif(UNIX)
         INSTALL_RPATH "$ORIGIN/lib")
 endif()
 
+# A plain build is a bare binary, not a bundle, so nothing signs it with the
+# JIT entitlement and the dynamic core would be refused its code cache on
+# Apple Silicon - the machine would still run, on the interpreter, and the
+# difference would look like the fork's doing rather than the signature's.
+# Ad-hoc signing costs nothing and needs no certificate, so the developer
+# build gets it too, on every Mac (an Intel one does not need the
+# entitlement and is not harmed by it, and a universal binary is one
+# file); the .app is signed again with the same file when it is packaged
+# (macos.yml).
+if(APPLE)
+    add_custom_command(TARGET dxm POST_BUILD
+        COMMAND codesign --force --sign -
+                --entitlements "${CMAKE_SOURCE_DIR}/packaging/macos/dxm.entitlements"
+                "$<TARGET_FILE:dxm>"
+        COMMENT "Signing with the JIT entitlement, for the dynamic core")
+endif()
+
 if(APPLE)
     target_link_libraries(dxm PRIVATE "-framework OpenGL")
 else()

@@ -62,28 +62,24 @@
 /* What the core is told when it asks for a setting.  Anything not here
  * gets its own default.  The rate matches the device so nothing is
  * resampled; the start menu is off because the machine has its own
- * prompt and its own way of ending (EXIT powers it off); the software
- * Voodoo because the core must never want a GL context of its own. */
+ * prompt and its own way of ending (EXIT powers it off); the Voodoo drawn
+ * in software, on threads, because the core must never want a GL context
+ * of its own. */
 static const struct {
     const char *key, *value;
 } OPTIONS[] = {
     {"dosbox_pure_audiorate", "44100"},
     {"dosbox_pure_menu_time", "0"},
-    {"dosbox_pure_voodoo_perf", "0"},
+    {"dosbox_pure_voodoo_perf", "1"},
     {"dosbox_pure_savestate", "disabled"},
     {"dosbox_pure_on_screen_keyboard", "false"},
     {"dosbox_pure_auto_mapping", "false"},
     {"dosbox_pure_perfstats", "none"},
-#if defined(__APPLE__) && defined(__aarch64__)
-    /* The interpreter, not the recompiler: the dynrec allocates its code
-     * cache with malloc and mprotects it executable, which Apple Silicon
-     * refuses (a JIT there needs MAP_JIT and W^X toggling), and the core
-     * then jumps into memory it cannot run.  A 486 interpreted on a
-     * machine of this decade is not the bottleneck anywhere yet. */
-    {"dosbox_pure_cpu_core", "normal"},
-#else
+    /* SETUP always has a say on this one (tell_the_core, main.c), and on
+     * Apple Silicon it is SETUP that knows whether the recompiler may run
+     * here - the JIT entitlement, probed in setup/machine.c - so the
+     * machine's own default is simply the core's. */
     {"dosbox_pure_cpu_core", "auto"},
-#endif
 };
 
 /* What the DOS prints when it reaches its prompt: the ECHO lines of the
