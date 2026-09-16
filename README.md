@@ -258,10 +258,6 @@ of clang-format.
 - **Unsigned.** Code-signing certificates carry a yearly fee to each
   platform's authority, so macOS and Windows each show a first-run warning;
   see Installing for the way through it.
-- **Apple Silicon runs DOSBox's interpreter.** The dynamic core needs a
-  small patch in the fork before macOS on arm64 lets it generate code. Every
-  other platform uses it. The interpreter is fast enough for the DOS era,
-  but a demanding late-DOS game may want the patch.
 - **The drive LED is a guess.** The floppy runs when a program starts or
   ends, judged by the picture changing mode, not by the emulated drive.
 - **One C: drive.** CD-ROM images and floppy images have to be mounted by

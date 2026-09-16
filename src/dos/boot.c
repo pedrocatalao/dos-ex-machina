@@ -9,10 +9,16 @@
 #include "version.h" /* the BIOS banner carries the release */
 #include <time.h>
 
-/* What the machine is.  The memory is DOSBox Pure's default, which the
- * machine does not change; the disk is the fiction C: is dressed in. */
-#define MEM_TOTAL_KB 16384L
-#define MEM_STEP_KB 256L /* the count visibly steps, not smooth */
+/* What the machine is.  The memory is what SETUP says it is, so the count
+ * agrees with the machine that comes up behind it; the disk is the fiction
+ * C: is dressed in.
+ *
+ * The count is a piece of theatre, not a test, so it takes the same time
+ * whatever it is counting: always MEM_STEPS steps, and the step is however
+ * much memory that leaves per step.  A 64 MB machine counts in bigger
+ * jumps than a 4 MB one, the way a faster machine's count did. */
+#define MEM_STEPS 64
+static long mem_total_kb; /* set by boot_init */
 #define DISK_MODEL "WDC AC2540F"
 #define BIOS_SERIAL "2A4KD000C-00"
 /* the clock under --deterministic: 2026-09-11 12:00:00, read as UTC so the
@@ -55,12 +61,15 @@ static double mem_next;      /* next number update                       */
 static long mem_shown;       /* KB counted so far                        */
 static int mem_row, mem_col; /* where to overwrite the digits            */
 
-void boot_init(int clock_mhz, int fixed) {
+void boot_init(int clock_mhz, int mem_mb, int fixed) {
     t0 = -1;
     next_boot = 0;
     at = footed = 0;
     found = NULL;
     mhz = clock_mhz;
+    /* whole megabytes, so MEM_STEPS always divides the count evenly and it
+     * lands exactly on the total; nothing sensible sent here means 16 MB */
+    mem_total_kb = mem_mb > 0 ? (long)mem_mb * 1024L : 16384L;
     fixed_clock = fixed;
     epoch = fixed ? (time_t)FIXED_EPOCH : time(NULL);
     mem_counting = 0;
@@ -107,9 +116,9 @@ int boot_update(double t) {
         footer(t);
     if (mem_counting) {
         if (t >= mem_next) {
-            mem_shown += MEM_STEP_KB;
-            if (mem_shown >= MEM_TOTAL_KB) {
-                mem_draw(MEM_TOTAL_KB, " OK");
+            mem_shown += mem_total_kb / MEM_STEPS;
+            if (mem_shown >= mem_total_kb) {
+                mem_draw(mem_total_kb, " OK");
                 mem_counting = 0;
                 term_newline();           /* close the line */
                 machine.beep_pending = 1; /* POST beep AFTER the RAM check */

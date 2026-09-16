@@ -72,6 +72,7 @@ const char *machine_memory(void);        /* as the core wants it: "16" */
 const char *machine_cpu_core(void);
 const char *machine_midi(void); /* auto | off | mt32 | sc55 | sf2 */
 int machine_boot_catalogue(void);
+const char *machine_voodoo(void);
 
 /* banner.c — the artwork, opened from the file it was made as and fitted
  * to the palette entries the interface leaves it */

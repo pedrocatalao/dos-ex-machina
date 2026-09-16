@@ -118,7 +118,13 @@ jobs:
           # an unsigned binary will not launch at all.  Ad-hoc is enough to
           # load; it is NOT notarisation, so a download is still quarantined.
           codesign --force --sign - "$APP/Contents/Frameworks/"*.dylib
-          codesign --force --deep --sign - "$APP"
+          # The entitlement is what lets the dynamic core map its code cache
+          # on Apple Silicon; without it the machine still runs, on the
+          # interpreter.  It belongs on the executable, and the libraries
+          # were signed on their own just above, so no --deep here: that
+          # would stamp the entitlement onto them too.
+          codesign --force --sign - \
+                   --entitlements packaging/macos/dxm.entitlements "$APP"
           codesign --verify --deep --strict "$APP"
           plutil -lint "$APP/Contents/Info.plist"
           otool -L "$APP/Contents/MacOS/dxm" | grep -i sdl3
