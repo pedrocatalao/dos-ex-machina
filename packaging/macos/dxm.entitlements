@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- DOSBox's dynamic core writes native instructions and then runs them,
+       which Apple Silicon allows only a program that says so here and maps
+       its code cache with MAP_JIT (dyn_cache.h in the fork).  Without this
+       the mapping is refused, the machine finds no recompiler and falls
+       back to the interpreter, which is slower but works.
+
+       Ad-hoc signing carries the entitlement, so a local build and the CI
+       bundle both get it; it is not notarisation. -->
+  <key>com.apple.security.cs.allow-jit</key> <true/>
+</dict>
+</plist>

@@ -62,28 +62,24 @@
 /* What the core is told when it asks for a setting.  Anything not here
  * gets its own default.  The rate matches the device so nothing is
  * resampled; the start menu is off because the machine has its own
- * prompt and its own way of ending (EXIT powers it off); the software
- * Voodoo because the core must never want a GL context of its own. */
+ * prompt and its own way of ending (EXIT powers it off); the Voodoo drawn
+ * in software, on threads, because the core must never want a GL context
+ * of its own. */
 static const struct {
     const char *key, *value;
 } OPTIONS[] = {
     {"dosbox_pure_audiorate", "44100"},
     {"dosbox_pure_menu_time", "0"},
-    {"dosbox_pure_voodoo_perf", "0"},
+    {"dosbox_pure_voodoo_perf", "1"},
     {"dosbox_pure_savestate", "disabled"},
     {"dosbox_pure_on_screen_keyboard", "false"},
     {"dosbox_pure_auto_mapping", "false"},
     {"dosbox_pure_perfstats", "none"},
-#if defined(__APPLE__) && defined(__aarch64__)
-    /* The interpreter, not the recompiler: the dynrec allocates its code
-     * cache with malloc and mprotects it executable, which Apple Silicon
-     * refuses (a JIT there needs MAP_JIT and W^X toggling), and the core
-     * then jumps into memory it cannot run.  A 486 interpreted on a
-     * machine of this decade is not the bottleneck anywhere yet. */
-    {"dosbox_pure_cpu_core", "normal"},
-#else
+    /* SETUP always has a say on this one (tell_the_core, main.c), and on
+     * Apple Silicon it is SETUP that knows whether the recompiler may run
+     * here - the JIT entitlement, probed in setup/machine.c - so the
+     * machine's own default is simply the core's. */
     {"dosbox_pure_cpu_core", "auto"},
-#endif
 };
 
 /* What the DOS prints when it reaches its prompt: the ECHO lines of the
@@ -152,6 +148,11 @@ void dosbox_set_drives(const char *list) {
     snprintf(g_drives, sizeof g_drives, "%s", list ? list : "");
 }
 static char g_midi[16] = "auto";
+/* where SETUP says the boot ends up: 0 the prompt, 1 the catalogue */
+static int g_boot_cat;
+void dosbox_set_boot_catalogue(int on) {
+    g_boot_cat = on != 0;
+}
 /* SETUP, asked for at the DOS prompt: the core's thread asks, the frame
  * loop answers, since the screen is the main thread's to open. */
 static SDL_AtomicInt g_setup_req, g_setup_up;
@@ -743,8 +744,15 @@ static void write_autoexec(const char *c_drive) {
     for (size_t i = 0; i < sizeof GREETING / sizeof GREETING[0]; i++)
         fprintf(f, GREETING[i][0] ? "ECHO %s\r\n" : "ECHO.\r\n", GREETING[i]);
     fprintf(f, "ECHO.\r\n");
+    /* SETUP's BOOT: the catalogue is reached by running the command the
+     * prompt would have run, so DOS waits in it the way it does when it is
+     * typed, and leaving the screen comes back to the prompt under the
+     * greeting.  A setting the other way simply does not write the line -
+     * the file is written out whole every boot. */
+    if (g_boot_cat)
+        fprintf(f, "CATALOG\r\n");
     fclose(f);
-    dxm_log("dosbox: wrote %s", path);
+    dxm_log("dosbox: wrote %s%s", path, g_boot_cat ? ", booting into CATALOG" : "");
 }
 
 /* Where the core is looked for: beside the program, which is where every

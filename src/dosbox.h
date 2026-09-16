@@ -57,6 +57,10 @@ void dosbox_set_layout(const char *code);
 /* Which MIDI device the core should use: "auto" for whatever ROMs are on
  * C:, "off" for none, or "mt32", "sc55", "sf2".  Set before dosbox_start(). */
 void dosbox_set_midi(const char *device);
+/* Where SETUP says the boot ends up: 0 at the DOS prompt, 1 in CATALOG,
+ * which the autoexec then runs as if it had been typed.  Set before
+ * dosbox_start(), which is where the autoexec is written. */
+void dosbox_set_boot_catalogue(int on);
 /* Answer one of the core's own settings with this instead of the machine's
  * default - memory size, CPU core and the like, all of which the core reads
  * as it starts.  Set before dosbox_start(); later has no effect. */

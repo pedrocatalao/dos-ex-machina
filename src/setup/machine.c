@@ -17,7 +17,7 @@
 #include <string.h>
 
 /* The sections, in the order SETUP lists them (setup.c). */
-enum { SEC_MONITOR, SEC_KEYBOARD, SEC_MACHINE, SEC_SOUND, SEC_BOOT };
+enum { SEC_MONITOR, SEC_KEYBOARD, SEC_MACHINE, SEC_VIDEO, SEC_SOUND, SEC_BOOT };
 
 /* What DOS can be told the keyboard is.  Not the whole of DOSBox's set -
  * the rest are reachable with --keyboard - but the boards the machine can
@@ -35,6 +35,11 @@ static const char *const CPU_CODE[] = {"auto", "dynamic", "normal", "simple"};
 static const char *const CPU_NAME[] = {"Auto", "Dynamic (fast)", "Normal (interpreter)",
                                        "Simple (real mode)"};
 
+/* The 3dfx card the core emulates, by its memory: 4 MB is the low-resolution
+ * board, 12 MB the one with two texture units.  The codes are the core's. */
+static const char *const VOODOO_CODE[] = {"off", "4mb", "8mb", "12mb"};
+static const char *const VOODOO_NAME[] = {"None", "4 MB", "8 MB", "12 MB, dual texture"};
+
 static const char *const BOOT_NAME[] = {"The DOS prompt", "The catalogue"};
 
 /* What can be offered for MIDI depends on what is on C:, so the list is
@@ -44,22 +49,42 @@ static const char *const BOOT_NAME[] = {"The DOS prompt", "The catalogue"};
 static const char *midi_code[MIDI_MAX], *midi_name[MIDI_MAX];
 static int midi_n;
 
-/* The recompiler needs to write instructions and then run them, which is
- * exactly what Apple Silicon refuses a program that has not asked in the
- * way only Apple's own toolchain asks.  Until the fork does (see the
- * README's known gaps), this machine interprets and the setting is not a
- * choice: better to say so than to offer something that will not happen. */
+/* The recompiler needs to write instructions and then run them, which Apple
+ * Silicon allows only a program signed with the JIT entitlement
+ * (packaging/macos/dxm.entitlements).  Asking for one page the way the
+ * core maps its cache is the only honest way to find out: a build that was
+ * not signed with it would otherwise offer a setting that takes DOS down
+ * when it is chosen.  Everywhere else the core is simply there. */
 #if defined(__APPLE__) && defined(__aarch64__)
-#    define CPU_FIXED 1
+#    include <sys/mman.h>
+#    include <unistd.h>
+static int dynamic_core_ok(void) {
+    static int known = -1;
+    if (known < 0) {
+        size_t page = (size_t)getpagesize();
+        void *p = mmap(NULL, page, PROT_READ | PROT_WRITE | PROT_EXEC,
+                       MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+        known = p != MAP_FAILED;
+        if (known)
+            munmap(p, page);
+        dxm_log("setup: the dynamic core is %s",
+                known ? "entitled" : "not entitled, so the machine interprets");
+    }
+    return known;
+}
 #else
-#    define CPU_FIXED 0
+static int dynamic_core_ok(void) {
+    return 1;
+}
 #endif
 
 /* what it is set to: an index into each list above */
 static struct {
-    int kb, mem, cpu, boot, midi;
+    int kb, mem, cpu, boot, midi, voodoo;
     char c_drive[1024];
-} M = {.mem = 2, .cpu = CPU_FIXED ? 2 : 0}; /* 16 MB, and the core the machine can run */
+} M = {.mem = 2, .voodoo = 2}; /* 16 MB, Auto - the fastest core the host
+                                * allows - and the 8 MB Voodoo, as the core
+                                * itself defaults to */
 
 static int on_c(const char *name) {
     char path[1200];
@@ -111,12 +136,16 @@ const char *machine_memory(void) {
 }
 const char *machine_cpu_core(void) {
     /* Whatever the file says, this machine answers with what it can
-     * actually run: a core told "auto" here would try the recompiler, fail
-     * to get memory it may execute, and take DOS down with it. */
-    return CPU_FIXED ? "normal" : CPU_CODE[M.cpu];
+     * actually run: a core told "auto" on a build the host will not let
+     * generate code would try the recompiler, fail to get memory it may
+     * execute, and take DOS down with it. */
+    return dynamic_core_ok() ? CPU_CODE[M.cpu] : "normal";
 }
 int machine_boot_catalogue(void) {
     return M.boot == 1;
+}
+const char *machine_voodoo(void) {
+    return VOODOO_CODE[M.voodoo];
 }
 
 int machine_settings(int section, setting *out, int max) {
@@ -148,10 +177,18 @@ int machine_settings(int section, setting *out, int max) {
                        .opts = CPU_NAME,
                        .nopts = (int)(sizeof CPU_NAME / sizeof CPU_NAME[0]),
                        .next_boot = 1,
-                       .fixed = CPU_FIXED,
-                       .note = CPU_FIXED
+                       .fixed = !dynamic_core_ok(),
+                       .note = !dynamic_core_ok()
                                    ? "This machine interprets: the recompiler cannot run here."
                                    : "Normal is slower and keeps better time."}));
+    } else if (section == SEC_VIDEO) {
+        PUT(((setting){.name = "3dfx Voodoo",
+                       .kind = SET_CHOICE,
+                       .pick = &M.voodoo,
+                       .opts = VOODOO_NAME,
+                       .nopts = (int)(sizeof VOODOO_NAME / sizeof VOODOO_NAME[0]),
+                       .next_boot = 1,
+                       .note = "Its triangles are drawn on the processor, on every setting."}));
     } else if (section == SEC_SOUND) {
         midi_scan(); /* the ROMs may have arrived since it was last looked at */
         PUT(((setting){.name = "MIDI device",
@@ -172,8 +209,7 @@ int machine_settings(int section, setting *out, int max) {
                        .opts = BOOT_NAME,
                        .nopts = 2,
                        .next_boot = 1,
-                       .fixed = 1,
-                       .note = "There is no catalogue yet."}));
+                       .note = "Leaving the catalogue drops to the DOS prompt."}));
     }
 #undef PUT
     return n;
@@ -213,10 +249,13 @@ void machine_load(const char *path) {
             M.midi = at < 0 ? M.midi : at;
         } else if (!strcmp(name, "boot"))
             M.boot = !strcmp(value, "catalogue");
+        else if (!strcmp(name, "voodoo"))
+            at = find(VOODOO_CODE, (int)(sizeof VOODOO_CODE / sizeof VOODOO_CODE[0]), value),
+            M.voodoo = at < 0 ? M.voodoo : at;
     }
     fclose(f);
-    dxm_log("setup: keyboard %s, memory %s MB, core %s, midi %s", machine_keyboard(),
-            machine_memory(), machine_cpu_core(), machine_midi());
+    dxm_log("setup: keyboard %s, memory %s MB, core %s, midi %s, voodoo %s", machine_keyboard(),
+            machine_memory(), machine_cpu_core(), machine_midi(), machine_voodoo());
 }
 
 void machine_save(const char *path) {
@@ -232,6 +271,7 @@ void machine_save(const char *path) {
     fprintf(f, "cpu_core = %s\n", machine_cpu_core());
     fprintf(f, "midi = %s\n", machine_midi());
     fprintf(f, "boot = %s\n", M.boot ? "catalogue" : "dos");
+    fprintf(f, "voodoo = %s\n", machine_voodoo());
     fclose(f);
     dxm_log("setup: wrote %s", path);
 }

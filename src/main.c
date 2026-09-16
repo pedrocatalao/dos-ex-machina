@@ -206,13 +206,15 @@ static const char *c_drive(const options *o, const app *a) {
 }
 
 /* What SETUP says the machine is, told to the core while it will still
- * listen: memory, the processor core and the MIDI device are read as it
- * starts, and the keyboard is fixed once DOS is up.  Said again before a
- * restart, since that is the point of restarting. */
+ * listen: memory, the processor core, the MIDI device and where the boot
+ * ends up are read as it starts, and the keyboard is fixed once DOS is up.
+ * Said again before a restart, since that is the point of restarting. */
 static void tell_the_core(const options *o) {
     dosbox_set_option("dosbox_pure_memory_size", setup_memory());
     dosbox_set_option("dosbox_pure_cpu_core", setup_cpu_core());
     dosbox_set_midi(setup_midi());
+    dosbox_set_boot_catalogue(setup_boot_catalogue());
+    dosbox_set_option("dosbox_pure_voodoo", setup_voodoo());
     if (o->keyboard)
         dosbox_set_layout(o->keyboard); /* the flag wins over everything */
     else if (strcmp(setup_keyboard(), "auto"))
@@ -274,7 +276,7 @@ int main(int argc, char **argv) {
         catalog_drives(drives, sizeof drives);
         dosbox_set_drives(drives); /* kept, so a restart mounts them again */
     }
-    dos_init(theatre_mhz(&th), a.deterministic);
+    dos_init(theatre_mhz(&th), atoi(setup_memory()), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
@@ -409,7 +411,7 @@ int main(int argc, char **argv) {
              * again, which is what a restart looks like. */
             dxm_log("machine: restarting");
             dosbox_stop();
-            dos_init(theatre_mhz(&th), a.deterministic);
+            dos_init(theatre_mhz(&th), atoi(setup_memory()), a.deterministic);
             tell_the_core(&o);
             dosbox_set_cycles(theatre_cycles(&th));
             dosbox_set_mhz(theatre_mhz(&th));

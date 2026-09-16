@@ -26,6 +26,7 @@ static const struct {
     {"MONITOR", "The tube and its glass."},
     {"KEYBOARD", "The layout DOS types in."},
     {"MACHINE", "Memory and processor core."},
+    {"VIDEO", "The 3dfx card, and how it draws."},
     {"SOUND", "The MIDI device, and what it costs."},
     {"BOOT", "Where the boot ends up."},
     {"SAVE & REBOOT", "Keep it all, and start the machine again."},
@@ -118,6 +119,9 @@ const char *setup_midi(void) {
 }
 int setup_boot_catalogue(void) {
     return machine_boot_catalogue();
+}
+const char *setup_voodoo(void) {
+    return machine_voodoo();
 }
 
 static void add(const char *name, float *val, float lo, float hi) {
