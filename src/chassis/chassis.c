@@ -45,8 +45,9 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                         if (rr_sd((float)i2, (float)j2, px0 + pw * 0.5f, py + ph * 0.5f, pw * 0.5f,
                                   ph * 0.5f, prad) < 0.0f)
                             px_shade(c, i2, j2, 1.022f, 0.0f);
-                housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.5f, (float)W * 0.0022f),
-                             fmaxf(2.0f, (float)W * 0.0030f), 1, 0.85f);
+                /* a hard moulding: a tight lip and a short contact shadow */
+                housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.0f, (float)W * 0.0015f),
+                             fmaxf(1.5f, (float)W * 0.0020f), 1, 1.0f);
                 /* moulding bosses tucked into the pod corners */
                 /* A real ejector boss is almost invisible EXCEPT at its
                  * rim - the flat top sits flush with the face around it.
@@ -76,24 +77,63 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             }
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
-            /* The OSD key, on the RIGHT pod under the holes, centred between
-             * them and the foot of the pod.  A pod too small for it goes
-             * without, and Shift+F1 still opens the OSD. */
+            /* Under the holes each pod is DIVIDED, the way a moulded front
+             * was: one groove across it, edge to edge, as far below the
+             * holes as the pod's top is above them, so the speaker sits in
+             * a panel with even margins and what is under it has a panel
+             * of its own.  Both pods get the groove - one tool made both -
+             * whatever the panel holds: on the right, the monitor's
+             * controls, the OSD key and the two knobs below it; on the
+             * left, the mouse key and its lamps, the key level with the
+             * OSD key across the way.  A pod
+             * too short for the panel keeps the key and the lamps as one
+             * group under the holes, and the knobs go to the band. */
             {
-                float y0 = gy + gh * 0.94f, y1 = py + ph; /* holes end .. pod ends */
-                /* lowered from the middle toward the knobs under the pod,
-                 * but kept clear of the pod's foot */
-                const float OSD_DROP = 14.0f; /* mm */
-                float oy = fminf((y0 + y1) * 0.5f + OSD_DROP * mm,
-                                 y1 - WIDE_KEY_H * 0.5f * mm - 0.5f * mm);
-                if (y1 - y0 >= 10.0f * mm && pw * 0.90f >= 20.0f * mm)
-                    osd_button(pxs[1] + pw * 0.5f, oy, mm, L->osd_btn);
+                /* the holes fill a capsule that leaves the same margin at
+                 * both ends of the grille's box (grille_panel) */
+                float hole_top = gy + gh * 0.06f, hole_end = gy + gh * 0.94f;
+                float foot = py + ph;
+                float ys = hole_end + (hole_top - py); /* the groove */
+                float kr = 3.9f * mm;
+                /* the key and the knobs, with their air */
+                float group = 2.0f * kr + 5.5f * mm;
+                float need = 12.0f * mm + WIDE_KEY_H * mm + 6.0f * mm + group + 3.0f * mm;
+                int divided = foot - ys >= need && pw * 0.90f >= 20.0f * mm;
+                if (divided) {
+                    float gw2 = fmaxf(1.0f, (float)W * 0.0012f);
+                    for (int s2 = 0; s2 < 2; s2++)
+                        seam(c, pxs[s2], ys, pw, 0, gw2, 1);
+                    float cx2 = pxs[1] + pw * 0.5f;
+                    /* the OSD key, and the mouse key level with it */
+                    float oy = ys + 12.0f * mm + WIDE_KEY_H * 0.5f * mm;
+                    osd_button(cx2, oy, mm, L->osd_btn);
+                    mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy, pw * 0.90f, mm, L->mouse_btn,
+                                L->mouse_led);
+                    /* the knobs side by side with their symbols under them,
+                     * the group centred between the key and the foot and
+                     * let down a little.  Only their places are fixed here;
+                     * the knobs themselves go on LAST, after the wear and
+                     * the yellowing, so the plastic saved under each is the
+                     * plastic around it. */
+                    float key_end = oy + WIDE_KEY_H * 0.5f * mm;
+                    float ky = (key_end + foot) * 0.5f - group * 0.5f + kr + 2.0f * mm;
+                    float kx0 = cx2 - kr * 1.75f, kx1 = cx2 + kr * 1.75f;
+                    knob_icons(c, kx0, ky + kr + 3.0f * mm, kx1, ky + kr + 3.0f * mm, 1.4f * mm);
+                    knobs_slot(0, kx0, ky, kr);
+                    knobs_slot(1, kx1, ky, kr);
+                    *knobs_placed = 1;
+                } else {
+                    /* the OSD key centred between the holes and the foot,
+                     * lowered toward the knobs but kept clear of the foot */
+                    const float OSD_DROP = 14.0f; /* mm */
+                    float oy = fminf((hole_end + foot) * 0.5f + OSD_DROP * mm,
+                                     foot - WIDE_KEY_H * 0.5f * mm - 0.5f * mm);
+                    if (foot - hole_end >= 10.0f * mm && pw * 0.90f >= 20.0f * mm)
+                        osd_button(pxs[1] + pw * 0.5f, oy, mm, L->osd_btn);
+                    mouse_lamps(c, pxs[0] + pw * 0.5f, hole_end, foot, 0.0f, pw * 0.90f, mm,
+                                L->mouse_btn, L->mouse_led);
+                }
             }
-            /* The mouse lamps, on the LEFT pod in the same place: centred
-             * between the holes and the foot of the pod, the OSD key's
-             * opposite number.  A pod without the room goes without. */
-            mouse_lamps(c, pxs[0] + pw * 0.5f, gy + gh * 0.94f, py + ph, pw * 0.90f, mm,
-                        L->mouse_btn, L->mouse_led);
             /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
              * a millimetre below the middle of the plateau and
              * clear of the pod's top and the holes both.  A fixed physical
@@ -108,40 +148,20 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                 if (sw >= 8.0f * mm)
                     tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.33f * mm, sw, 2.0f * room);
             }
-            /* The monitor's two knobs, brightness and contrast, in the
-             * strip under the right pod, above the parting to the base -
-             * the picture's controls on the picture's half of the case.
-             * Only their places are fixed here; the knobs themselves go on
-             * LAST, after the wear and the yellowing, so the plastic saved
-             * under each is the plastic around it.  A screen too short or
-             * too narrow for them here gets them on the band instead. */
+            /* The Horizon badge, in the strip under the LEFT pod, above the
+             * parting to the base: centred between the two and a couple of
+             * millimetres right of the pod's middle, half a degree off
+             * square.  As big as the strip allows, up to 52 mm across, the
+             * pod's width, or as wide as the strip's height lets its box
+             * be, and left off where that would make it under 12 mm. */
             {
-                float kr = 3.9f * mm;
-                float top = py + ph, strip = gap_lo - top;
-                if (strip >= kr * 2.0f + 6.6f * mm && pw >= kr * 5.9f) {
-                    float cx2 = pxs[1] + pw * 0.5f;
-                    float ky = top + kr + 5.2f * mm;
-                    float kx0 = cx2 - kr * 1.75f, kx1 = cx2 + kr * 1.75f;
-                    knob_icons(c, kx0, ky + kr + 3.0f * mm, kx1, ky + kr + 3.0f * mm, 1.4f * mm);
-                    knobs_slot(0, kx0, ky, kr);
-                    knobs_slot(1, kx1, ky, kr);
-                    *knobs_placed = 1;
-                    /* The Horizon badge, in the same strip under the LEFT
-                     * pod, centred between the pod and the parting to the base
-                     * and a couple of millimetres right of the pod's middle,
-                     * half a degree off square.  As big as the strip allows,
-                     * up to 52 mm across, the pod's width, or as wide as the
-                     * strip's height lets its box be, and left off where that
-                     * would make it under 12 mm. */
-                    const float STICKER_SCALE = 1.0f;
-                    const float BADGE_RATIO = (float)DXM_HORIZON_W / (float)DXM_HORIZON_HT;
-                    float sy = (top + gap_lo) * 0.5f;
-                    float room = (gap_lo - top) * 0.5f - 1.0f * mm;
-                    float sw =
-                        STICKER_SCALE * fminf(52.0f * mm, fminf(pw, 2.0f * room * BADGE_RATIO));
-                    if (sw >= 12.0f * mm)
-                        horizon_sticker(c, pxs[0] + pw * 0.5f + 2.0f * mm, sy, sw, sw, 2.0f * room);
-                }
+                float top = py + ph;
+                const float BADGE_RATIO = (float)DXM_HORIZON_W / (float)DXM_HORIZON_HT;
+                float sy = (top + gap_lo) * 0.5f;
+                float room = (gap_lo - top) * 0.5f - 1.0f * mm;
+                float sw = fminf(52.0f * mm, fminf(pw, 2.0f * room * BADGE_RATIO));
+                if (room > 0.0f && sw >= 12.0f * mm)
+                    horizon_sticker(c, pxs[0] + pw * 0.5f + 2.0f * mm, sy, sw, sw, 2.0f * room);
             }
             /* The dotted mark, engraved above the LEFT pod and centred on
              * it, halfway between the top of the display and the top of the

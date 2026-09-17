@@ -257,9 +257,27 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
     canvas_grain = saved;
 }
 
-/* The monitor's own symbols, cut into the band under each knob: a sun for
- * brightness, a half-filled disc for contrast.  Distance fields, like the
- * power mark, so they stay crisp at any size. */
+/* A symbol printed on the case: its coverage field laid down in the same
+ * ink as every other printed legend, the grain held off under it the way
+ * the lettering does, since a silk screen sits on the plastic rather than
+ * in it. */
+static void paint_field(canvas *c, float x, float y, int dw, int dh, const float *cov) {
+    const int INK_R = 88, INK_G = 83, INK_B = 72; /* the printing: POWER's ink */
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    for (int j = 0; j < dh; j++)
+        for (int i = 0; i < dw; i++) {
+            float a = cov[(size_t)j * dw + i];
+            if (a > 0.004f)
+                px_blend(c, (int)x + i, (int)y + j, INK_R, INK_G, INK_B, a);
+        }
+    canvas_grain = saved;
+}
+
+/* The monitor's own symbols, printed under each knob in the ink the rest
+ * of the legends are: a sun for brightness, a half-filled disc for
+ * contrast.  Distance fields, like the power mark, so they stay crisp at
+ * any size. */
 void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
     int dw = (int)(s * 2.6f) + 4, dh = dw;
     float *dep = calloc((size_t)dw * dh, sizeof *dep);
@@ -281,7 +299,7 @@ void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
             float cov = 0.5f - sd;
             dep[(size_t)j * dw + i] = cov < 0 ? 0 : (cov > 1 ? 1 : cov);
         }
-    engrave_field(c, bx - dw * 0.5f, by - dh * 0.5f, dw, dh, dep);
+    paint_field(c, bx - dw * 0.5f, by - dh * 0.5f, dw, dh, dep);
     /* contrast: a ring, its right half filled */
     for (int j = 0; j < dh; j++)
         for (int i = 0; i < dw; i++) {
@@ -293,7 +311,7 @@ void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
             float cov = 0.5f - sd;
             dep[(size_t)j * dw + i] = cov < 0 ? 0 : (cov > 1 ? 1 : cov);
         }
-    engrave_field(c, cx2 - dw * 0.5f, cy2 - dh * 0.5f, dw, dh, dep);
+    paint_field(c, cx2 - dw * 0.5f, cy2 - dh * 0.5f, dw, dh, dep);
     free(dep);
 }
 

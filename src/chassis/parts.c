@@ -1319,11 +1319,13 @@ static void printed_corner(canvas *c, float ax, float ay, float rc, int sx, int 
  * machine - the only way it can go from a press, since while the machine
  * has it there is no pointer to press with - and CTRL+F10 takes it back.
  *
- * Centred on cx, and between y0 and y1; returns 0 and draws nothing when
- * that, or maxw across, cannot hold it.  Records the key's well in btn and
- * the two LEDs, HOST then DXM, in led_out. */
-int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, float btn[4],
-                float led_out[2][4]) {
+ * Centred on cx, and between y0 and y1 - or, when key_y is not 0, with
+ * the key's centre line on key_y, level with the OSD key across the way;
+ * returns 0 and draws nothing when that, or maxw across, cannot hold it.
+ * Records the key's well in btn and the two LEDs, HOST then DXM, in
+ * led_out. */
+int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw, float mm,
+                float btn[4], float led_out[2][4]) {
     const int INK_R = 88, INK_G = 83, INK_B = 72;     /* the printing: POWER's ink */
     const int LINE_R = 104, LINE_G = 99, LINE_B = 88; /* the lines, a shade paler */
     const float SQ = 0.90f;                           /* the legends, a little condensed */
@@ -1339,12 +1341,16 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, f
     float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
     if (h * 1.20f > y1 - y0 || wide > maxw)
         return 0;
-    /* centred between the holes and the foot of the pod, then lowered a
-     * little, as one group - but never past the foot */
+    /* the key where it is told to go, or the group centred between the
+     * holes and the foot of the pod and lowered a little - but never past
+     * the foot */
     const float GROUP_DROP = 6.0f; /* mm */
-    float top = (y0 + y1) * 0.5f - h * 0.5f + GROUP_DROP * mm;
+    float top = key_y > 0.0f ? key_y - (cap_lamp + g1 + kh * 0.5f)
+                             : (y0 + y1) * 0.5f - h * 0.5f + GROUP_DROP * mm;
     if (top + h > y1)
         top = y1 - h;
+    if (top < y0)
+        return 0;
     int saved = canvas_grain;
     canvas_grain = 0;
     text_helv(c, cx - tw_short * 0.5f, top, "CTRL+F10", cap_lamp, SQ, tr_lamp, INK_R, INK_G, INK_B);
