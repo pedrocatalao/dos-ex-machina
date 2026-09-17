@@ -63,8 +63,11 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * them. */
             float ys = py + ph - 48.0f * mm;
             float gy = (py + ys) * 0.5f - gh * 0.5f;
-            float pxs[2] = {edge + inset * 0.45f + (gw - pw) * 0.5f,
-                            (float)W - edge - inset * 0.45f - gw + (gw - pw) * 0.5f};
+            /* the pods a few millimetres in from the centre of their columns,
+             * toward the tube */
+            const float POD_IN = 3.0f; /* mm */
+            float pxs[2] = {edge + inset * 0.45f + (gw - pw) * 0.5f + POD_IN * mm,
+                            (float)W - edge - inset * 0.45f - gw + (gw - pw) * 0.5f - POD_IN * mm};
             for (int s2 = 0; s2 < 2; s2++) {
                 float px0 = pxs[s2];
                 /* the proud face catches marginally more of the key light */
@@ -105,8 +108,9 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     }
                 }
             }
-            grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
-            grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
+            /* the grilles centred on their pods */
+            grille_panel(c, pxs[0] - (gw - pw) * 0.5f, gy, gw, gh, H * 0.019f);
+            grille_panel(c, pxs[1] - (gw - pw) * 0.5f, gy, gw, gh, H * 0.019f);
             /* Under the holes each pod is DIVIDED, the way a moulded front
              * was: one soft groove across it, edge to edge, nine
              * millimetres short of as far below the holes as the pod's top
