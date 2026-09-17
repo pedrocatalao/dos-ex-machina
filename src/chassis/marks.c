@@ -392,11 +392,16 @@ void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float m
  * way from it - two stickers put on by hand do not lean
  * together - and, being where a hand rests, lightly stained and scratched.
  * A glossy vinyl rather than a print, `rise` pixels thick.  Not drawn at
- * all if it would not fit in maxw x maxh. */
+ * all if it would not fit in maxw x maxh - the ink, that is: the artwork
+ * sits in its file with clear margin round it, and a margin does not need
+ * room on the case. */
 #define TDFX_TILT -0.7f /* degrees, clockwise: so anticlockwise */
+/* where the ink is in the file, as a share of its width and height */
+#define TDFX_INK_W (229.0f / 300.0f)
+#define TDFX_INK_H (214.0f / 257.0f)
 void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh) {
     float h = w * (float)DXM_TDFX_HT / (float)DXM_TDFX_W;
-    if (w > maxw || h > maxh)
+    if (w * TDFX_INK_W > maxw || h * TDFX_INK_H > maxh)
         return;
     decal(c, dxm_tdfx, DXM_TDFX_W, DXM_TDFX_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f, 0.12f,
           TDFX_TILT, 1.0f, rise, 1.0f);

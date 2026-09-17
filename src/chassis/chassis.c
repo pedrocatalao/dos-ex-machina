@@ -22,7 +22,9 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
         float gw = gl2 - inset * 0.35f;
         if (gw > inset * 0.5f) {
             float gh = L->tube_h * 0.5f;
-            float gy = L->tube_y + (L->tube_h - gh) * 0.5f; /* centred on the tube */
+            /* a little above the tube's middle: the speaker high in the
+             * pod, the controls under it */
+            float gy = L->tube_y + (L->tube_h - gh) * 0.5f - 22.0f * mm;
             /* Each grille sits in a raised moulded POD - a tall rounded
              * pad standing a fraction proud of the flank, with the holes
              * punched through its middle.  This is how the real cases did
@@ -93,15 +95,16 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             mouse_lamps(c, pxs[0] + pw * 0.5f, gy + gh * 0.94f, py + ph, pw * 0.90f, mm,
                         L->mouse_btn, L->mouse_led);
             /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
-             * centred between the pod's top and the top of the holes and
-             * clear of both.  A fixed physical size, 17 mm across or as
-             * much as the pod gives, and a vinyl with a third of a
-             * millimetre of body; a plateau too short for it goes without. */
+             * a millimetre below the middle of the plateau and
+             * clear of the pod's top and the holes both.  A fixed physical
+             * size, 17 mm across or as much as the pod gives, and a vinyl
+             * with a third of a millimetre of body; a plateau too short
+             * for it goes without. */
             {
                 float sw = fminf(17.0f * mm, pw * 0.70f);
                 float top = py + prad * 0.5f + 1.0f * mm; /* inside the moulded edge */
-                float cy = (top + gy) * 0.5f;
-                float room = (gy - 1.0f * mm - top) * 0.5f;
+                float cy = (top + gy) * 0.5f + 1.0f * mm;
+                float room = fminf(cy - top, gy - 1.0f * mm - cy);
                 if (sw >= 8.0f * mm)
                     tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.33f * mm, sw, 2.0f * room);
             }
