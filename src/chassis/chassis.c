@@ -95,7 +95,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
              * centred between the pod's top and the top of the holes and
              * clear of both.  A fixed physical size, 17 mm across or as
-             * much as the pod gives, and a vinyl with a fifth of a
+             * much as the pod gives, and a vinyl with a third of a
              * millimetre of body; a plateau too short for it goes without. */
             {
                 float sw = fminf(17.0f * mm, pw * 0.70f);
@@ -103,7 +103,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                 float cy = (top + gy) * 0.5f;
                 float room = (gy - 1.0f * mm - top) * 0.5f;
                 if (sw >= 8.0f * mm)
-                    tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.2f * mm, sw, 2.0f * room);
+                    tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.33f * mm, sw, 2.0f * room);
             }
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -

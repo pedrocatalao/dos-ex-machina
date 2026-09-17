@@ -219,9 +219,13 @@ static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]
  * how far it stands off the case, in pixels, 0 for a print with no edge to
  * speak of: a vinyl with some body to it catches the key light along the
  * edge that faces it, falls into its own shade along the one turned away,
- * and casts a faint shadow past that onto the plastic. */
+ * and casts a faint shadow past that onto the plastic.  `gloss` is the
+ * sheen of the vinyl, 0 for matt paper: the key light laid softly over
+ * the whole face, stronger toward the side it comes from, with a broad
+ * band of reflection across the middle the way a glossy print shows the
+ * window behind you. */
 static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w, float h,
-                  float white, float fade, float tilt, float wear, float rise) {
+                  float white, float fade, float tilt, float wear, float rise, float gloss) {
     float sx = w / (float)iw, sy = h / (float)ih;
     float cx = x + w * 0.5f, cy = y + h * 0.5f;
     float ang = tilt * 3.14159265f / 180.0f, ca = cosf(ang), sa = sinf(ang);
@@ -277,11 +281,18 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
                                     (ry + ly * rise + h * 0.5f) / sy - 0.5f);
                 float a_shd = cover(img, iw, ih, (rx - lx * rise + w * 0.5f) / sx - 0.5f,
                                     (ry - ly * rise + h * 0.5f) / sy - 0.5f);
-                /* the shadow it casts: where the sticker is a step and a
-                 * bit toward the light and not here */
-                float a_over = cover(img, iw, ih, (rx + lx * rise * 1.0f + w * 0.5f) / sx - 0.5f,
-                                     (ry + ly * rise * 1.0f + h * 0.5f) / sy - 0.5f);
-                float shadow = fmaxf(0.0f, a_over - a) * 0.08f;
+                /* The shadow it casts: tight under the edge, on the plastic
+                 * the sticker does not cover, where the sticker is a step
+                 * toward the light.  The step is one pixel whatever the
+                 * thickness - less would put the shadow under the sticker's
+                 * own edge, where it cannot be seen, and more would read as
+                 * the sticker standing off the case.  Squaring the coverage
+                 * keeps the shadow to that pixel rather than letting the
+                 * soft edge of the artwork spread it into a second. */
+                float step = 1.0f;
+                float a_over = cover(img, iw, ih, (rx + lx * step + w * 0.5f) / sx - 0.5f,
+                                     (ry + ly * step + h * 0.5f) / sy - 0.5f);
+                float shadow = a_over * a_over * (1.0f - a) * 0.40f;
                 if (shadow > 0.002f)
                     px_shade(c, px, py, 1.0f - shadow, 0.0f);
                 edge_lit = fmaxf(0.0f, a - a_lit);
@@ -332,13 +343,27 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
             if (rise > 0.0f) {
                 /* the edge: lit where it faces the light, a shade darker
                  * where it turns away, the vinyl's own thickness */
-                r += (255.0f - r) * edge_lit * 0.35f;
-                g += (255.0f - g) * edge_lit * 0.35f;
-                b += (255.0f - b) * edge_lit * 0.35f;
-                float dim = 1.0f - edge_shade * 0.25f;
+                r += (255.0f - r) * edge_lit * 0.45f;
+                g += (255.0f - g) * edge_lit * 0.45f;
+                b += (255.0f - b) * edge_lit * 0.45f;
+                float dim = 1.0f - edge_shade * 0.30f;
                 r *= dim;
                 g *= dim;
                 b *= dim;
+            }
+            if (gloss > 0.0f) {
+                /* how far toward the light this point is, -1 at the edge
+                 * away from it to +1 at the edge facing it */
+                float toward = -(rx * lx + ry * ly) / (0.5f * w);
+                float sheen = 0.08f + 0.05f * toward;
+                /* the band: a soft reflection two fifths of the way toward
+                 * the light, a quarter of the sticker wide */
+                float band = (toward - 0.4f) / 0.25f;
+                sheen += 0.12f * expf(-band * band);
+                sheen *= gloss;
+                r += (255.0f - r) * sheen;
+                g += (255.0f - g) * sheen;
+                b += (255.0f - b) * sheen;
             }
             if (a > 0.96f)
                 a = 1.0f;
@@ -357,21 +382,22 @@ void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float m
     if (w > maxw || h > maxh)
         return;
     decal(c, dxm_horizon, DXM_HORIZON_W, DXM_HORIZON_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f,
-          0.30f, STICKER_TILT, 0.0f, 0.0f);
+          0.30f, STICKER_TILT, 0.0f, 0.0f, 0.0f);
 }
 
 /* The 3dfx sticker: the artwork in assets/3dfx-sticker.png, the one that
  * came in the box with the card and went straight on the case, `w` wide
- * at its own proportions and centred on (cx, cy).  Faded like the badge,
- * turned the other way from it - two stickers put on by hand do not lean
+ * at its own proportions and centred on (cx, cy).  Faded less than the
+ * badge - a vinyl keeps its colour where paper loses it - turned the other
+ * way from it - two stickers put on by hand do not lean
  * together - and, being where a hand rests, lightly stained and scratched.
- * A vinyl rather than a print, `rise` pixels thick.  Not drawn at all if
- * it would not fit in maxw x maxh. */
+ * A glossy vinyl rather than a print, `rise` pixels thick.  Not drawn at
+ * all if it would not fit in maxw x maxh. */
 #define TDFX_TILT -0.7f /* degrees, clockwise: so anticlockwise */
 void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh) {
     float h = w * (float)DXM_TDFX_HT / (float)DXM_TDFX_W;
     if (w > maxw || h > maxh)
         return;
-    decal(c, dxm_tdfx, DXM_TDFX_W, DXM_TDFX_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f, 0.30f,
-          TDFX_TILT, 1.0f, rise);
+    decal(c, dxm_tdfx, DXM_TDFX_W, DXM_TDFX_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f, 0.12f,
+          TDFX_TILT, 1.0f, rise, 1.0f);
 }
