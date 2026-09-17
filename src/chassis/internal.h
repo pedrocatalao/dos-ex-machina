@@ -36,7 +36,6 @@ float plastic_tex(int x, int y);
 float rr_sd(float px, float py, float cx, float cy, float hw, float hh, float r);
 float vnoise(float x, float y, int seed);
 float warped_rr_sd(const dxm_layout *L, float px, float py, float r, float grow, float warp);
-void bevel(canvas *c, float x, float y, float w, float h, float t, int up);
 void chamfer_ring(canvas *c, float x, float y, float w, float h, float r, float cw);
 void housing_edge(canvas *c, float x, float y, float w, float h, float r, float ew, float shadow,
                   int raised, float gain);
@@ -79,9 +78,9 @@ void bezel_facing_alpha(canvas *c, const dxm_layout *L, int W, int H, const chas
 void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4]);
 void grille_panel(canvas *c, float x, float y, float w, float h, float pitch);
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h, dxm_layout *L);
-void osd_button(float cx, float cy, float mm, float btn[4]);
-int mouse_lamps(canvas *c, float cx, float y0, float y1, float maxw, float mm, float btn[4],
-                float led_out[2][4]);
+void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]);
+int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw, float mm,
+                float btn[4], float led_out[2][4]);
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
                   float mode_led[2][4]);
 void vent_slot(canvas *c, float x, float y, float w, float h);
@@ -90,7 +89,6 @@ void louvre_slot(canvas *c, float x, float y, float w, float h, float rad);
 
 /* marks.c */
 void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float maxh);
-void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh);
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);
 void corner_engraving(canvas *c, float cx, float cy, float w);

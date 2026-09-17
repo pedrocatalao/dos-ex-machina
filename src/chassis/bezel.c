@@ -120,10 +120,11 @@ static void bezel(canvas *c, const dxm_layout *L, float bz, float rin, float rmi
      * along the top and drops into shadow along the bottom.  This is the
      * edge that gives the bezel its depth; putting the highlight out at the
      * chassis boundary instead was simply the wrong edge. */
-    float fw = fmaxf(2.0f, bz * 0.30f); /* roll width: wider reads rounder, and
+    float fw = fmaxf(2.0f, bz * 0.20f); /* roll width: wider reads rounder, and
                                         past about half the band the moulding
                                         stops looking moulded and starts
-                                        looking inflated */
+                                        looking inflated; this is a tight
+                                        fillet, a crisp edge */
     for (int j = (int)(L->tube_y - m); j < (int)(L->tube_y + L->tube_h + m); j++)
         for (int i = (int)(L->tube_x - m); i < (int)(L->tube_x + L->tube_w + m); i++) {
             if (aperture_sd(L, (float)i, (float)j, rin) <= 0.0f)
@@ -162,7 +163,7 @@ static void bezel(canvas *c, const dxm_layout *L, float bz, float rin, float rmi
              * up a catch the whole way round - more on the side facing the
              * source, but never nothing. */
             float sp = fmaxf(lam, 0.0f);
-            px_shade(c, i, j, 1.0f + (0.055f + sp * 0.10f) * prof, powf(sp, 9.0f) * prof * 0.10f);
+            px_shade(c, i, j, 1.0f + (0.055f + sp * 0.12f) * prof, powf(sp, 14.0f) * prof * 0.14f);
         }
 }
 

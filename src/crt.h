@@ -18,11 +18,11 @@
  * partly.  The chassis carves the dish to it (bezel.c); the shader drops the
  * picture's light on the case from it.  All as fractions of the tube's
  * height. */
-#define DXM_BEZEL_BAND 0.076f      /* the band: glass to shoulder, at a corner */
-#define DXM_BEZEL_R_MID 0.042f     /* the shoulder's own corner radius */
-#define DXM_BEZEL_R_MID_WARP 0.45f /* how much of the barrel the shoulder follows */
-#define DXM_BEZEL_R_IN 0.018f      /* the aperture's own corner radius, on top of the barrel */
-#define DXM_FILLET_START 0.915f    /* across the dish, where the shoulder's roll begins */
+#define DXM_BEZEL_BAND 0.059f       /* the band: glass to shoulder, at a corner */
+#define DXM_BEZEL_R_MID 0.019f      /* the shoulder's own corner radius */
+#define DXM_BEZEL_R_MID_WARP 0.345f /* how much of the barrel the shoulder follows */
+#define DXM_BEZEL_R_IN 0.022f       /* the aperture's own corner radius, on top of the barrel */
+#define DXM_FILLET_START 0.95f      /* across the dish, where the shoulder's roll begins */
 
 /* p in 0..1 across the tube rect -> warped sample coords in 0..1 */
 static inline void barrel_cpu(float px, float py, float warp, float *ox, float *oy) {

@@ -1,11 +1,10 @@
 /* marks.c — what is printed, stuck or engraved on the case: the Horizon
- * badge, the 3dfx sticker, and the two marks cut into the plastic, the DXM
- * mark on the base and the dotted mark above the left speaker. */
+ * badge, and the two marks cut into the plastic, the DXM mark on the base
+ * and the dotted mark above the left speaker. */
 #include "internal.h"
 #include "gen/corner_sticker.h"
 #include "gen/horizon.h"
 #include "gen/mark.h"
-#include "gen/tdfx.h"
 
 /* The maker's mark cut INTO the case: the badge's alpha, box-filtered to
  * the size it lands at, read as depth and shaded from its gradient by the
@@ -176,20 +175,6 @@ void corner_engraving(canvas *c, float cx, float cy, float w) {
 }
 
 /* One texel of an RGBA image, premultiplied; transparent outside it. */
-static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]);
-
-/* how much of the image is under a point, bilinear on its alpha alone */
-static float cover(const uint8_t *img, int iw, int ih, float u, float v) {
-    int i = (int)floorf(u), j = (int)floorf(v);
-    float fu = u - (float)i, fv = v - (float)j, t[4][4];
-    texel(img, iw, ih, i, j, t[0]);
-    texel(img, iw, ih, i + 1, j, t[1]);
-    texel(img, iw, ih, i, j + 1, t[2]);
-    texel(img, iw, ih, i + 1, j + 1, t[3]);
-    return (t[0][3] * (1.0f - fu) + t[1][3] * fu) * (1.0f - fv) +
-           (t[2][3] * (1.0f - fu) + t[3][3] * fu) * fv;
-}
-
 static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]) {
     if (i < 0 || j < 0 || i >= iw || j >= ih) {
         out[0] = out[1] = out[2] = out[3] = 0.0f;
@@ -212,41 +197,14 @@ static void texel(const uint8_t *img, int iw, int ih, int i, int j, float out[4]
  * washes it out, 0 not at all: the colour drains by that share and the
  * darks lift toward the warm grey a sun-faded print goes to.  `tilt` turns
  * it that many degrees clockwise about its centre, the way a sticker is
- * never put on quite square.  `wear` is what hands have done to it since,
- * 0 nothing: stains, the same warm blotches the case carries but sized to
- * the sticker, and a few fine scratches that have lifted the ink and show
- * light - both turned with the sticker, since they are on it.  `rise` is
- * how far it stands off the case, in pixels, 0 for a print with no edge to
- * speak of: a vinyl with some body to it catches the key light along the
- * edge that faces it, falls into its own shade along the one turned away,
- * and casts a faint shadow past that onto the plastic.  `gloss` is the
- * sheen of the vinyl, 0 for matt paper: the key light laid softly over
- * the whole face, stronger toward the side it comes from, with a broad
- * band of reflection across the middle the way a glossy print shows the
- * window behind you. */
+ * never put on quite square. */
 static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float y, float w, float h,
-                  float white, float fade, float tilt, float wear, float rise, float gloss) {
+                  float white, float fade, float tilt) {
     float sx = w / (float)iw, sy = h / (float)ih;
     float cx = x + w * 0.5f, cy = y + h * 0.5f;
     float ang = tilt * 3.14159265f / 180.0f, ca = cosf(ang), sa = sinf(ang);
-    /* the key light, turned into the sticker's frame */
-    float lx = LIGHT_X * ca + LIGHT_Y * sa, ly = -LIGHT_X * sa + LIGHT_Y * ca;
-    /* the scratches, laid out once in the sticker's own frame: where each
-     * starts, which way it runs (mostly shallow), and how far */
-    enum { SCRATCHES = 6 };
-    float scr[SCRATCHES][5]; /* x0, y0, dx, dy, length */
-    for (int n = 0; n < SCRATCHES; n++) {
-        float a2 = (hash2(n, 61, 67) < 0.7f) ? (hash2(n, 71, 73) - 0.5f) * 0.8f
-                                             : hash2(n, 71, 73) * 6.28318f;
-        float len = (0.15f + 0.45f * hash2(n, 79, 83)) * w;
-        scr[n][0] = (hash2(n, 89, 97) - 0.5f) * w * 0.9f;
-        scr[n][1] = (hash2(n, 101, 103) - 0.5f) * h * 0.9f;
-        scr[n][2] = cosf(a2);
-        scr[n][3] = sinf(a2);
-        scr[n][4] = len;
-    }
     /* the turned sticker reaches this much further than its own box */
-    float pad = 0.5f * (w * fabsf(sa) + h * fabsf(sa)) + 1.0f + rise * 2.0f;
+    float pad = 0.5f * (w * fabsf(sa) + h * fabsf(sa)) + 1.0f;
     for (int py = (int)floorf(y - pad); py <= (int)ceilf(y + h + pad); py++)
         for (int px = (int)floorf(x - pad); px <= (int)ceilf(x + w + pad); px++) {
             float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -270,34 +228,6 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
                                   (t[2][k] * (1.0f - fu) + t[3][k] * fu) * fv;
                 }
             float a = acc[3] / 16.0f;
-            /* the pixel's centre in the sticker's frame */
-            float qx = (float)px + 0.5f - cx, qy = (float)py + 0.5f - cy;
-            float rx = qx * ca + qy * sa, ry = -qx * sa + qy * ca;
-            float edge_lit = 0.0f, edge_shade = 0.0f;
-            if (rise > 0.0f) {
-                /* what is under this pixel one step toward the light and
-                 * one step away from it */
-                float a_lit = cover(img, iw, ih, (rx + lx * rise + w * 0.5f) / sx - 0.5f,
-                                    (ry + ly * rise + h * 0.5f) / sy - 0.5f);
-                float a_shd = cover(img, iw, ih, (rx - lx * rise + w * 0.5f) / sx - 0.5f,
-                                    (ry - ly * rise + h * 0.5f) / sy - 0.5f);
-                /* The shadow it casts: tight under the edge, on the plastic
-                 * the sticker does not cover, where the sticker is a step
-                 * toward the light.  The step is one pixel whatever the
-                 * thickness - less would put the shadow under the sticker's
-                 * own edge, where it cannot be seen, and more would read as
-                 * the sticker standing off the case.  Squaring the coverage
-                 * keeps the shadow to that pixel rather than letting the
-                 * soft edge of the artwork spread it into a second. */
-                float step = 1.0f;
-                float a_over = cover(img, iw, ih, (rx + lx * step + w * 0.5f) / sx - 0.5f,
-                                     (ry + ly * step + h * 0.5f) / sy - 0.5f);
-                float shadow = a_over * a_over * (1.0f - a) * 0.40f;
-                if (shadow > 0.002f)
-                    px_shade(c, px, py, 1.0f - shadow, 0.0f);
-                edge_lit = fmaxf(0.0f, a - a_lit);
-                edge_shade = fmaxf(0.0f, a - a_shd);
-            }
             if (a <= 0.004f)
                 continue;
             float lift = 255.0f / white / acc[3];
@@ -311,60 +241,6 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
                 g += (198.0f - g) * fade * 0.45f;
                 b += (184.0f - b) * fade * 0.45f;
             }
-            if (wear > 0.0f) {
-                /* stains: blotches a fifth of the sticker across, over a
-                 * finer mottle, taking more blue out than red */
-                float u = rx / w * 5.0f, v = ry / w * 5.0f;
-                float blot = vnoise(u, v, 51) * 0.65f + vnoise(u * 3.0f, v * 3.0f, 53) * 0.35f;
-                float d = fmaxf(0.0f, blot - 0.50f) / 0.50f;
-                d = (d * d * 0.16f + (vnoise(u * 7.0f, v * 7.0f, 57) - 0.5f) * 0.03f) * wear;
-                r *= 1.0f - d * 0.80f;
-                g *= 1.0f - d;
-                b *= 1.0f - d * 1.35f;
-                /* scratches: within a pixel of a line, the ink is gone and
-                 * the pale stock shows, fading out toward either end */
-                float show = 0.0f;
-                for (int n = 0; n < SCRATCHES; n++) {
-                    float ex = rx - scr[n][0], ey = ry - scr[n][1];
-                    float t = ex * scr[n][2] + ey * scr[n][3];
-                    if (t < 0.0f || t > scr[n][4])
-                        continue;
-                    float off = fabsf(-ex * scr[n][3] + ey * scr[n][2]);
-                    if (off > 0.8f)
-                        continue;
-                    float e = sinf(t / scr[n][4] * 3.14159f) * (1.0f - off / 0.8f);
-                    show = fmaxf(show, e * (0.10f + 0.12f * hash2(n, 107, 109)));
-                }
-                show *= wear;
-                r += (235.0f - r) * show;
-                g += (228.0f - g) * show;
-                b += (214.0f - b) * show;
-            }
-            if (rise > 0.0f) {
-                /* the edge: lit where it faces the light, a shade darker
-                 * where it turns away, the vinyl's own thickness */
-                r += (255.0f - r) * edge_lit * 0.45f;
-                g += (255.0f - g) * edge_lit * 0.45f;
-                b += (255.0f - b) * edge_lit * 0.45f;
-                float dim = 1.0f - edge_shade * 0.30f;
-                r *= dim;
-                g *= dim;
-                b *= dim;
-            }
-            if (gloss > 0.0f) {
-                /* how far toward the light this point is, -1 at the edge
-                 * away from it to +1 at the edge facing it */
-                float toward = -(rx * lx + ry * ly) / (0.5f * w);
-                float sheen = 0.08f + 0.05f * toward;
-                /* the band: a soft reflection two fifths of the way toward
-                 * the light, a quarter of the sticker wide */
-                float band = (toward - 0.4f) / 0.25f;
-                sheen += 0.12f * expf(-band * band);
-                sheen *= gloss;
-                r += (255.0f - r) * sheen;
-                g += (255.0f - g) * sheen;
-                b += (255.0f - b) * sheen;
-            }
             if (a > 0.96f)
                 a = 1.0f;
             px_blend(c, px, py, (int)r, (int)g, (int)b, a);
@@ -373,7 +249,7 @@ static void decal(canvas *c, const uint8_t *img, int iw, int ih, float x, float 
 
 /* The Horizon badge: the artwork in assets/horizon-sticker.png, the
  * maker's name, `w` wide at its own proportions and centred on (cx, cy),
- * a little washed out, the way thirty years of light leave a print, and
+ * a little washed out, the way years in the light leave a print, and
  * half a degree off square.  Not drawn at all if it would not fit in
  * maxw x maxh. */
 #define STICKER_TILT 0.5f /* degrees, clockwise */
@@ -382,22 +258,5 @@ void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float m
     if (w > maxw || h > maxh)
         return;
     decal(c, dxm_horizon, DXM_HORIZON_W, DXM_HORIZON_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f,
-          0.30f, STICKER_TILT, 0.0f, 0.0f, 0.0f);
-}
-
-/* The 3dfx sticker: the artwork in assets/3dfx-sticker.png, the one that
- * came in the box with the card and went straight on the case, `w` wide
- * at its own proportions and centred on (cx, cy).  Faded less than the
- * badge - a vinyl keeps its colour where paper loses it - turned the other
- * way from it - two stickers put on by hand do not lean
- * together - and, being where a hand rests, lightly stained and scratched.
- * A glossy vinyl rather than a print, `rise` pixels thick.  Not drawn at
- * all if it would not fit in maxw x maxh. */
-#define TDFX_TILT -0.7f /* degrees, clockwise: so anticlockwise */
-void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh) {
-    float h = w * (float)DXM_TDFX_HT / (float)DXM_TDFX_W;
-    if (w > maxw || h > maxh)
-        return;
-    decal(c, dxm_tdfx, DXM_TDFX_W, DXM_TDFX_HT, cx - w * 0.5f, cy - h * 0.5f, w, h, 255.0f, 0.12f,
-          TDFX_TILT, 1.0f, rise, 1.0f);
+          0.15f, STICKER_TILT);
 }

@@ -169,21 +169,6 @@ void rrect(canvas *c, float x, float y, float w, float h, float rad, int r, int 
     }
 }
 
-void bevel(canvas *c, float x, float y, float w, float h, float t, int up) {
-    for (int k = 0; k < (int)t; k++) {
-        float a = 0.5f * (1.0f - (float)k / t);
-        int hi = up ? 255 : 0, lo = up ? 0 : 255;
-        for (int i = (int)x + k; i < (int)(x + w) - k; i++) {
-            px_blend(c, i, (int)y + k, hi, hi, hi, a * 0.55f);
-            px_blend(c, i, (int)(y + h) - 1 - k, lo, lo, lo, a * 0.45f);
-        }
-        for (int j = (int)y + k; j < (int)(y + h) - k; j++) {
-            px_blend(c, (int)x + k, j, hi, hi, hi, a * 0.40f);
-            px_blend(c, (int)(x + w) - 1 - k, j, lo, lo, lo, a * 0.35f);
-        }
-    }
-}
-
 void text(canvas *c, float x, float y, const char *s, float sc, int r, int g, int b) {
     if (sc < 1.0f)
         sc = 1.0f;
