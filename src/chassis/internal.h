@@ -101,8 +101,9 @@ void corner_engraving(canvas *c, float cx, float cy, float w);
 #define WIDE_KEY_W 17.4f  /* mm */
 #define WIDE_KEY_H 7.5f   /* mm */
 #define WIDE_KEY_CAP 2.1f /* mm, the legend's capitals */
-/* how a key is drawn: a keycap, a flat cap on a plate, the power cap */
-enum { KEY_STYLE_CAP, KEY_STYLE_FLAT, KEY_STYLE_POWER };
+/* how a key is drawn: a keycap, a flat cap on a plate, the power cap, a
+ * monitor's dark pushbutton */
+enum { KEY_STYLE_CAP, KEY_STYLE_FLAT, KEY_STYLE_POWER, KEY_STYLE_PUSH };
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
                float cap, int stained, int style, float out[4]);
 void keys_draw(canvas *c);
