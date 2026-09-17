@@ -11,6 +11,28 @@
 #include "gen/corner_sticker.h" /* likewise */
 #include "gen/horizon.h"        /* likewise */
 
+/* The groove that divides a pod: a shallow rounded parting in the
+ * moulding, a millimetre and a half across, nothing like the case's
+ * sharp seams.  A soft dip: the upper wall turns away from the key light
+ * and falls into a little shade, the floor is a touch darker, and the
+ * lower wall turns back up into the light and catches it - all of it
+ * gentle, so it reads as a fold in the plastic rather than a cut. */
+static void pod_groove(canvas *c, float x, float y, float len, float mm) {
+    float d = 1.5f * mm, y0 = y - d * 0.5f;
+    for (int j = (int)floorf(y0); j <= (int)ceilf(y0 + d); j++) {
+        float t = ((float)j + 0.5f - y0) / d;
+        if (t < 0.0f || t > 1.0f)
+            continue;
+        float prof = 0.5f - 0.5f * cosf(t * 6.28318f); /* 0 at the lips, 1 mid */
+        float g = sinf(t * 6.28318f);                  /* +descending, -rising */
+        float lam = -g * 0.91f;                        /* the key light is above */
+        float sp = fmaxf(lam, 0.0f);
+        float mul = 1.0f + lam * 0.16f - prof * 0.07f;
+        for (int i = (int)x; i < (int)(x + len); i++)
+            px_shade(c, i, j, mul, sp * sp * 0.03f);
+    }
+}
+
 /* ---- speaker columns, one each side of the tube ---- */
 static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
                             int *knobs_placed) {
@@ -78,34 +100,33 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
             /* Under the holes each pod is DIVIDED, the way a moulded front
-             * was: one groove across it, edge to edge, as far below the
-             * holes as the pod's top is above them, so the speaker sits in
-             * a panel with even margins and what is under it has a panel
-             * of its own.  Both pods get the groove - one tool made both -
-             * whatever the panel holds: on the right, the monitor's
-             * controls, the OSD key and the two knobs below it; on the
-             * left, the mouse key and its lamps, the key level with the
-             * OSD key across the way.  A pod
-             * too short for the panel keeps the key and the lamps as one
-             * group under the holes, and the knobs go to the band. */
+             * was: one soft groove across it, edge to edge, five
+             * millimetres short of as far below the holes as the pod's top
+             * is above them, so the speaker sits in a panel with near-even
+             * margins and what is under it has a panel of its own.  Both pods get the groove - one
+             * tool made both - whatever the panel holds: on the right, the monitor's controls, the
+             * OSD key and the two knobs below it; on the left, the mouse key and its lamps, the key
+             * level with the OSD key across the way.  A pod too short for the panel keeps the key
+             * and the lamps as one group under the holes, and the knobs go to the band. */
             {
                 /* the holes fill a capsule that leaves the same margin at
                  * both ends of the grille's box (grille_panel) */
                 float hole_top = gy + gh * 0.06f, hole_end = gy + gh * 0.94f;
                 float foot = py + ph;
-                float ys = hole_end + (hole_top - py); /* the groove */
+                float ys = hole_end + (hole_top - py) - 5.0f * mm; /* the groove */
                 float kr = 3.9f * mm;
                 /* the key and the knobs, with their air */
                 float group = 2.0f * kr + 5.5f * mm;
                 float need = 12.0f * mm + WIDE_KEY_H * mm + 6.0f * mm + group + 3.0f * mm;
                 int divided = foot - ys >= need && pw * 0.90f >= 20.0f * mm;
                 if (divided) {
-                    float gw2 = fmaxf(1.0f, (float)W * 0.0012f);
                     for (int s2 = 0; s2 < 2; s2++)
-                        seam(c, pxs[s2], ys, pw, 0, gw2, 1);
+                        pod_groove(c, pxs[s2], ys, pw, mm);
                     float cx2 = pxs[1] + pw * 0.5f;
-                    /* the OSD key, and the mouse key level with it */
-                    float oy = ys + 12.0f * mm + WIDE_KEY_H * 0.5f * mm;
+                    /* the OSD key, and the mouse key level with it - placed
+                     * from the groove's line plus the five it was moved up,
+                     * so the controls did not move with it */
+                    float oy = ys + 17.0f * mm + WIDE_KEY_H * 0.5f * mm;
                     osd_button(cx2, oy, mm, L->osd_btn);
                     mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy, pw * 0.90f, mm, L->mouse_btn,
                                 L->mouse_led);

@@ -807,15 +807,19 @@ static void key_legend(canvas *c, float mid, float ty, const char *label, float 
 }
 
 /* The power button's cap: the same pushbutton as every other key on the
- * machine, at its size, with the IEC mark cut into its face where the
- * others carry a printed legend.  Pressed, it goes in as they do, and the
- * mark goes with it.  Same conventions as push_key. */
+ * machine, at its size and standing further off the case, with the IEC
+ * mark cut into its face where the others carry a printed legend.  Pressed, it goes in as they do,
+ * and the mark goes with it.  Same conventions as push_key. */
 static void push_body(canvas *c, float cx, float cy, float w, float h, float mm, int stain_seed,
-                      float stain, float press, float ox, float oy, int cw, int ch); /* below */
-#define PUSH_SINK 0.30f /* mm a pushbutton's cap goes in, fully pressed */
+                      float stain, float press, float tall, float ox, float oy, int cw,
+                      int ch); /* below */
+#define PUSH_SINK 0.30f        /* mm a pushbutton's cap goes in, fully pressed */
+#define POWER_TALL 1.8f        /* how much prouder the power cap stands than the rest */
+#define PUSH_SOFT 2.0f         /* px its edges ease over: a shade softer than a keycap's */
 static void power_key(canvas *c, float cx, float cy, float w, float h, float mm, float press,
                       float ox, float oy, int cw, int ch) {
-    push_body(c, cx, cy, w, h, mm, POWER_STAIN_SEED, HANDLED_STAIN, press, ox, oy, cw, ch);
+    push_body(c, cx, cy, w, h, mm, POWER_STAIN_SEED, HANDLED_STAIN, press, POWER_TALL, ox, oy, cw,
+              ch);
     int saved = canvas_grain;
     canvas_grain = 0;
     /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
@@ -860,11 +864,10 @@ static int key_sign(canvas *c, const char *label, float mx, float my, float w, f
 
 /* The flat cap the turbo module's keys are: a slab of the keys' plastic
  * lying on the module's plate, its face lit from above and falling off
- * down it, an edge bevel, and the shadow it throws on the plate below - the
- * power cap's construction at a fraction of the size.  Pressed, the face
- * dims, the bevel turns in and the shadow goes, and the legend goes down
- * with it.  Its legend is the other keys' (key_legend), but for + and -,
- * which are drawn as bars. */
+ * down it, an edge bevel that follows its rounded outline, and the shadow
+ * it throws on the plate below.  Pressed, the face dims, the bevel turns
+ * in and the shadow goes, and the legend goes down with it.  Its legend is the other keys'
+ * (key_legend), but for + and -, which are drawn as bars. */
 static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
                      float cap, int stained, float press, int ox, int oy, int cw, int ch) {
     /* Everything is worked out in the case's own coordinates and only
@@ -887,16 +890,35 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
         }
     }
     canvas_grain = saved;
-    /* the face: lit at the top, falling off down it, smooth, and the
-     * case's finish where it sits */
+    /* the face: lit at the top, falling off down it, smooth, a shade
+     * darker than the keys' plastic, and the case's finish where it sits.
+     * Its edge is a bevel a fraction of a millimetre wide, worked from
+     * the same rounded outline as the face so it follows the corners
+     * exactly: lit where it faces the key light, along the top and the
+     * left, shaded along the bottom and the right, and turned in - the
+     * lit runs going to a faint shade - once the cap is most of the way
+     * down. */
+    float bw = fmaxf(1.0f, 0.45f * mm);
+    float turn = press < 0.5f ? 1.0f : -0.35f;
     for (int j = (int)floorf(y) - 1; j <= (int)floorf(y + h) + 1; j++)
         for (int i = (int)floorf(x) - 1; i <= (int)floorf(x + w) + 1; i++) {
-            float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f, cx, cy, w * 0.5f, h * 0.5f, rad);
+            float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
+            float sd = rr_sd(fx, fy, cx, cy, w * 0.5f, h * 0.5f, rad);
             float cov = fminf(1.0f, fmaxf(0.0f, 0.5f - sd));
             if (cov <= 0.0f)
                 continue;
-            float ty = ((float)j + 0.5f - y) / h;
-            float sh = (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.08f * press);
+            float ty = (fy - y) / h;
+            float sh = 0.92f * (1.16f + (0.84f - 1.16f) * ty) * (1.0f - 0.08f * press);
+            if (sd > -bw) {
+                float gx = rr_sd(fx + 1.0f, fy, cx, cy, w * 0.5f, h * 0.5f, rad) -
+                           rr_sd(fx - 1.0f, fy, cx, cy, w * 0.5f, h * 0.5f, rad);
+                float gy = rr_sd(fx, fy + 1.0f, cx, cy, w * 0.5f, h * 0.5f, rad) -
+                           rr_sd(fx, fy - 1.0f, cx, cy, w * 0.5f, h * 0.5f, rad);
+                float gl = sqrtf(gx * gx + gy * gy);
+                float lam = gl > 1e-4f ? (gx * LIGHT_X + gy * LIGHT_Y) / gl : 0.0f;
+                float prof = 1.0f - fminf(1.0f, -sd / bw); /* 1 at the edge, 0 inside */
+                sh *= 1.0f + lam * prof * 0.55f * turn;
+            }
             float m[3] = {1.0f, 1.0f, 1.0f};
             if (stained)
                 handled_stain((float)i / mm, (float)j / mm, FLAT_STAIN_SEED, HANDLED_STAIN, m);
@@ -904,8 +926,6 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
             finish_rgb((float)i, (float)j, cw, ch, rgb);
             px_blend(c, i - ox, j - oy, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
         }
-    /* the bevel, raised; turned in once it is most of the way down */
-    bevel(c, x - (float)ox, y - (float)oy, w, h, fmaxf(1.0f, 0.45f * mm), press < 0.5f);
     /* the legend, going down with the face */
     if (key_sign(c, label, cx - (float)ox, cy - (float)oy + press * 0.35f * mm, w, h, cap, press,
                  cx, cy, cw, ch))
@@ -928,7 +948,9 @@ static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
 /* A PUSHBUTTON, the kind a monitor's front carried: a low cap in the
  * keys' plastic with a rounded rim, standing nearly flush in a shallow
  * well cut in the case.  This is the body alone; what is on the face -
- * a printed legend, or the power mark - the callers add.  Nothing of the
+ * a printed legend, or the power mark - the callers add.  `tall` is how
+ * far it stands off, 1 for the low caps: more widens the rim's roll and
+ * lengthens and deepens the shadow, and the cap reads as proud.  Nothing of the
  * keyboard about it - no sloped faces, no tall cap - the edge is a roll
  * that catches the light along the top and falls dark along the bottom,
  * and the face is one dark tone with a soft sheen toward the top.
@@ -939,22 +961,30 @@ static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
 /* the same plastic the turbo module's caps are moulded in */
 static const float PUSH_RGB[3] = {KEY_R, KEY_G, KEY_B};
 static void push_body(canvas *c, float cx, float cy, float w, float h, float mm, int stain_seed,
-                      float stain, float press, float ox, float oy, int cw, int ch) {
+                      float stain, float press, float tall, float ox, float oy, int cw, int ch) {
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
-    float rad = h * 0.16f;                /* the corners, eased */
-    float gap = fmaxf(1.0f, 0.30f * mm);  /* the dark gap between cap and well */
-    float roll = fmaxf(1.5f, 0.55f * mm); /* the rounded rim, in from the edge */
+    float rad = h * 0.16f;                       /* the corners, eased */
+    float gap = fmaxf(1.0f, 0.30f * mm);         /* the dark gap between cap and well */
+    float roll = fmaxf(1.5f, 0.55f * mm) * tall; /* the rounded rim, in from the edge */
     float sink = press * PUSH_SINK * mm;
-    float reach = 0.8f * mm * (1.0f - 0.35f * press), drop = 0.30f * mm * (1.0f - 0.6f * press);
-    float shade = 0.20f * (1.0f - 0.45f * press);
+    /* the taller it stands, the further its shadow falls and the darker -
+     * the reach with the square of the height, so a proud cap's shadow
+     * runs well out under it rather than stopping short in a dark line */
+    float reach = 0.8f * mm * tall * tall * (1.0f - 0.35f * press);
+    float drop = 0.30f * mm * tall * (1.0f - 0.6f * press);
+    float shade = 0.20f * (1.0f + 0.5f * (tall - 1.0f)) * (1.0f - 0.45f * press);
+    float relief = 1.0f + 0.3f * (tall - 1.0f); /* and the harder its rim turns */
     int saved = canvas_grain;
     canvas_grain = 0;
-    /* the shadow on the case, mostly under it */
+    /* the shadow on the case, mostly under it.  Laid right up to the cap
+     * and under it too - the cap covers its own ground - so no unshaded
+     * band is left between the outline and where the shadow falls, which
+     * against the dark outline read as a lit lip. */
     for (int j = (int)(y - gap - reach); j <= (int)(y + h + gap + reach + drop) + 1; j++)
         for (int i = (int)(x - gap - reach); i <= (int)(x + w + gap + reach) + 1; i++) {
             float sd = rr_sd((float)i + 0.5f, (float)j + 0.5f - drop, cx, cy, hw + gap, hh + gap,
                              rad + gap);
-            if (sd <= -1.0f || sd > reach)
+            if (sd > reach)
                 continue;
             float t = fmaxf(0.0f, sd) / reach;
             px_shade(c, i, j, 1.0f - shade * (1.0f - t) * (1.0f - t), 0.0f);
@@ -980,12 +1010,12 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
         for (int i = (int)(x - gap) - 1; i <= (int)(x + w + gap) + 1; i++) {
             float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
             float sd_well = rr_sd(fx, fy, cx, cy, hw + gap, hh + gap, rad + gap);
-            float cov = fminf(1.0f, fmaxf(0.0f, (0.75f - sd_well) / OUTLINE_SOFT));
+            float cov = fminf(1.0f, fmaxf(0.0f, (1.0f - sd_well) / PUSH_SOFT));
             if (cov <= 0.0f)
                 continue;
             float sd = rr_sd(fx, fy, cx, cy, hw, hh, rad);
-            /* how much of this pixel is the gap: eased over a pixel */
-            float o = fminf(1.0f, fmaxf(0.0f, sd / OUTLINE_SOFT + 0.5f));
+            /* how much of this pixel is the gap: eased over two pixels */
+            float o = fminf(1.0f, fmaxf(0.0f, sd / PUSH_SOFT + 0.5f));
             float r, g, b, spec = 0.0f;
             if (o >= 1.0f) {
                 r = OUTLINE_RGB[0];
@@ -1016,8 +1046,8 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                     float lam = nx * LIGHT_X + ny * LIGHT_Y;
                     float t = fminf(1.0f, -sd / roll); /* 0 at the edge, 1 inside */
                     float prof = (1.0f - t) * (1.0f - t);
-                    k *= 1.0f + lam * prof * 0.70f;
-                    spec = powf(fmaxf(lam, 0.0f), 8.0f) * prof * 0.22f;
+                    k *= 1.0f + lam * prof * 0.64f * relief;
+                    spec = powf(fmaxf(lam, 0.0f), 6.0f) * prof * 0.19f * relief;
                 }
                 k *= 1.0f - 0.08f * press;
                 k *= 1.0f + plastic_tex(i + (int)ox, j + (int)oy) * 0.12f;
@@ -1051,8 +1081,8 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
  * printed on the face, going down with the cap. */
 static void push_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
                      float cap, int stained, float press, float ox, float oy, int cw, int ch) {
-    push_body(c, cx, cy, w, h, mm, stained ? KEYCAP_STAIN_SEED : -1, KEYCAP_STAIN, press, ox, oy,
-              cw, ch);
+    push_body(c, cx, cy, w, h, mm, stained ? KEYCAP_STAIN_SEED : -1, KEYCAP_STAIN, press, 1.0f, ox,
+              oy, cw, ch);
     float sink = press * PUSH_SINK * mm;
     if (key_sign(c, label, cx, cy + sink, w, h, cap, press, cx + ox, cy + oy, cw, ch))
         return;
@@ -1266,8 +1296,15 @@ static void key_draw_at(canvas *c, int k, float ox, float oy) {
 
 /* the square a key's drawing can reach: the cap, its shadow, its wall */
 static void key_square(int k, int *bx, int *by, int *bw, int *bh) {
-    float mm = KEYS.k[k].mm, reach = 1.0f * mm + 2.0f;
-    float below = reach + 0.5f * mm;
+    float mm = KEYS.k[k].mm, reach = 1.0f * mm + 2.0f, below = reach + 0.5f * mm;
+    if (KEYS.k[k].style == KEY_STYLE_PUSH || KEYS.k[k].style == KEY_STYLE_POWER) {
+        /* a pushbutton's shadow reaches its gap and its reach out on every
+         * side, and its drop below that (push_body); the power cap stands
+         * prouder, so further */
+        float tall = KEYS.k[k].style == KEY_STYLE_POWER ? POWER_TALL : 1.0f;
+        reach = fmaxf(1.0f, 0.30f * mm) + 0.8f * mm * tall * tall + 2.0f;
+        below = reach + 0.30f * mm * tall + 0.5f * mm;
+    }
     *bx = (int)(KEYS.k[k].cx - KEYS.k[k].w * 0.5f - reach);
     *by = (int)(KEYS.k[k].cy - KEYS.k[k].h * 0.5f - reach);
     *bw = (int)(KEYS.k[k].w + 2.0f * reach) + 2;
@@ -1561,16 +1598,15 @@ static void turbo_glass(canvas *c, float x, float y, float w, float h, float out
     out[3] = h;
 }
 
-/* One cap of the button cluster: a pushbutton on the module's plate
- * (push_key), the same part as the MOUSE and OSD keys, with its function
- * printed on it as on the other keys - placed here, drawn last with them.
- * Records its outline in out, for the mouse. */
+/* One cap of the button cluster: a flat cap on the module's plate (flat_key),
+ * with its function printed on it as on the other keys - placed here, drawn
+ * last with them.  Records its outline in out, for the mouse. */
 static void cluster_cap(int which, float x, float y, float w, float h, float mm, const char *label,
                         float out[4]) {
     float cap = fminf(2.1f * mm, h * 0.46f);
     /* MODE is the one of the three a hand goes to most: it carries the grime */
     keys_slot(which, x + w * 0.5f, y + h * 0.5f, w, h, mm, label, cap, which == KEY_MODE,
-              KEY_STYLE_PUSH, out);
+              KEY_STYLE_FLAT, out);
 }
 
 /* The turbo module, one part: a single well in the case beside the power

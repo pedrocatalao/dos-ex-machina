@@ -80,21 +80,21 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
      * out into the case.  Drawn first; the knob body covers the middle. */
     {
         float bcy = cy + off - hs; /* the base, seen from above */
-        float reach = r * 1.45f;
+        float reach = r * 1.32f;
         for (int j2 = (int)(bcy - reach) - 1; j2 <= (int)(bcy + reach) + 1; j2++)
             for (int i2 = (int)(cx - reach) - 1; i2 <= (int)(cx + reach) + 1; i2++) {
                 float dx = (float)i2 + 0.5f - cx, dy = (float)j2 + 0.5f - bcy;
                 float d = sqrtf((dx / r) * (dx / r) + (dy / ry) * (dy / ry)); /* 1 at the base */
-                if (d <= 0.94f || d > 1.42f)
+                if (d <= 0.94f || d > 1.30f)
                     continue;
                 float up = -dy / fmaxf(d * ry, 1e-3f); /* +1 straight above */
-                if (d <= 1.14f) {                      /* the ring itself */
-                    float a = 1.0f - fmaxf(0.0f, (d - 1.05f) / 0.09f);
-                    a *= fminf(1.0f, (d - 0.92f) / 0.06f);
+                if (d <= 1.10f) {                      /* the ring itself, hard-edged */
+                    float a = 1.0f - fmaxf(0.0f, (d - 1.04f) / 0.06f);
+                    a *= fminf(1.0f, (d - 0.94f) / 0.04f);
                     float top = (dy < 0.0f) ? 1.0f : 0.66f;
                     px_blend(c, i2, j2, 26, 22, 14, a * 0.85f * top);
                 } else {
-                    float t = (d - 1.14f) / 0.28f; /* 0 at ring, 1 outside */
+                    float t = (d - 1.10f) / 0.20f; /* 0 at ring, 1 outside */
                     if (up > 0.15f)                /* shadow above the hole */
                         px_shade(c, i2, j2, 1.0f - 0.20f * (1.0f - t) * up, 0.0f);
                     /* no lit lip below: the knob's own shadow falls there, and
@@ -106,21 +106,21 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
         for (int i2 = (int)cx - lim; i2 <= (int)cx + lim; i2++) {
             float dx = (float)i2 + 0.5f - cx, dy = (float)j2 + 0.5f - (cy + off);
             float ux = dx / r;
-            if (fabsf(ux) > 2.4f)
+            if (fabsf(ux) > 1.8f)
                 continue; /* the shadow reaches this far */
             float yr = (fabsf(ux) < 1.0f) ? ry * sqrtf(1.0f - ux * ux) : 0.0f; /* rim height here */
             float rho = sqrtf(ux * ux + (dy / ry) * (dy / ry)); /* 1 on the face rim */
             float base, cov;
 
             if (rho > 1.0f) {
-                /* The shadow the knob throws: a blurred copy of itself, dropped
-                 * a third of a radius, with a gaussian skirt - so it has no
-                 * outline of its own anywhere, and it fades in across the
-                 * knob's equator rather than starting there. */
-                float sx = ux * 1.25f, sy = (dy - r * 0.35f) / ry; /* narrower than tall */
+                /* The shadow the knob throws: a copy of itself dropped a
+                 * quarter of a radius, with a short gaussian skirt - tight
+                 * to the knob, as a hard light throws it, and fading in
+                 * across the knob's equator rather than starting there. */
+                float sx = ux * 1.25f, sy = (dy - r * 0.28f) / ry; /* narrower than tall */
                 float d2 = sqrtf(sx * sx + sy * sy) - 1.0f;        /* radii outside it */
-                if (d2 < 1.3f) {
-                    float f = (d2 <= 0.0f) ? 1.0f : expf(-d2 * d2 * 4.0f);
+                if (d2 < 0.8f) {
+                    float f = (d2 <= 0.0f) ? 1.0f : expf(-d2 * d2 * 10.0f);
                     float v = (dy / r + 0.25f) / 0.75f;
                     if (v < 0.0f)
                         v = 0.0f;
@@ -128,7 +128,7 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
                         v = 1.0f;
                     f *= v * v * (3.0f - 2.0f * v); /* eases in over the sides */
                     if (f > 0.003f)
-                        px_shade(c, i2, j2, 1.0f - 0.12f * f, 0.0f);
+                        px_shade(c, i2, j2, 1.0f - 0.16f * f, 0.0f);
                 }
                 if (dy > 0.0f)
                     continue; /* below: only the shadow */
@@ -158,23 +158,28 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
             cov = fminf(1.0f, (1.0f - rho) * ry + 0.5f);
             float up = -dy / fmaxf(ry * rho, 1e-3f); /* +1 at the top of the rim */
             float th = atan2f(ux, -dy / ry);
-            if (rho > 0.78f) {
+            if (rho > 0.85f) {
                 /* the edge of the face: a rounded chamfer, bright along the top
                  * and shaded along the bottom, carrying a faint trace of the
                  * knurl.  Not a dark ring - the knurl proper is the side, seen
                  * above the face, and from here the face's edge is just the
                  * moulding turning away. */
                 float ridge = sinf(th * 28.0f);
-                float k = (rho - 0.78f) / 0.22f; /* 0 inner .. 1 rim */
+                float k = (rho - 0.85f) / 0.15f; /* 0 inner .. 1 rim */
                 /* darker than the face it surrounds: this is the moulding
                  * turning away from the viewer toward the grip */
                 /* the top half catches a little more light; the bottom half
                  * is as it was */
                 const float RING_TOP_LIFT = 0.05f;
-                base = (0.54f + 0.08f * up + RING_TOP_LIFT * fmaxf(0.0f, up)) * (1.0f - 0.22f * k) +
+                base = (0.54f + 0.08f * up + RING_TOP_LIFT * fmaxf(0.0f, up)) * (1.0f - 0.30f * k) +
                        0.02f * ridge * k;
                 float f = TONE_RING * TONE_GAIN * KNOB_LEVEL * base;
                 finished(c, i2, j2, CONTROL_R * f, CONTROL_G * f, CONTROL_B * f, cov);
+                /* a hard, narrow catch of the key light along the top of
+                 * the rim, as the pushbuttons' rims have */
+                float catch = powf(fmaxf(0.0f, up), 6.0f) * k * 0.12f;
+                if (catch > 0.002f)
+                    px_shade(c, i2, j2, 1.0f, catch * cov);
             } else {
                 /* the face: flat, as the MOUSE key's face is - one colour with
                  * the moulding's grain in it and no light running off it - but
