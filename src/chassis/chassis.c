@@ -27,9 +27,10 @@ static void pod_groove(canvas *c, float x, float y, float len, float mm) {
         float g = sinf(t * 6.28318f);                  /* +descending, -rising */
         float lam = -g * 0.91f;                        /* the key light is above */
         float sp = fmaxf(lam, 0.0f);
-        float mul = 1.0f + lam * 0.24f - prof * 0.11f;
+        /* the lit wall brighter than the shaded one is dark */
+        float mul = 1.0f + lam * (lam > 0.0f ? 0.36f : 0.24f) - prof * 0.11f;
         for (int i = (int)x; i < (int)(x + len); i++)
-            px_shade(c, i, j, mul, sp * sp * 0.045f);
+            px_shade(c, i, j, mul, sp * sp * 0.08f);
     }
 }
 
@@ -72,7 +73,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                  * hard, and a contact shadow that reaches a little further
                  * than a shallow pad's would */
                 housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.2f, (float)W * 0.0018f),
-                             fmaxf(2.0f, (float)W * 0.0028f), 1, 1.25f);
+                             fmaxf(2.0f, (float)W * 0.0028f), 1, 1.55f);
                 /* moulding bosses tucked into the pod corners */
                 /* A real ejector boss is almost invisible EXCEPT at its
                  * rim - the flat top sits flush with the face around it.
@@ -129,7 +130,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     /* the OSD key fourteen millimetres under the groove, and
                      * the mouse key two below its line */
                     float oy = ys + 14.0f * mm + WIDE_KEY_H * 0.5f * mm;
-                    osd_button(cx2, oy, mm, L->osd_btn);
+                    osd_button(c, cx2, oy, mm, L->osd_btn);
                     mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy + 2.0f * mm, pw * 0.90f, mm,
                                 L->mouse_btn, L->mouse_led);
                     /* the knobs side by side with their symbols under them,
@@ -151,7 +152,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     float oy = fminf((hole_end + foot) * 0.5f + OSD_DROP * mm,
                                      foot - WIDE_KEY_H * 0.5f * mm - 0.5f * mm);
                     if (foot - hole_end >= 10.0f * mm && pw * 0.90f >= 20.0f * mm)
-                        osd_button(pxs[1] + pw * 0.5f, oy, mm, L->osd_btn);
+                        osd_button(c, pxs[1] + pw * 0.5f, oy, mm, L->osd_btn);
                     mouse_lamps(c, pxs[0] + pw * 0.5f, hole_end, foot, 0.0f, pw * 0.90f, mm,
                                 L->mouse_btn, L->mouse_led);
                 }

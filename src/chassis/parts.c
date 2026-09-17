@@ -1110,12 +1110,12 @@ static void case_key(canvas *c, float cx, float cy, float w, float h, float mm, 
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float rad = h * 0.14f;
     float line = fmaxf(1.2f, 0.38f * mm); /* the outline */
-    float slope = h * 0.12f;              /* the angled faces, in from the outline */
+    float slope = h * 0.105f;             /* the angled faces, in from the outline */
     float top_slope = slope * 0.80f;      /* the top one is foreshortened */
     const float R = KEY_R, G = KEY_G, B = KEY_B;
     float sink = press * 0.36f * mm; /* how far the cap has gone in */
-    float reach = 1.0f * mm * (1.0f - 0.35f * press), drop = 0.40f * mm * (1.0f - 0.6f * press);
-    float shade = 0.24f * (1.0f - 0.45f * press);
+    float reach = 1.0f * mm * (1.0f - 0.35f * press), drop = 0.34f * mm * (1.0f - 0.6f * press);
+    float shade = 0.21f * (1.0f - 0.45f * press);
     int saved = canvas_grain;
     /* the shadow on the case, mostly under it */
     canvas_grain = 0;
@@ -1396,9 +1396,21 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
 /* The OSD button, under the left pod, level with the knobs under the right
  * one: a control on its own, tied to nothing, so the monitor's three
  * controls make one row across the tube. */
-void osd_button(float cx, float cy, float mm, float btn[4]) {
+/* The OSD key, with DISPLAY printed over it the way CTRL+F10 is printed
+ * over the MOUSE key: the same face, size, ink and gap (mouse_lamps).
+ * Centred on cx, the key's centre on cy; records its well in btn. */
+void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]) {
+    const int INK_R = 88, INK_G = 83, INK_B = 72;
+    const float SQ = 0.90f;
+    float cap = 2.0f * mm, tr = cap * 0.08f, g1 = 1.6f * mm;
+    float tw = helv_width("DISPLAY", cap, SQ, tr);
+    int saved = canvas_grain;
+    canvas_grain = 0;
+    text_helv(c, cx - tw * 0.5f, cy - WIDE_KEY_H * 0.5f * mm - g1 - cap, "DISPLAY", cap, SQ, tr,
+              INK_R, INK_G, INK_B);
+    canvas_grain = saved;
     keys_slot(KEY_OSD, cx, cy, WIDE_KEY_W * mm, WIDE_KEY_H * mm, mm, "OSD", WIDE_KEY_CAP * mm, 1,
-              KEY_STYLE_PUSH, btn);
+              KEY_STYLE_CAP, btn);
 }
 
 /* A printed rule, axis-aligned and antialiased: x,y,w,h in px. */
@@ -1455,7 +1467,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw
     float tw_host = helv_width("HOST", cap_lamp, SQ, tr_lamp);
     float kw = WIDE_KEY_W * mm, kh = WIDE_KEY_H * mm; /* the key */
     float lx = kw * 0.5f - 0.8f * mm;                 /* the lamps, under the key's ends */
-    float g1 = 1.6f * mm, stem = 4.5f * mm, drop = 4.2f * mm - hole, g2 = 1.4f * mm;
+    float g1 = 1.6f * mm, stem = 3.5f * mm, drop = 4.2f * mm - hole, g2 = 1.4f * mm;
     float h = cap_lamp + g1 + kh + stem + drop + 2.0f * hole + g2 + cap_lamp;
     float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
     if (h * 1.20f > y1 - y0 || wide > maxw)
@@ -1482,7 +1494,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw
     printed_corner(c, cx - lx + rc, by + rc, rc, -1, -1, lt, LINE_R, LINE_G, LINE_B);
     printed_corner(c, cx + lx - rc, by + rc, rc, 1, -1, lt, LINE_R, LINE_G, LINE_B);
     canvas_grain = saved;
-    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, KEY_STYLE_PUSH, btn);
+    keys_slot(KEY_MOUSE, cx, ky, kw, kh, mm, "MOUSE", cap_key, 1, KEY_STYLE_CAP, btn);
     {
         const char *words[2] = {"HOST", "DXM"};
         for (int s = 0; s < 2; s++) {

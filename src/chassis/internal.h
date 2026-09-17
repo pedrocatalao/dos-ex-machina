@@ -79,7 +79,7 @@ void bezel_facing_alpha(canvas *c, const dxm_layout *L, int W, int H, const chas
 void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4]);
 void grille_panel(canvas *c, float x, float y, float w, float h, float pitch);
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h, dxm_layout *L);
-void osd_button(float cx, float cy, float mm, float btn[4]);
+void osd_button(canvas *c, float cx, float cy, float mm, float btn[4]);
 int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw, float mm,
                 float btn[4], float led_out[2][4]);
 void turbo_module(canvas *c, float x, float pw, float mid, float mm, float seg[4], float btn[3][4],
