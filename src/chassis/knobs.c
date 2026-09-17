@@ -277,10 +277,9 @@ static void paint_field(canvas *c, float x, float y, int dw, int dh, const float
     canvas_grain = saved;
 }
 
-/* The monitor's own symbols, printed under each knob in the ink the rest
- * of the legends are: a sun for brightness, a half-filled disc for
- * contrast.  Distance fields, like the power mark, so they stay crisp at
- * any size. */
+/* The monitor's own symbols, printed under each knob (paint_field): a sun
+ * for brightness, a half-filled disc for contrast.  Distance fields, like
+ * the power mark, so they stay crisp at any size. */
 void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
     int dw = (int)(s * 2.6f) + 4, dh = dw;
     float *dep = calloc((size_t)dw * dh, sizeof *dep);

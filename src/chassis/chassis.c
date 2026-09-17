@@ -47,7 +47,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             float gh = L->tube_h * 0.5f;
             /* Each grille sits in a raised moulded POD - a tall rounded
              * pad standing a fraction proud of the flank, with the holes
-             * punched through its middle.  This is how the real cases did
+             * punched through its upper part.  This is how the real cases did
              * it: one moulded feature carrying the speaker, rather than
              * decoration applied around it.  It also gives the space above
              * and below the holes something to be - plateau face - instead
@@ -112,37 +112,40 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             grille_panel(c, pxs[0] - (gw - pw) * 0.5f, gy, gw, gh, H * 0.019f);
             grille_panel(c, pxs[1] - (gw - pw) * 0.5f, gy, gw, gh, H * 0.019f);
             /* Under the holes each pod is DIVIDED, the way a moulded front
-             * was: one soft groove across it, edge to edge, nine
-             * millimetres short of as far below the holes as the pod's top
-             * is above them, so what is under the speaker has a panel of
-             * its own.  Both pods get the groove - one
-             * tool made both - whatever the panel holds: on the right, the monitor's controls, the
-             * OSD key and the two knobs below it; on the left, the mouse key and its lamps, the key
-             * level with the OSD key across the way.  A pod too short for the panel keeps the key
-             * and the lamps as one group under the holes, and the knobs go to the band. */
+             * was: one soft groove across it, edge to edge, at the line
+             * settled above, so what is under the speaker has a panel of
+             * its own.  Both pods get the groove - one tool made both -
+             * whatever the panel holds: on the right, the monitor's
+             * controls, the OSD key and the two knobs below it; on the
+             * left, the mouse key and its lamps, the key a little below
+             * the OSD key's line.  A pod too short for the panel keeps the
+             * key and the lamps as one group under the holes, and the
+             * knobs go to the band. */
             {
                 float hole_end = gy + gh * 0.94f; /* where the holes stop */
                 float foot = py + ph;
+                const float KEY_DROP = 14.0f; /* mm, the groove to the OSD key's top */
                 float kr = 3.9f * mm;
                 /* the key and the knobs, with their air */
                 float group = 2.0f * kr + 5.5f * mm;
-                float need = 12.0f * mm + WIDE_KEY_H * mm + 6.0f * mm + group + 3.0f * mm;
+                float need = KEY_DROP * mm + WIDE_KEY_H * mm + 6.0f * mm + group + 3.0f * mm;
                 int divided = foot - ys >= need && pw * 0.90f >= 20.0f * mm;
                 if (divided) {
                     for (int s2 = 0; s2 < 2; s2++)
                         pod_groove(c, pxs[s2], ys, pw, mm);
                     float cx2 = pxs[1] + pw * 0.5f;
-                    /* the OSD key fourteen millimetres under the groove, and
-                     * the mouse key two below its line */
-                    float oy = ys + 14.0f * mm + WIDE_KEY_H * 0.5f * mm;
+                    /* the OSD key under the groove, and the mouse key two
+                     * millimetres below its line */
+                    float oy = ys + KEY_DROP * mm + WIDE_KEY_H * 0.5f * mm;
                     osd_button(c, cx2, oy, mm, L->osd_btn);
                     mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy + 2.0f * mm, pw * 0.90f, mm,
                                 L->mouse_btn, L->mouse_led);
                     /* the knobs side by side with their symbols under them,
-                     * the group centred between the key and the foot and
-                     * let down half a millimetre.  Only their places are fixed
-                     * here; the knobs themselves go on LAST, after the wear and the yellowing, so
-                     * the plastic saved under each is the plastic around it. */
+                     * the group centred between the key and the foot and let
+                     * down half a millimetre.  Only their places are fixed
+                     * here; the knobs themselves go on LAST, after the wear
+                     * and the yellowing, so the plastic saved under each is
+                     * the plastic around it. */
                     float key_end = oy + WIDE_KEY_H * 0.5f * mm;
                     float ky = (key_end + foot) * 0.5f - group * 0.5f + kr + 0.5f * mm;
                     float kx0 = cx2 - kr * 1.75f, kx1 = cx2 + kr * 1.75f;
@@ -161,21 +164,6 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     mouse_lamps(c, pxs[0] + pw * 0.5f, hole_end, foot, 0.0f, pw * 0.90f, mm,
                                 L->mouse_btn, L->mouse_led);
                 }
-            }
-            /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
-             * centred between the pod's moulded top edge and the first row
-             * of holes and clear of both.  A fixed physical size, 17 mm
-             * across or as much as the pod gives, and a vinyl with a third
-             * of a millimetre of body; a plateau too short for it goes
-             * without. */
-            {
-                float sw = fminf(17.0f * mm, pw * 0.70f);
-                float top = py + prad * 0.5f + 1.0f * mm; /* inside the moulded edge */
-                float hole_top = gy + gh * 0.06f;
-                float cy = (top + hole_top) * 0.5f;
-                float room = fminf(cy - top, hole_top - 1.0f * mm - cy);
-                if (sw >= 8.0f * mm)
-                    tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.33f * mm, sw, 2.0f * room);
             }
             /* The Horizon badge, in the strip under the LEFT pod, above the
              * parting to the base: centred between the two and a couple of

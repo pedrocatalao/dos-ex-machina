@@ -36,7 +36,6 @@ float plastic_tex(int x, int y);
 float rr_sd(float px, float py, float cx, float cy, float hw, float hh, float r);
 float vnoise(float x, float y, int seed);
 float warped_rr_sd(const dxm_layout *L, float px, float py, float r, float grow, float warp);
-void bevel(canvas *c, float x, float y, float w, float h, float t, int up);
 void chamfer_ring(canvas *c, float x, float y, float w, float h, float r, float cw);
 void housing_edge(canvas *c, float x, float y, float w, float h, float r, float ew, float shadow,
                   int raised, float gain);
@@ -90,7 +89,6 @@ void louvre_slot(canvas *c, float x, float y, float w, float h, float rad);
 
 /* marks.c */
 void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float maxh);
-void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh);
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);
 void corner_engraving(canvas *c, float cx, float cy, float w);
@@ -101,9 +99,8 @@ void corner_engraving(canvas *c, float cx, float cy, float w);
 #define WIDE_KEY_W 17.4f  /* mm */
 #define WIDE_KEY_H 7.5f   /* mm */
 #define WIDE_KEY_CAP 2.1f /* mm, the legend's capitals */
-/* how a key is drawn: a keycap, a flat cap on a plate, the power cap, a
- * monitor's dark pushbutton */
-enum { KEY_STYLE_CAP, KEY_STYLE_FLAT, KEY_STYLE_POWER, KEY_STYLE_PUSH };
+/* how a key is drawn: a keycap, a flat cap on a plate, the power cap */
+enum { KEY_STYLE_CAP, KEY_STYLE_FLAT, KEY_STYLE_POWER };
 void keys_slot(int which, float cx, float cy, float w, float h, float mm, const char *label,
                float cap, int stained, int style, float out[4]);
 void keys_draw(canvas *c);

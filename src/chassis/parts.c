@@ -806,27 +806,6 @@ static void key_legend(canvas *c, float mid, float ty, const char *label, float 
     canvas_grain = saved;
 }
 
-/* The power button's cap: the same pushbutton as every other key on the
- * machine, at its size and standing further off the case, with the IEC
- * mark cut into its face where the others carry a printed legend.  Pressed, it goes in as they do,
- * and the mark goes with it.  Same conventions as push_key. */
-static void push_body(canvas *c, float cx, float cy, float w, float h, float mm, int stain_seed,
-                      float stain, float press, float tall, float ox, float oy, int cw,
-                      int ch); /* below */
-#define PUSH_SINK 0.30f        /* mm a pushbutton's cap goes in, fully pressed */
-#define POWER_TALL 1.8f        /* how much prouder the power cap stands than the rest */
-#define PUSH_SOFT 2.0f         /* px its edges ease over: a shade softer than a keycap's */
-static void power_key(canvas *c, float cx, float cy, float w, float h, float mm, float press,
-                      float ox, float oy, int cw, int ch) {
-    push_body(c, cx, cy, w, h, mm, POWER_STAIN_SEED, HANDLED_STAIN, press, POWER_TALL, ox, oy, cw,
-              ch);
-    int saved = canvas_grain;
-    canvas_grain = 0;
-    /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap */
-    power_symbol(c, cx, cy + press * PUSH_SINK * mm, w * 0.33f);
-    canvas_grain = saved;
-}
-
 /* + and - are not set in type: a font's signs are small marks cut for
  * text, and blown up they go thin and soft.  They are drawn as bars
  * instead - as heavy as MODE's strokes and a third of the cap across - in
@@ -866,8 +845,9 @@ static int key_sign(canvas *c, const char *label, float mx, float my, float w, f
  * lying on the module's plate, its face lit from above and falling off
  * down it, an edge bevel that follows its rounded outline, and the shadow
  * it throws on the plate below.  Pressed, the face dims, the bevel turns
- * in and the shadow goes, and the legend goes down with it.  Its legend is the other keys'
- * (key_legend), but for + and -, which are drawn as bars. */
+ * in and the shadow goes, and the legend goes down with it.  Its legend
+ * is the other keys' (key_legend), but for + and -, which are drawn as
+ * bars (key_sign). */
 static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
                      float cap, int stained, float press, int ox, int oy, int cw, int ch) {
     /* Everything is worked out in the case's own coordinates and only
@@ -940,35 +920,38 @@ static void flat_key(canvas *c, float cx, float cy, float w, float h, float mm, 
 #define OUTLINE_SOFT 1.5f
 /* the outline's colour: a very dark warm brown, a little short of black */
 static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
-/* the slight well round a keycap or a pushbutton: how far out it reaches, mm, and how much
- * it darkens the case at the gap */
+/* the slight well round a keycap, and round the power cap: how far out
+ * it reaches, mm, and how much it darkens the case at the gap */
 #define WELL_REACH 0.9f
 #define WELL_DEPTH 0.12f
 
-/* A PUSHBUTTON, the kind a monitor's front carried: a low cap in the
- * keys' plastic with a rounded rim, standing nearly flush in a shallow
- * well cut in the case.  This is the body alone; what is on the face -
- * a printed legend, or the power mark - the callers add.  `tall` is how
- * far it stands off, 1 for the low caps: more widens the rim's roll and
- * lengthens and deepens the shadow, and the cap reads as proud.  Nothing of the
- * keyboard about it - no sloped faces, no tall cap - the edge is a roll
- * that catches the light along the top and falls dark along the bottom,
- * and the face is one dark tone with a soft sheen toward the top.
- * Pressed, the cap goes in: its lit rim loses its light, the shadow it
- * throws draws in, and the face and the legend dim a little and drop.
- * Same conventions as case_key: (cx, cy) on canvas c, (ox, oy) where c
- * sits on the cw x ch case. */
+/* The power button's cap: a PUSHBUTTON, the kind a monitor's front
+ * carried - a low cap in the keys' plastic with a rounded rim, standing
+ * proud of the case in a shallow well cut round it, with the IEC mark cut
+ * into its face.  Nothing of the keyboard about it - no sloped faces, no
+ * tall cap - the edge is a roll that catches the light along the top and
+ * falls dark along the bottom, and the face is one tone with a soft sheen
+ * toward the top.  It stands taller than the keycaps (POWER_TALL), which
+ * widens the rim's roll and lengthens and deepens the shadow it throws.
+ * Pressed, the cap goes in: its lit rim loses its light, the shadow draws
+ * in, and the face and the mark dim a little and drop.  Same conventions
+ * as case_key: (cx, cy) on canvas c, (ox, oy) where c sits on the cw x ch
+ * case. */
+#define PUSH_SINK 0.30f /* mm the cap goes in, fully pressed */
+#define POWER_TALL 1.8f /* how much prouder it stands than a keycap would */
+#define PUSH_SOFT 2.0f  /* px its edges ease over: a shade softer than a keycap's */
 /* the same plastic the turbo module's caps are moulded in */
 static const float PUSH_RGB[3] = {KEY_R, KEY_G, KEY_B};
-static void push_body(canvas *c, float cx, float cy, float w, float h, float mm, int stain_seed,
-                      float stain, float press, float tall, float ox, float oy, int cw, int ch) {
+static void power_key(canvas *c, float cx, float cy, float w, float h, float mm, float press,
+                      float ox, float oy, int cw, int ch) {
+    const float tall = POWER_TALL;
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float rad = h * 0.16f;                       /* the corners, eased */
     float gap = fmaxf(1.0f, 0.30f * mm);         /* the dark gap between cap and well */
     float roll = fmaxf(1.5f, 0.55f * mm) * tall; /* the rounded rim, in from the edge */
     /* the taller it stands, the further its shadow falls and the darker -
-     * the reach with the square of the height, so a proud cap's shadow
-     * runs well out under it rather than stopping short in a dark line */
+     * the reach with the square of the height, so the shadow runs well out
+     * under it rather than stopping short in a dark line */
     float reach = 0.8f * mm * tall * tall * (1.0f - 0.35f * press);
     float drop = 0.30f * mm * tall * (1.0f - 0.6f * press);
     float shade = 0.20f * (1.0f + 0.5f * (tall - 1.0f)) * (1.0f - 0.45f * press);
@@ -1007,7 +990,7 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
      * well's wall above the cap - at this size that is a black stroke
      * along the top edge, not depth - the cap keeps its outline and the
      * light does the telling: its lit rim goes as it drops under the
-     * well's edge, the shadow draws in, and the face and the legend dim. */
+     * well's edge, the shadow draws in, and the face and the mark dim. */
     for (int j = (int)(y - gap) - 1; j <= (int)(y + h + gap) + 1; j++)
         for (int i = (int)(x - gap) - 1; i <= (int)(x + w + gap) + 1; i++) {
             float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
@@ -1049,17 +1032,12 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                 }
                 k *= 1.0f - 0.08f * press;
                 k *= 1.0f + plastic_tex(i + (int)ox, j + (int)oy) * 0.12f;
-                float mr = 1.0f, mg = 1.0f, mb = 1.0f;
-                if (stain_seed >= 0) {
-                    float m[3];
-                    handled_stain((fx + ox) / mm, (fy + oy) / mm, stain_seed, stain, m);
-                    mr = m[0];
-                    mg = m[1];
-                    mb = m[2];
-                }
-                r = PUSH_RGB[0] * k * mr + spec * 255.0f;
-                g = PUSH_RGB[1] * k * mg + spec * 255.0f;
-                b = PUSH_RGB[2] * k * mb + spec * 255.0f;
+                /* the grime of the key pressed most on the machine */
+                float m[3];
+                handled_stain((fx + ox) / mm, (fy + oy) / mm, POWER_STAIN_SEED, HANDLED_STAIN, m);
+                r = PUSH_RGB[0] * k * m[0] + spec * 255.0f;
+                g = PUSH_RGB[1] * k * m[1] + spec * 255.0f;
+                b = PUSH_RGB[2] * k * m[2] + spec * 255.0f;
             }
             if (o > 0.0f && o < 1.0f) {
                 r += (OUTLINE_RGB[0] - r) * o;
@@ -1072,20 +1050,10 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                 px_blend(c, i, j, (int)rgb[0], (int)rgb[1], (int)rgb[2], cov);
             }
         }
+    /* the mark, cut into the cap's face: about 5 mm on a 16 mm cap, going
+     * down with the cap */
+    power_symbol(c, cx, cy + press * PUSH_SINK * mm, w * 0.33f);
     canvas_grain = saved;
-}
-
-/* The pushbutton with its function on it: the body, then the legend
- * printed on the face, going down with the cap. */
-static void push_key(canvas *c, float cx, float cy, float w, float h, float mm, const char *label,
-                     float cap, int stained, float press, float ox, float oy, int cw, int ch) {
-    push_body(c, cx, cy, w, h, mm, stained ? KEYCAP_STAIN_SEED : -1, KEYCAP_STAIN, press, 1.0f, ox,
-              oy, cw, ch);
-    float sink = press * PUSH_SINK * mm;
-    if (key_sign(c, label, cx, cy + sink, w, h, cap, press, cx + ox, cy + oy, cw, ch))
-        return;
-    key_legend(c, cx, cy - cap * 0.5f + sink, label, cap, press, cx + ox, cy + oy, cw, ch,
-               stained ? KEYCAP_STAIN_SEED : -1, KEYCAP_STAIN, mm, ox, oy);
 }
 
 /* A key of the case's own, standing proud of the plastic: a keycap in
@@ -1281,12 +1249,6 @@ static void key_draw_at(canvas *c, int k, float ox, float oy) {
                  (int)oy, KEYS.cw, KEYS.ch);
         return;
     }
-    if (KEYS.k[k].style == KEY_STYLE_PUSH) {
-        push_key(c, KEYS.k[k].cx - ox, KEYS.k[k].cy - oy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
-                 KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].stained, KEYS.k[k].depth, ox, oy,
-                 KEYS.cw, KEYS.ch);
-        return;
-    }
     case_key(c, KEYS.k[k].cx - ox, KEYS.k[k].cy - oy, KEYS.k[k].w, KEYS.k[k].h, KEYS.k[k].mm,
              KEYS.k[k].label, KEYS.k[k].cap, KEYS.k[k].stained, KEYS.k[k].depth, ox, oy, KEYS.cw,
              KEYS.ch);
@@ -1295,13 +1257,11 @@ static void key_draw_at(canvas *c, int k, float ox, float oy) {
 /* the square a key's drawing can reach: the cap, its shadow, its wall */
 static void key_square(int k, int *bx, int *by, int *bw, int *bh) {
     float mm = KEYS.k[k].mm, reach = 1.0f * mm + 2.0f, below = reach + 0.5f * mm;
-    if (KEYS.k[k].style == KEY_STYLE_PUSH || KEYS.k[k].style == KEY_STYLE_POWER) {
-        /* a pushbutton's shadow reaches its gap and its reach out on every
-         * side, and its drop below that (push_body); the power cap stands
-         * prouder, so further */
-        float tall = KEYS.k[k].style == KEY_STYLE_POWER ? POWER_TALL : 1.0f;
-        reach = fmaxf(1.0f, 0.30f * mm) + 0.8f * mm * tall * tall + 2.0f;
-        below = reach + 0.30f * mm * tall + 0.5f * mm;
+    if (KEYS.k[k].style == KEY_STYLE_POWER) {
+        /* the power cap's shadow reaches its gap and its reach out on every
+         * side, and its drop below that (power_key) */
+        reach = fmaxf(1.0f, 0.30f * mm) + 0.8f * mm * POWER_TALL * POWER_TALL + 2.0f;
+        below = reach + 0.30f * mm * POWER_TALL + 0.5f * mm;
     }
     *bx = (int)(KEYS.k[k].cx - KEYS.k[k].w * 0.5f - reach);
     *by = (int)(KEYS.k[k].cy - KEYS.k[k].h * 0.5f - reach);
@@ -1393,9 +1353,6 @@ const uint8_t *chassis_key_set(int which, float press, int *x, int *y, int *w, i
     return KEYS.patch;
 }
 
-/* The OSD button, under the left pod, level with the knobs under the right
- * one: a control on its own, tied to nothing, so the monitor's three
- * controls make one row across the tube. */
 /* The OSD key, with DISPLAY printed over it the way CTRL+F10 is printed
  * over the MOUSE key: the same face, size, ink and gap (mouse_lamps).
  * Centred on cx, the key's centre on cy; records its well in btn. */
