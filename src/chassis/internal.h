@@ -89,8 +89,8 @@ void vent_slot_r(canvas *c, float x, float y, float w, float h, float rad, float
 void louvre_slot(canvas *c, float x, float y, float w, float h, float rad);
 
 /* marks.c */
-void multimedia_sticker(canvas *c, float cx, float cy, float w, float taller, float maxw,
-                        float maxh);
+void horizon_sticker(canvas *c, float cx, float cy, float w, float maxw, float maxh);
+void tdfx_sticker(canvas *c, float cx, float cy, float w, float rise, float maxw, float maxh);
 void engrave_field(canvas *c, float x, float y, int dw, int dh, const float *dep);
 void engrave_mark(canvas *c, float cx, float cy, float w, float fill);
 void corner_engraving(canvas *c, float cx, float cy, float w);

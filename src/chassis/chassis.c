@@ -9,6 +9,7 @@
 #include "internal.h"
 #include "gen/mark.h"           /* only the mark's dimensions are used here */
 #include "gen/corner_sticker.h" /* likewise */
+#include "gen/horizon.h"        /* likewise */
 
 /* ---- speaker columns, one each side of the tube ---- */
 static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassis_geom *G,
@@ -91,6 +92,19 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * opposite number.  A pod without the room goes without. */
             mouse_lamps(c, pxs[0] + pw * 0.5f, gy + gh * 0.94f, py + ph, pw * 0.90f, mm,
                         L->mouse_btn, L->mouse_led);
+            /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
+             * centred between the pod's top and the top of the holes and
+             * clear of both.  A fixed physical size, 17 mm across or as
+             * much as the pod gives, and a vinyl with a fifth of a
+             * millimetre of body; a plateau too short for it goes without. */
+            {
+                float sw = fminf(17.0f * mm, pw * 0.70f);
+                float top = py + prad * 0.5f + 1.0f * mm; /* inside the moulded edge */
+                float cy = (top + gy) * 0.5f;
+                float room = (gy - 1.0f * mm - top) * 0.5f;
+                if (sw >= 8.0f * mm)
+                    tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.2f * mm, sw, 2.0f * room);
+            }
             /* The monitor's two knobs, brightness and contrast, in the
              * strip under the right pod, above the parting to the base -
              * the picture's controls on the picture's half of the case.
@@ -109,21 +123,21 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     knobs_slot(0, kx0, ky, kr);
                     knobs_slot(1, kx1, ky, kr);
                     *knobs_placed = 1;
-                    /* The MULTIMEDIA sticker, in the same strip under the LEFT
-                     * pod, centred between the pod and the parting to the base,
-                     * a degree off square.  Nine tenths of as big as the strip
-                     * allows, up to 34 mm across - its height is a third of its
-                     * width and 2 mm - and left off where that would make it
-                     * under 12 mm. */
-                    const float STICKER_SCALE = 0.90f;
+                    /* The Horizon badge, in the same strip under the LEFT
+                     * pod, centred between the pod and the parting to the base
+                     * and a couple of millimetres right of the pod's middle,
+                     * half a degree off square.  As big as the strip allows,
+                     * up to 52 mm across, the pod's width, or as wide as the
+                     * strip's height lets its box be, and left off where that
+                     * would make it under 12 mm. */
+                    const float STICKER_SCALE = 1.0f;
+                    const float BADGE_RATIO = (float)DXM_HORIZON_W / (float)DXM_HORIZON_HT;
                     float sy = (top + gap_lo) * 0.5f;
                     float room = (gap_lo - top) * 0.5f - 1.0f * mm;
                     float sw =
-                        STICKER_SCALE *
-                        fminf(34.0f * mm, fminf(pw * 0.80f, (2.0f * room - 2.0f * mm) * 3.0f));
+                        STICKER_SCALE * fminf(52.0f * mm, fminf(pw, 2.0f * room * BADGE_RATIO));
                     if (sw >= 12.0f * mm)
-                        multimedia_sticker(c, pxs[0] + pw * 0.5f, sy, sw, 2.0f * mm, sw,
-                                           2.0f * room);
+                        horizon_sticker(c, pxs[0] + pw * 0.5f + 2.0f * mm, sy, sw, sw, 2.0f * room);
                 }
             }
             /* The dotted mark, engraved above the LEFT pod and centred on

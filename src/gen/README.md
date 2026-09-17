@@ -12,7 +12,8 @@ if a reproducible file drifts from what its tool produces.
 | `mark.h` | the DXM mark engraved on the case | `mklogo.py`, width 320 | `assets/dxm-badge.png` | reproducible |
 | `font16.h` | the VGA 8x16 CP437 font the text screen draws with | `mkfont.py` | `assets/cp437-8x16.fnt.uu` (3) | reproducible |
 | `uifont.h`, `uifont_bold.h`, `uifont_small.h` | Helvetica 14 and its bold, the proportional face SETUP and CATALOG are set in, and Helvetica 12 for labels and small controls | `mkbdf.py` | `assets/fonts/helv{R,B}14.bdf`, `helvR12.bdf` (5) | reproducible |
-| `multimedia.h` | the MULTIMEDIA sticker on the right speaker pod | `mklogo.py`, full size | `assets/multimedia-sticker.png` | reproducible |
+| `horizon.h` | the Horizon badge stuck under the left speaker pod | `mklogo.py`, full size | `assets/horizon-sticker.png` | reproducible |
+| `tdfx.h` | the 3dfx sticker on the right speaker pod, above the holes | `mklogo.py`, full size | `assets/3dfx-sticker.png` | reproducible |
 | `banners.c`, `banners.h` | the artwork across the top of SETUP, as the files themselves (4) | `mkbanners.py` | `assets/banners/*.jpg` | reproducible |
 | `logo.h` | the POST-screen wordmark | `mklogo.py` | `assets/logo-src.png` | frozen (1) |
 | `icon.h` | window icon, 128 px | `mklogo.py` | `assets/icon-src.png` | frozen (1) |
