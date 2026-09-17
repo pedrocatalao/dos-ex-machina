@@ -45,9 +45,6 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
         float gw = gl2 - inset * 0.35f;
         if (gw > inset * 0.5f) {
             float gh = L->tube_h * 0.5f;
-            /* a little above the tube's middle: the speaker high in the
-             * pod, the controls under it */
-            float gy = L->tube_y + (L->tube_h - gh) * 0.5f - 22.0f * mm;
             /* Each grille sits in a raised moulded POD - a tall rounded
              * pad standing a fraction proud of the flank, with the holes
              * punched through its middle.  This is how the real cases did
@@ -59,6 +56,13 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             float py = L->tube_y + (L->tube_h - ph) * 0.5f;
             ph -= 5.0f * mm; /* the foot a little short of the tube's, the top as it was */
             float prad = fminf(pw, ph) * 0.11f;
+            /* The groove that divides each pod, 48 mm above its foot, and
+             * the grille centred between the pod's top and the groove: the
+             * holes fill a capsule with the same margin at both ends of the
+             * grille's box (grille_panel), so centring the box centres
+             * them. */
+            float ys = py + ph - 48.0f * mm;
+            float gy = (py + ys) * 0.5f - gh * 0.5f;
             float pxs[2] = {edge + inset * 0.45f + (gw - pw) * 0.5f,
                             (float)W - edge - inset * 0.45f - gw + (gw - pw) * 0.5f};
             for (int s2 = 0; s2 < 2; s2++) {
@@ -113,11 +117,8 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * level with the OSD key across the way.  A pod too short for the panel keeps the key
              * and the lamps as one group under the holes, and the knobs go to the band. */
             {
-                /* the holes fill a capsule that leaves the same margin at
-                 * both ends of the grille's box (grille_panel) */
-                float hole_top = gy + gh * 0.06f, hole_end = gy + gh * 0.94f;
+                float hole_end = gy + gh * 0.94f; /* where the holes stop */
                 float foot = py + ph;
-                float ys = hole_end + (hole_top - py) - 9.0f * mm; /* the groove */
                 float kr = 3.9f * mm;
                 /* the key and the knobs, with their air */
                 float group = 2.0f * kr + 5.5f * mm;
@@ -158,16 +159,17 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                 }
             }
             /* The 3dfx sticker, on the RIGHT pod's plateau above the holes,
-             * a millimetre below the middle of the plateau and
-             * clear of the pod's top and the holes both.  A fixed physical
-             * size, 17 mm across or as much as the pod gives, and a vinyl
-             * with a third of a millimetre of body; a plateau too short
-             * for it goes without. */
+             * centred between the pod's moulded top edge and the first row
+             * of holes and clear of both.  A fixed physical size, 17 mm
+             * across or as much as the pod gives, and a vinyl with a third
+             * of a millimetre of body; a plateau too short for it goes
+             * without. */
             {
                 float sw = fminf(17.0f * mm, pw * 0.70f);
                 float top = py + prad * 0.5f + 1.0f * mm; /* inside the moulded edge */
-                float cy = (top + gy) * 0.5f + 1.0f * mm;
-                float room = fminf(cy - top, gy - 1.0f * mm - cy);
+                float hole_top = gy + gh * 0.06f;
+                float cy = (top + hole_top) * 0.5f;
+                float room = fminf(cy - top, hole_top - 1.0f * mm - cy);
                 if (sw >= 8.0f * mm)
                     tdfx_sticker(c, pxs[1] + pw * 0.5f, cy, sw, 0.33f * mm, sw, 2.0f * room);
             }
