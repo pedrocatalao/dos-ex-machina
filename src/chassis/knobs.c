@@ -267,7 +267,10 @@ static void rotary(canvas *c, float cx, float cy, float r, float pos) {
  * the lettering does, since a silk screen sits on the plastic rather than
  * in it. */
 static void paint_field(canvas *c, float x, float y, int dw, int dh, const float *cov) {
-    const int INK_R = 88, INK_G = 83, INK_B = 72; /* the printing: POWER's ink */
+    /* the lamps' branch lines' tone: a shade paler than the lettering's
+     * ink, since a symbol is a solid mark where a word is strokes, and in
+     * the words' ink it came out heavier than they do */
+    const int INK_R = 104, INK_G = 99, INK_B = 88;
     int saved = canvas_grain;
     canvas_grain = 0;
     for (int j = 0; j < dh; j++)
@@ -288,7 +291,7 @@ void knob_icons(canvas *c, float bx, float by, float cx2, float cy2, float s) {
     float *dep = calloc((size_t)dw * dh, sizeof *dep);
     if (!dep)
         return;
-    float t = fmaxf(1.0f, s * 0.16f);
+    float t = fmaxf(1.4f, s * 0.26f); /* the stroke: as heavy as the lettering's */
     /* sun: a ring and eight rays */
     for (int j = 0; j < dh; j++)
         for (int i = 0; i < dw; i++) {

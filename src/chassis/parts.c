@@ -954,8 +954,8 @@ static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
  * keyboard about it - no sloped faces, no tall cap - the edge is a roll
  * that catches the light along the top and falls dark along the bottom,
  * and the face is one dark tone with a soft sheen toward the top.
- * Pressed, the cap sinks so a band of the well's wall shows above it, the
- * shadow it throws draws in, and the face and the legend dim a little.
+ * Pressed, the cap goes in: its lit rim loses its light, the shadow it
+ * throws draws in, and the face and the legend dim a little and drop.
  * Same conventions as case_key: (cx, cy) on canvas c, (ox, oy) where c
  * sits on the cw x ch case. */
 /* the same plastic the turbo module's caps are moulded in */
@@ -966,7 +966,6 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
     float rad = h * 0.16f;                       /* the corners, eased */
     float gap = fmaxf(1.0f, 0.30f * mm);         /* the dark gap between cap and well */
     float roll = fmaxf(1.5f, 0.55f * mm) * tall; /* the rounded rim, in from the edge */
-    float sink = press * PUSH_SINK * mm;
     /* the taller it stands, the further its shadow falls and the darker -
      * the reach with the square of the height, so a proud cap's shadow
      * runs well out under it rather than stopping short in a dark line */
@@ -1004,8 +1003,11 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                 px_shade(c, i, j, 1.0f - dip, 0.0f);
             }
     }
-    /* the gap and the cap in it */
-    float wall = y + sink; /* the cap's top edge, once it has gone in */
+    /* the gap and the cap in it.  A press does not show a band of the
+     * well's wall above the cap - at this size that is a black stroke
+     * along the top edge, not depth - the cap keeps its outline and the
+     * light does the telling: its lit rim goes as it drops under the
+     * well's edge, the shadow draws in, and the face and the legend dim. */
     for (int j = (int)(y - gap) - 1; j <= (int)(y + h + gap) + 1; j++)
         for (int i = (int)(x - gap) - 1; i <= (int)(x + w + gap) + 1; i++) {
             float fx = (float)i + 0.5f, fy = (float)j + 0.5f;
@@ -1021,15 +1023,9 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                 r = OUTLINE_RGB[0];
                 g = OUTLINE_RGB[1];
                 b = OUTLINE_RGB[2];
-            } else if (fy < wall) {
-                /* the well's wall, seen above the sunk cap */
-                float k = 0.55f;
-                r = PUSH_RGB[0] * k;
-                g = PUSH_RGB[1] * k;
-                b = PUSH_RGB[2] * k;
             } else {
                 float k;
-                float ty = fminf(1.0f, fmaxf(0.0f, (fy - wall) / (y + h - wall)));
+                float ty = fminf(1.0f, fmaxf(0.0f, (fy - y) / h));
                 /* the face: one dark tone, a shade lighter at the top, and
                  * a soft sheen a little way down from it */
                 float band = (ty - 0.20f) / 0.18f;
@@ -1046,8 +1042,10 @@ static void push_body(canvas *c, float cx, float cy, float w, float h, float mm,
                     float lam = nx * LIGHT_X + ny * LIGHT_Y;
                     float t = fminf(1.0f, -sd / roll); /* 0 at the edge, 1 inside */
                     float prof = (1.0f - t) * (1.0f - t);
-                    k *= 1.0f + lam * prof * 0.64f * relief;
-                    spec = powf(fmaxf(lam, 0.0f), 6.0f) * prof * 0.19f * relief;
+                    /* the lit runs lose their light as the cap goes in */
+                    float lit = lam > 0.0f ? 1.0f - 0.7f * press : 1.0f;
+                    k *= 1.0f + lam * prof * 0.64f * relief * lit;
+                    spec = powf(fmaxf(lam, 0.0f), 6.0f) * prof * 0.19f * relief * lit;
                 }
                 k *= 1.0f - 0.08f * press;
                 k *= 1.0f + plastic_tex(i + (int)ox, j + (int)oy) * 0.12f;
@@ -1457,7 +1455,7 @@ int mouse_lamps(canvas *c, float cx, float y0, float y1, float key_y, float maxw
     float tw_host = helv_width("HOST", cap_lamp, SQ, tr_lamp);
     float kw = WIDE_KEY_W * mm, kh = WIDE_KEY_H * mm; /* the key */
     float lx = kw * 0.5f - 0.8f * mm;                 /* the lamps, under the key's ends */
-    float g1 = 1.6f * mm, stem = 3.0f * mm, drop = 3.7f * mm - hole, g2 = 1.4f * mm;
+    float g1 = 1.6f * mm, stem = 4.5f * mm, drop = 4.2f * mm - hole, g2 = 1.4f * mm;
     float h = cap_lamp + g1 + kh + stem + drop + 2.0f * hole + g2 + cap_lamp;
     float wide = fmaxf(fmaxf(tw_short, kw), 2.0f * lx + tw_host);
     if (h * 1.20f > y1 - y0 || wide > maxw)

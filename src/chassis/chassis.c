@@ -27,9 +27,9 @@ static void pod_groove(canvas *c, float x, float y, float len, float mm) {
         float g = sinf(t * 6.28318f);                  /* +descending, -rising */
         float lam = -g * 0.91f;                        /* the key light is above */
         float sp = fmaxf(lam, 0.0f);
-        float mul = 1.0f + lam * 0.16f - prof * 0.07f;
+        float mul = 1.0f + lam * 0.24f - prof * 0.11f;
         for (int i = (int)x; i < (int)(x + len); i++)
-            px_shade(c, i, j, mul, sp * sp * 0.03f);
+            px_shade(c, i, j, mul, sp * sp * 0.045f);
     }
 }
 
@@ -56,6 +56,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
              * of leaving it bare or striping it. */
             float pw = gw * 0.88f, ph = L->tube_h * 0.94f;
             float py = L->tube_y + (L->tube_h - ph) * 0.5f;
+            ph -= 5.0f * mm; /* the foot a little short of the tube's, the top as it was */
             float prad = fminf(pw, ph) * 0.11f;
             float pxs[2] = {edge + inset * 0.45f + (gw - pw) * 0.5f,
                             (float)W - edge - inset * 0.45f - gw + (gw - pw) * 0.5f};
@@ -66,10 +67,12 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     for (int i2 = (int)px0; i2 < (int)(px0 + pw); i2++)
                         if (rr_sd((float)i2, (float)j2, px0 + pw * 0.5f, py + ph * 0.5f, pw * 0.5f,
                                   ph * 0.5f, prad) < 0.0f)
-                            px_shade(c, i2, j2, 1.022f, 0.0f);
-                /* a hard moulding: a tight lip and a short contact shadow */
-                housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.0f, (float)W * 0.0015f),
-                             fmaxf(1.5f, (float)W * 0.0020f), 1, 1.0f);
+                            px_shade(c, i2, j2, 1.030f, 0.0f);
+                /* a hard moulding standing well proud: a tight lip, lit
+                 * hard, and a contact shadow that reaches a little further
+                 * than a shallow pad's would */
+                housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.2f, (float)W * 0.0018f),
+                             fmaxf(2.0f, (float)W * 0.0028f), 1, 1.25f);
                 /* moulding bosses tucked into the pod corners */
                 /* A real ejector boss is almost invisible EXCEPT at its
                  * rim - the flat top sits flush with the face around it.
@@ -100,10 +103,10 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             grille_panel(c, edge + inset * 0.45f, gy, gw, gh, H * 0.019f);
             grille_panel(c, (float)W - edge - inset * 0.45f - gw, gy, gw, gh, H * 0.019f);
             /* Under the holes each pod is DIVIDED, the way a moulded front
-             * was: one soft groove across it, edge to edge, five
+             * was: one soft groove across it, edge to edge, nine
              * millimetres short of as far below the holes as the pod's top
-             * is above them, so the speaker sits in a panel with near-even
-             * margins and what is under it has a panel of its own.  Both pods get the groove - one
+             * is above them, so what is under the speaker has a panel of
+             * its own.  Both pods get the groove - one
              * tool made both - whatever the panel holds: on the right, the monitor's controls, the
              * OSD key and the two knobs below it; on the left, the mouse key and its lamps, the key
              * level with the OSD key across the way.  A pod too short for the panel keeps the key
@@ -113,7 +116,7 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                  * both ends of the grille's box (grille_panel) */
                 float hole_top = gy + gh * 0.06f, hole_end = gy + gh * 0.94f;
                 float foot = py + ph;
-                float ys = hole_end + (hole_top - py) - 5.0f * mm; /* the groove */
+                float ys = hole_end + (hole_top - py) - 9.0f * mm; /* the groove */
                 float kr = 3.9f * mm;
                 /* the key and the knobs, with their air */
                 float group = 2.0f * kr + 5.5f * mm;
@@ -123,21 +126,19 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                     for (int s2 = 0; s2 < 2; s2++)
                         pod_groove(c, pxs[s2], ys, pw, mm);
                     float cx2 = pxs[1] + pw * 0.5f;
-                    /* the OSD key, and the mouse key level with it - placed
-                     * from the groove's line plus the five it was moved up,
-                     * so the controls did not move with it */
-                    float oy = ys + 17.0f * mm + WIDE_KEY_H * 0.5f * mm;
+                    /* the OSD key fourteen millimetres under the groove, and
+                     * the mouse key two below its line */
+                    float oy = ys + 14.0f * mm + WIDE_KEY_H * 0.5f * mm;
                     osd_button(cx2, oy, mm, L->osd_btn);
-                    mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy, pw * 0.90f, mm, L->mouse_btn,
-                                L->mouse_led);
+                    mouse_lamps(c, pxs[0] + pw * 0.5f, ys, foot, oy + 2.0f * mm, pw * 0.90f, mm,
+                                L->mouse_btn, L->mouse_led);
                     /* the knobs side by side with their symbols under them,
                      * the group centred between the key and the foot and
-                     * let down a little.  Only their places are fixed here;
-                     * the knobs themselves go on LAST, after the wear and
-                     * the yellowing, so the plastic saved under each is the
-                     * plastic around it. */
+                     * let down half a millimetre.  Only their places are fixed
+                     * here; the knobs themselves go on LAST, after the wear and the yellowing, so
+                     * the plastic saved under each is the plastic around it. */
                     float key_end = oy + WIDE_KEY_H * 0.5f * mm;
-                    float ky = (key_end + foot) * 0.5f - group * 0.5f + kr + 2.0f * mm;
+                    float ky = (key_end + foot) * 0.5f - group * 0.5f + kr + 0.5f * mm;
                     float kx0 = cx2 - kr * 1.75f, kx1 = cx2 + kr * 1.75f;
                     knob_icons(c, kx0, ky + kr + 3.0f * mm, kx1, ky + kr + 3.0f * mm, 1.4f * mm);
                     knobs_slot(0, kx0, ky, kr);
@@ -172,15 +173,16 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
             /* The Horizon badge, in the strip under the LEFT pod, above the
              * parting to the base: centred between the two and a couple of
              * millimetres right of the pod's middle, half a degree off
-             * square.  As big as the strip allows, up to 52 mm across, the
-             * pod's width, or as wide as the strip's height lets its box
-             * be, and left off where that would make it under 12 mm. */
+             * square.  As big as the strip allows, up to 52 mm across, a
+             * little wider than the pod above it, or as wide as the strip's
+             * height lets its box be, and left off where that would make
+             * it under 12 mm. */
             {
                 float top = py + ph;
                 const float BADGE_RATIO = (float)DXM_HORIZON_W / (float)DXM_HORIZON_HT;
                 float sy = (top + gap_lo) * 0.5f;
                 float room = (gap_lo - top) * 0.5f - 1.0f * mm;
-                float sw = fminf(52.0f * mm, fminf(pw, 2.0f * room * BADGE_RATIO));
+                float sw = fminf(52.0f * mm, fminf(pw * 1.15f, 2.0f * room * BADGE_RATIO));
                 if (room > 0.0f && sw >= 12.0f * mm)
                     horizon_sticker(c, pxs[0] + pw * 0.5f + 2.0f * mm, sy, sw, sw, 2.0f * room);
             }
