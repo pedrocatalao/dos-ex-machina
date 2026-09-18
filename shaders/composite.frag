@@ -159,8 +159,14 @@ void main(){
     // The GLASS REGION opens outward by the overscan, so lit content
     // actually reaches under the moulding.  Scaling the sample alone did
     // nothing visible: the boundary stayed exactly where it was.
-    if (asd <= u_overscan) {
-      inside = 1.0;
+    // Where the glass ends is COVERAGE, not a yes or a no: asd is in
+    // pixels, so the edge is eased across a pixel and a half, centred on
+    // the line.  A hard test stepped along the barrel's curve and round
+    // the corners, the one aliased edge on a case antialiased everywhere
+    // else.
+    const float AA = 0.75; // half the ramp, px
+    if (asd <= u_overscan + AA) {
+      inside = clamp((u_overscan + AA - asd)/(2.0*AA), 0.0, 1.0);
       // Overscan: push the picture a little PAST the aperture so its
       // edge is tucked under the moulding instead of ending exactly at
       // it.  Real sets always overscanned; it also means no seam can

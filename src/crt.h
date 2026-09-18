@@ -20,7 +20,7 @@
  * height. */
 #define DXM_BEZEL_BAND 0.059f       /* the band: glass to shoulder, at a corner */
 #define DXM_BEZEL_R_MID 0.019f      /* the shoulder's own corner radius */
-#define DXM_BEZEL_R_MID_WARP 0.345f /* how much of the barrel the shoulder follows */
+#define DXM_BEZEL_R_MID_WARP 0.445f /* how much of the barrel the shoulder follows */
 #define DXM_BEZEL_R_IN 0.022f       /* the aperture's own corner radius, on top of the barrel */
 #define DXM_FILLET_START 0.95f      /* across the dish, where the shoulder's roll begins */
 
