@@ -36,7 +36,7 @@ endif()
 
 add_executable(dxm
     src/main.c src/app.c src/log.c src/splash.c src/theatre.c src/processors.c src/input.c
-    src/cursor.c
+    src/keygrab.c src/cursor.c
     src/gpu.c src/font.c src/sound.c src/osd.c src/gen/splash.c src/gen/banners.c
     src/dos/dos.c src/dos/term.c src/dos/boot.c
     src/setup/setup.c src/setup/canvas.c src/setup/banner.c src/setup/machine.c

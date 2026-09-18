@@ -135,7 +135,11 @@ spin down, and the room goes dark.
 **The mouse** belongs to the machine: no pointer over the glass, and a DOS
 program that uses a mouse gets it. **Ctrl+F10** gives it back to your
 operating system, where it wears a period arrow and can work the controls
-on the case, and takes it back again. On a Mac, a tap of **Command** on its
+on the case, and takes it back again. The keyboard goes with it: while the
+machine has the mouse your desktop's own shortcuts are off - switching
+spaces, showing the desktop, cycling windows - so Ctrl with the arrows moves
+a word in a DOS editor instead of moving you to another desktop, and they
+are back the moment the mouse is, or the window loses the focus. On a Mac, a tap of **Command** on its
 own does the same. Under the left speaker's holes, two lamps, **HOST** and
 **DXM**, say which has it, and the **MOUSE** key over them gives it to the
 machine.

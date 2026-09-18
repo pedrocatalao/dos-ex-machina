@@ -1,5 +1,6 @@
 /* app.c — see app.h. */
 #include "app.h"
+#include "keygrab.h"
 #include "log.h"
 #include "sound.h"
 #include "dosbox.h"
@@ -232,11 +233,13 @@ void app_screenshot(const app *a, const char *path) {
 }
 
 void app_shutdown(app *a) {
+    /* the desktop has its shortcuts back before the window goes */
+    if (a->win)
+        keygrab_sync(a->win, 0);
     if (g_audio_dump) {
         fclose(g_audio_dump);
         g_audio_dump = NULL;
     }
     log_close();
     SDL_Quit();
-    (void)a;
 }

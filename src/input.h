@@ -36,6 +36,7 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
                          const SDL_Event *e);
 /* Make SDL's idea of who holds the mouse match this state; call it once a
  * frame.  The arrow exists only while the mouse has been given back to the
- * operating system. */
+ * operating system.  The keyboard goes with the mouse: while the machine
+ * holds it the desktop's own shortcuts are off (keygrab.h). */
 void input_mouse_sync(input_state *in, app *a);
 #endif
