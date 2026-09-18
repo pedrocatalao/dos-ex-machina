@@ -76,11 +76,12 @@ static void speaker_columns(canvas *c, dxm_layout *L, int W, int H, const chassi
                         if (rr_sd((float)i2, (float)j2, px0 + pw * 0.5f, py + ph * 0.5f, pw * 0.5f,
                                   ph * 0.5f, prad) < 0.0f)
                             px_shade(c, i2, j2, 1.030f, 0.0f);
-                /* a hard moulding standing well proud: a tight lip, lit
-                 * hard, and a contact shadow that reaches a little further
-                 * than a shallow pad's would */
+                /* a hard moulding standing well proud: a tight lip and a
+                 * contact shadow that reaches a little further than a
+                 * shallow pad's would - the lit runs a shade under the
+                 * shaded ones' strength, and neither at full */
                 housing_edge(c, px0, py, pw, ph, prad, fmaxf(1.2f, (float)W * 0.0018f),
-                             fmaxf(2.0f, (float)W * 0.0028f), 1, 1.55f);
+                             fmaxf(2.0f, (float)W * 0.0028f), 1, 1.25f, 1.20f);
                 /* moulding bosses tucked into the pod corners */
                 /* A real ejector boss is almost invisible EXCEPT at its
                  * rim - the flat top sits flush with the face around it.

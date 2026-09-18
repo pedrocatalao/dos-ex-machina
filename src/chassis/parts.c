@@ -342,7 +342,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
     chamfer_ring(c, x - 0.5f * mm, y - 0.5f * mm, fw + 1.0f * mm, h + 1.0f * mm, 1.5f * mm,
                  0.5f * mm);
     rrect(c, x, y, fw, h, 1.3f * mm, pr, pg, pb, 0.97f, 1.01f);
-    housing_edge(c, x, y, fw, h, 1.3f * mm, 1.2f * mm, 0.0f, 0, 1.3f);
+    housing_edge(c, x, y, fw, h, 1.3f * mm, 1.2f * mm, 0.0f, 0, 1.3f, 1.3f);
 
     /* the slot sits on whole pixels, so its edges land crisply instead of
      * smearing across two - and the cuts above and below it follow it */
@@ -653,7 +653,7 @@ void floppy_drive(canvas *c, float x, float y, float w, float h, float led_out[4
             for (int ch2 = 0; ch2 < 3; ch2++)
                 q[ch2] = (uint8_t)((float)q[ch2] * m[ch2]);
         }
-    housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f);
+    housing_edge(c, ex, ey, ew, eh, rad, 0.9f * mm, 0.0f, 1, 0.9f, 0.9f);
 
     /* activity light: rectangular window, as in the reference */
     {

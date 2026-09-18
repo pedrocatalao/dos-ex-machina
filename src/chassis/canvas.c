@@ -378,9 +378,13 @@ void moulded_text(canvas *c, float x, float y, const char *s, float sc, int debo
 /* The housing's outer edge: a rolled lip that catches a hard specular line
  * along the top and upper-left, falls into shadow along the bottom, and casts
  * a soft contact shadow onto the flat case beneath it.  This is what gives
- * the monitor its depth against the rest of the machine. */
+ * the monitor its depth against the rest of the machine.  `lit` is how
+ * strongly the runs that face the light catch it, shine included, and
+ * `shade` how dark the runs turned from it fall and how deep the contact
+ * shadow is - two dials, so a highlight can come down without the shadow
+ * under it going with it. */
 void housing_edge(canvas *c, float x, float y, float w, float h, float r, float ew, float shadow,
-                  int raised, float gain) {
+                  int raised, float lit, float shade) {
     float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
     float m = ew + shadow + 2.0f;
     for (int j = (int)(y - m); j < (int)(y + h + m); j++)
@@ -401,15 +405,15 @@ void housing_edge(canvas *c, float x, float y, float w, float h, float r, float 
                 /* the rolled lip itself */
                 float t = -sd / ew; /* 0 at the very edge */
                 float prof = (1.0f - t) * (1.0f - t);
-                float mul = 1.0f + lam * prof * 0.50f * gain;
+                float mul = 1.0f + lam * prof * 0.50f * (lam > 0.0f ? lit : shade);
                 float sp = fmaxf(lam, 0.0f);
                 /* the shine: a hard, narrow catch along the top of the roll */
-                px_shade(c, i, j, mul, powf(sp, 10.0f) * prof * 0.52f * gain);
+                px_shade(c, i, j, mul, powf(sp, 10.0f) * prof * 0.52f * lit);
             } else {
                 /* contact shadow cast onto the case, opposite the light */
                 float t = sd / shadow;
                 float occl = fmaxf(raised ? -lam : lam, 0.0f);
-                px_shade(c, i, j, 1.0f - occl * (1.0f - t) * (1.0f - t) * 0.46f * gain, 0.0f);
+                px_shade(c, i, j, 1.0f - occl * (1.0f - t) * (1.0f - t) * 0.46f * shade, 0.0f);
             }
         }
 }

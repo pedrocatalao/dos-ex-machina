@@ -38,7 +38,7 @@ float vnoise(float x, float y, int seed);
 float warped_rr_sd(const dxm_layout *L, float px, float py, float r, float grow, float warp);
 void chamfer_ring(canvas *c, float x, float y, float w, float h, float r, float cw);
 void housing_edge(canvas *c, float x, float y, float w, float h, float r, float ew, float shadow,
-                  int raised, float gain);
+                  int raised, float lit, float shade);
 void moulded_text(canvas *c, float x, float y, const char *s, float sc, int debossed);
 void panel_gap(canvas *c, float x, float y, float w, float d);
 void px_blend(canvas *c, int x, int y, int r, int g, int b, float a);
