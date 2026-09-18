@@ -2,230 +2,27 @@
   <img src="docs/logo-readme.png" alt="DOS ex Machina" width="720">
 </p>
 
-<!-- A notice for people arriving from 1.0. Once 2.0 has been out a
-release or two, cut it down to a sentence in "What it is, and what it was";
-the release notes keep the full story. -->
-
-> [!IMPORTANT]
-> **2.0 changes direction: the DOS is now emulated.**
->
-> 2.0 is not released yet. What follows describes the code on this branch;
-> the [1.0 release][1.0] is still the newest download.
->
-> Up to 1.0, DOS ex Machina ran DOS games that had been ported to native
-> code, loaded as `.dxm` modules behind a simulated DOS prompt. From 2.0 it
-> runs a real DOS instead, [DOSBox Pure][dbp], inside the machine, so it
-> runs unmodified DOS software rather than a handful of ports.
->
-> - **Ports and `.dxm` modules no longer load**, and the porting contract
->   no longer applies. Nothing needs porting: the original DOS program runs
->   as it is.
-> - **The catalogue installs DOS software**: freeware and shareware,
->   downloaded from where its authors put it, onto the machine's own drives.
-> - **Or bring your own.** Download DOS programs and games yourself, put
->   them in the machine's C: drive (see [Your C: drive](#your-c-drive)), and
->   run them from the DOS prompt.
-> - **1.x is not gone.** Its code, porting contract and documents are on the
->   [`legacy`][legacy] branch, and the [1.0 release][1.0] is still tagged.
->
-> 2.0 runs on macOS, Windows and Linux, on x86_64 and arm64, with the DOSBox
-> core built from a fork and shipped inside every release. The downloads are
-> not code-signed, so each platform shows its first-run warning once; see
-> Installing for the way through it.
-
 A 1993 beige-box PC on your screen, case and CRT and all, that boots a real
-DOS. The machine powers on, runs its POST, and hands the tube to DOSBox at
-the prompt. From there it is a DOS PC: whatever you put on its C: drive runs
-behind the same glass, in the same phosphor, with the case lit by what is on
-screen.
+DOS. The machine powers on, runs its POST, and hands the tube to
+[DOSBox Pure][dbp] at the prompt. From there it is a DOS PC: whatever you put
+on its C: drive runs behind the same glass, in the same phosphor, with the
+case lit by what is on screen.
 
 Nothing here is a photograph. The machine is drawn procedurally at your
-display's resolution, from signed-distance geometry and a lighting model: the
-moulding partings, the speaker pods, the louvres, the vent cuts and thirty
-years of wear are all solved, not painted. The tube is a real pipeline:
-phosphor persistence, barrel curvature, footprint-integrated scanlines, an
-aperture-grille mask, bloom, and light from the picture spilling onto the
-plastic around it.
+display's resolution, and the tube is a real pipeline: phosphor persistence,
+barrel curvature, scanlines, an aperture-grille mask, bloom, and light from
+the picture spilling onto the plastic around it.
 
-[dbp]: https://github.com/schellingb/dosbox-pure
-
-## What it is, and what it was
-
-DOSBox runs DOS. DOS ex Machina is the machine it runs in: the case, the
-tube, the drive that spins when a program loads, the power switch. DOSBox's
-picture goes through the same CRT pipeline the machine draws its own POST
-with, and the handover between the two is invisible: the BIOS clears its
-first screen, and the second one, the system configuration, is drawn by
-DOSBox itself, with DOS's prompt coming up under it in the same VGA font.
-
-Version 1 ran natively ported DOS games instead; see the notice at the top.
-
-[legacy]: https://github.com/pedrocatalao/dos-ex-machina/tree/legacy
-[1.0]: https://github.com/pedrocatalao/dos-ex-machina/releases/tag/1.0
-
-## Installing
-
-Every release is self-contained: unpack it and run it. The DOSBox core
-travels inside it. There are no 2.0 downloads yet; until there are, build it
-yourself (see [Build](#build)).
-
-On macOS the release is a `DOS ex Machina.app` bundle. It is ad-hoc signed
-rather than notarised, so the first launch needs **right-click → Open**;
-double-clicking will refuse it. If it still balks, System Settings → Privacy
-and Security → General has an **Open Anyway** button.
-
-On Windows, unzip and run `dxm.exe`. Everything it needs is in the same
-folder and nothing has to be installed. The executable is unsigned, so
-SmartScreen shows *"Windows protected your PC"* the first time: **More
-info → Run anyway**.
-
-On Linux the tarball runs from wherever you unpack it: `./dxm`. If you want
-it in your applications menu, `./install.sh` puts it under `~/.local`,
-writes a desktop entry and installs the icon. It needs no root, touches
-nothing system-wide, does not modify your shell configuration or `PATH`, and
-prints exactly what to delete to undo it.
-
-## Your C: drive
-
-The machine has its own C: drive, a folder in its preferences directory,
-created the first time it runs:
-
-| Platform | C: is |
+| | |
 |---|---|
-| macOS | `~/Library/Application Support/DOSexMachina/dxm/C` |
-| Windows | `%APPDATA%\DOSexMachina\dxm\C` |
-| Linux | `~/.local/share/DOSexMachina/dxm/C` |
+| ![Tyrian 2000 in its attract mode](docs/screenshots/tyrian.jpg) | ![CATALOG, the machine's shop](docs/screenshots/catalog.jpg) |
+| ![FreeDOS EDIT at the DOS prompt](docs/screenshots/edit.jpg) | ![SETUP, the machine's configuration](docs/screenshots/setup.jpg) |
 
-Put your DOS software in it, as folders, the way it sat on a hard disk. The
-machine writes one file there, `DOSBOX.BAT`, which DOSBox runs at boot to
-print the greeting under the BIOS's second screen. Replace it with your own
-and the machine leaves it alone.
+> [!NOTE]
+> **Pre-release.** There are no downloads yet; build it from source, below.
+> It runs on macOS, Windows and Linux, on x86_64 and arm64.
 
-Above the greeting is a message of the day, drawn afresh at each boot. Put
-a `MOTD.TXT` in the root of C:, one message a line, and the machine reads
-yours instead of its own; a line starting with `;` is a comment.
-
-`--dosbox DIR` mounts another folder as C: instead, and so does the
-`DXM_DOSBOX` environment variable.
-
-No software comes with it. Plenty of DOS software was released as freeware
-by its authors, and their own sites are the place to get it.
-
-**MIDI.** For a Roland MT-32 or a Sound Canvas SC-55, put the ROM files in
-the root of C:: `MT32_CONTROL.ROM` and `MT32_PCM.ROM` for the MT-32, the
-`.BIN` set for the SC-55. SETUP's **Sound** section lists whichever it finds
-and lets you pick one, or none; set the program's music to General MIDI or
-Roland to hear it. The SC-55 is worth knowing about before switching on: it
-emulates the module's own processor continuously, so it costs the same
-whether anything is playing or not.
-
-## Using it
-
-Fullscreen is real fullscreen: the case fills the display edge to edge with
-no background around it. Extra width becomes more machine, never
-letterboxing.
-
-The machine powers on, degausses, warms up and runs its POST. By the time
-the memory count is done, DOSBox has booted behind it; the screen clears,
-the system configuration comes up, the drive runs, and the DOS prompt
-arrives under it. `EXIT`, or pressing and letting go of the **power button**
-with the mouse released, powers the machine down properly: the raster collapses, the fans
-spin down, and the room goes dark.
-
-**The mouse** belongs to the machine: no pointer over the glass, and a DOS
-program that uses a mouse gets it. **Ctrl+F10** gives it back to your
-operating system, where it wears a period arrow and can work the controls
-on the case, and takes it back again. The keyboard goes with it: while the
-machine has the mouse your desktop's own shortcuts are off - switching
-spaces, showing the desktop, cycling windows - so Ctrl with the arrows moves
-a word in a DOS editor instead of moving you to another desktop, and they
-are back the moment the mouse is, or the window loses the focus. On a Mac, a tap of **Command** on its
-own does the same. Under the left speaker's holes, two lamps, **HOST** and
-**DXM**, say which has it, and the **MOUSE** key over them gives it to the
-machine.
-
-**The OSD button** on the right speaker opens the monitor's on-screen
-display, and a second press closes it.
-
-**The two knobs** under the right speaker are brightness and contrast: grab
-one and drag up or down.
-
-**The keyboard** is the one you already have: the machine reads what your
-keys produce and gives DOS the matching national layout, so a Portuguese
-board types `ç` at the prompt and a French one is AZERTY. It is a guess
-from a handful of keys, and an unfamiliar board falls back to US;
-`--keyboard CODE` (or `DXM_KEYBOARD`) forces one — `us`, `uk`, `fr`, `gr`,
-`it`, `sp`, `po`, `br`, `sv`, `dk`, `no` and the rest of DOSBox's set. The
-log says which it chose.
-
-**The turbo display** beside the power button shows the CPU clock in MHz.
-Its **−** and **+** buttons step the machine through its processors, from a
-486DX at 33 MHz through the 486DX2 and DX4 to the Pentium-S at 100, 133 and
-166 and the Pentium-MMX at 200 and 233, each setting DOSBox's speed to
-roughly what that chip did; the 486DX2 at 66 is the default. The chip is
-kept between runs, can also be chosen in SETUP's MACHINE section, and is
-what the POST prints as the CPU type and clock. A game that paces itself by
-the clock plays the same at any of them, and anything that runs flat out
-shows the difference. **MODE** switches the display to the frames per second
-the machine is drawing.
-
-**SETUP** is the machine's own configuration screen, in 640x400 and 256
-colours with a piece of artwork across the top. Press **SPACE** while the
-POST is on screen, as it says, or type `SETUP` at the DOS prompt. Arrows
-move, **TAB** crosses to the settings and back, **SPACE** changes the
-picture, **ESC** steps out.
-
-It holds the tube's own settings, which move as you drag them; the keyboard
-layout; how much memory the machine has and which processor core runs it;
-which MIDI device answers the MPU-401; and where the boot ends up. Only the
-tube is live - everything else is read as the machine starts, which is why
-the way out is **SAVE & REBOOT**: it keeps both files and starts the machine
-again so they take effect. Machine settings live in `dxm.cfg` beside the
-preferences, the tube's in `crt.cfg`.
-
-**CATALOG** is the shop: type `CATALOG` at the DOS prompt. The catalogues the
-machine ships with are drives - freeware on C:, shareware on D: - and each is a tab
-with its titles in a list. Just type to find one: the list narrows as you
-go. **Enter** (or a double-click) installs the chosen title - downloaded,
-checked against the hash the catalogue names, unpacked into `\GAMES\<ID>`
-or wherever its category says - or runs it once it is there; **F2** runs
-the title's own setup program when it has one; **F3** drops you at a DOS
-prompt in its directory (`EXIT` comes back); **Left** and **Right** change catalogue;
-**Esc** clears the search, then leaves. The key hints along the foot do the
-same when clicked. Running, setting up and the prompt are errands: the catalogue is
-back as you left it when they return. Artwork is fetched as a title is
-looked at and kept in `artwork/` in the preferences, so the shelf works
-offline afterwards. Every title in the bundled catalogues is freeware or
-shareware from its author's own site; the machine carries none of it.
-
-**The OSD**, from that button or **Shift+F1** anywhere, is the monitor's
-own display on the glass, over the lower half of the picture: every CRT
-setting, on three pages - PICTURE, GEOMETRY and TUBE. The arrows choose and
-adjust one step at a time (Shift for ten), TAB changes page, ESC puts
-it away, and every other key still reaches DOS. Everything saves to
-`crt.cfg` in the preferences directory.
-
-Every run writes `dxm.log` to the preferences directory, one folder up from
-C:, with a timestamp for each startup step, the GL driver in use and what
-DOSBox reports. If something goes wrong, that file is the bug report.
-
-Dev flags: `--windowed`, `--size WxH`, `--type "CMD;CMD"` (typed at the DOS
-prompt, one a second), `--shot out.bmp --frames N`, `--deterministic` (a
-fixed 60 Hz clock and the shipped CRT defaults, so a given frame is the same
-picture on every run), `--ambient N`, `--dump-audio FILE`,
-`--dosbox DIR`, `--dosbox-core PATH`, `--keyboard CODE`, `--setup`,
-`--catalog`.
-
-## Requirements
-
-An **OpenGL 3.3 core** context. That rules out most virtual machines: virgl
-on an Apple Silicon host offers only a 2.1 compatibility profile, and Windows
-without a GPU driver gives Microsoft's software GL 1.1. On Linux you can
-force Mesa's software rasteriser with `LIBGL_ALWAYS_SOFTWARE=1`, which works
-but is far too slow to be pleasant. If DXM cannot get what it needs it says
-so on screen, naming the driver and the functions that were missing.
-
-## Build
+## Build and run
 
 ```bash
 git clone --recursive https://github.com/pedrocatalao/dos-ex-machina
@@ -234,77 +31,51 @@ cmake --build build -j8
 ./build/dxm
 ```
 
-It needs SDL3, a C and a C++ compiler, and GNU make. The DOSBox Pure core is
-the submodule at `external/dosbox-pure`, pinned to a commit of [the
-fork][fork]; CMake builds it with its own Makefile and puts it beside `dxm`,
-where the machine looks for it. In a clone made without `--recursive`,
-`git submodule update --init` fetches it. `-DDXM_CORE=OFF` skips the core,
-for a machine run with `--dosbox-core PATH`.
+It needs SDL3, a C and a C++ compiler, GNU make, and a GPU with OpenGL 3.3
+core. [BUILDING.md](BUILDING.md) has the rest: options, the tests, and what
+to do where SDL3 is not packaged.
 
-SDL3 is not yet in Ubuntu's archive, so on Linux it has to be built from
-source or taken from the release tarball, which carries it. The tube's
-shaders are the GLSL files under `shaders/`, baked into the binary at build
-time; nothing is read from disk at run time but the core.
+## The first five minutes
 
-`ctest --test-dir build` runs the tests. `-L unit` needs no display. `-L
-golden` draws the machine under `--deterministic` and compares the end of the
-POST pixel for pixel with the reference frames in
-`tests/golden/references/`, whose README says when and how they change.
-`-L boot` boots the whole machine, types a DOS command and `EXIT`, and checks
-the log. The golden and boot tests need a display and Python 3.
+- **It boots to a DOS prompt.** `EXIT`, or the power button on the case,
+  switches it off properly.
+- **C: is a folder** in the machine's preferences directory. Put DOS
+  software in it, as folders, and run it from the prompt.
+- **`CATALOG`** at the prompt is the shop: freeware and shareware, downloaded
+  from where its authors put it and installed onto the machine's drives.
+- **Ctrl+F10** hands the mouse back to your desktop and takes it again. The
+  keyboard goes with it, so your desktop's shortcuts are off while the
+  machine has the mouse.
+- **SPACE** during the POST, or **`SETUP`** at the prompt, opens the
+  machine's configuration: processor, memory, keyboard, MIDI, the 3dfx card.
+- **Shift+F1**, or the OSD key on the case, opens the monitor's own
+  on-screen display for the tube's settings.
+- **`dxm.log`**, in the preferences directory, is the bug report if
+  something goes wrong.
 
-`-DDXM_SANITIZE=ON` builds with AddressSanitizer and
-UndefinedBehaviorSanitizer; CI runs the tests that way, headless, against a
-software GL driver. The C is formatted with the project's `.clang-format`:
-`tools/format.sh` applies it, and CI checks it with the same pinned release
-of clang-format.
+[MANUAL.md](MANUAL.md) covers all of it properly.
 
-[fork]: https://github.com/pedrocatalao/dosbox-pure/tree/dosexmachina
+## Documents
 
-## Known gaps
+| | |
+|---|---|
+| [MANUAL.md](MANUAL.md) | Using the machine: the C: drive, the controls on the case, SETUP, CATALOG, the OSD, MIDI, command-line flags, known gaps |
+| [BUILDING.md](BUILDING.md) | Requirements, build options, the tests, formatting |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The map of the code: what is where, how a frame is made, how DOSBox fits in |
+| [SPEC.md](SPEC.md) | The machine itself: how the layout is solved, the tube pipeline pass by pass, the light on the case |
+| [THIRD-PARTY.md](THIRD-PARTY.md) | What it is built on, and under which licences |
 
-- **Unsigned.** Code-signing certificates carry a yearly fee to each
-  platform's authority, so macOS and Windows each show a first-run warning;
-  see Installing for the way through it.
-- **The drive LED is a guess.** The floppy runs when a program starts or
-  ends, judged by the picture changing mode, not by the emulated drive.
-- **One C: drive.** CD-ROM images and floppy images have to be mounted by
-  hand from DOS for now.
+An earlier incarnation ran natively ported DOS games behind a simulated
+prompt instead of a real DOS. That code is on the [`legacy`][legacy] branch.
 
 ## Licence
 
-DOS ex Machina is free software: you can redistribute it and modify it under
-the terms of the GNU General Public License, version 2 or, at your option,
-any later version. See [LICENSE](LICENSE). Releases up to and including 1.0
-were MIT licensed, and remain so.
+GPL-2.0-or-later; see [LICENSE](LICENSE). The DOSBox Pure core it carries is
+GPL-2.0, built from [a fork][fork] pinned as a submodule. No software or
+data for DOS is in this repository: the catalogue downloads what its authors
+give away, from where they put it, when you ask for it.
+[THIRD-PARTY.md](THIRD-PARTY.md) has the full list.
 
-- **DOSBox Pure** is GPL-2.0, by Bernhard Schelling and the DOSBox team.
-  Every release carries it, built from [the fork][fork], with its licence
-  beside it as `LICENSE-dosbox-pure.txt`; its source is the submodule in
-  `external/dosbox-pure`.
-- **`src/dosbox/libretro.h`** is the libretro API header, vendored as it
-  ships, under the MIT licence.
-- **The VGA font** is FreeBSD's `cp437-8x16`, under the BSD licence.
-- **The interface font** is X11's Adobe Helvetica bitmap, copyright
-  1984-1989, 1994 Adobe Systems and 1988, 1994 Digital Equipment
-  Corporation, redistributable under the notice in the `.bdf` files.
-- **`src/third_party/stb_image.h`** is Sean Barrett's image loader, vendored
-  as it ships, in the public domain (MIT at your option).
-- **SDL3** is linked, not vendored, under the zlib licence; so are
-  **libcurl** (the curl licence, MIT-like) and **zlib** (the zlib licence),
-  for the catalogue's downloads.
-- **FreeDOS EDIT** 0.9b travels in the DOSBox core, on Z:, under the
-  GPL-2.0; its source, with that of the FreeDOS D-Flat+ library it is built
-  on, is in the fork beside it, in `dxm/edit/`.
-- **No software or data for DOS is in this repository or in its releases.**
-  The catalogue downloads what its authors give away, from where they put
-  it, when you ask for it.
-
-## Design notes
-
-[ARCHITECTURE.md](ARCHITECTURE.md) is the map of the code: what is where,
-what each part owns, how a frame is made and how DOSBox fits in.
-
-[SPEC.md](SPEC.md) covers the machine: the principles, how the layout is
-solved from the display, the tube pipeline pass by pass, the light on the
-case, and what the machine asks of DOSBox.
+[dbp]: https://github.com/schellingb/dosbox-pure
+[fork]: https://github.com/pedrocatalao/dosbox-pure/tree/dosexmachina
+[legacy]: https://github.com/pedrocatalao/dos-ex-machina/tree/legacy
