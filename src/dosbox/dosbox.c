@@ -9,6 +9,7 @@
  * belong to the loop in main.c, which asks for the frame when it wants
  * one. */
 #include "dosbox.h"
+#include "processors.h"
 #include "internal.h"
 /* The header is vendored from libretro-common as it ships; it predates
  * -Wstrict-prototypes and is not ours to edit. */
@@ -142,6 +143,7 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_SETUP (RETRO_ENVIRONMENT_PRIVATE | 6)
 #define DXM_ENV_CATALOG (RETRO_ENVIRONMENT_PRIVATE | 7)
 #define DXM_ENV_DRIVES (RETRO_ENVIRONMENT_PRIVATE | 8)
+#define DXM_ENV_CPU (RETRO_ENVIRONMENT_PRIVATE | 9)
 /* the drives besides C:, as the core wants them: "D=LABEL=/folder/" a line */
 static char g_drives[2048];
 void dosbox_set_drives(const char *list) {
@@ -157,6 +159,7 @@ void dosbox_set_boot_catalogue(int on) {
  * loop answers, since the screen is the main thread's to open. */
 static SDL_AtomicInt g_setup_req, g_setup_up;
 static SDL_AtomicInt g_mhz, g_floppy;
+static SDL_AtomicInt g_cpu; /* the chip, as a stop of the processor table */
 
 int dosbox_take_setup(void) {
     return SDL_SetAtomicInt(&g_setup_req, 0);
@@ -255,6 +258,9 @@ void dosbox_set_midi(const char *device) {
 
 void dosbox_set_mhz(int mhz) {
     SDL_SetAtomicInt(&g_mhz, mhz);
+}
+void dosbox_set_cpu(int stop) {
+    SDL_SetAtomicInt(&g_cpu, stop);
 }
 double dosbox_take_floppy(void) {
     int ms = SDL_SetAtomicInt(&g_floppy, 0); /* returns what was there */
@@ -406,6 +412,13 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
     case DXM_ENV_MHZ:
         *(unsigned *)data = (unsigned)SDL_GetAtomicInt(&g_mhz);
         return true;
+    case DXM_ENV_CPU: {
+        int stop = SDL_GetAtomicInt(&g_cpu);
+        if (stop < 0 || stop >= DXM_NPROCESSORS)
+            stop = DXM_PROCESSOR_DEFAULT;
+        *(const char **)data = dxm_processors[stop].chip;
+        return true;
+    }
     case DXM_ENV_SHOWN:
         *(bool *)data = db.shown != 0;
         return true;

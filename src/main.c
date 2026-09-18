@@ -265,8 +265,10 @@ int main(int argc, char **argv) {
     snprintf(setpath, sizeof setpath, "%sdxm.cfg", a.pref ? a.pref : "./");
     setup_bind(&k, cfgpath, setpath, c_drive(&o, &a));
     setup_fixed_clock(a.deterministic);
-    if (!a.deterministic)
-        setup_load(); /* what the machine is set to, before the DOS reads it */
+    if (!a.deterministic) {
+        setup_load();                    /* what the machine is set to, before the DOS reads it */
+        th.mhz_stop = setup_processor(); /* the clock it was left at */
+    }
     /* the catalogues beside the program - in a bundle, in its Resources */
     catalog_bind(SDL_GetBasePath(), a.pref, c_drive(&o, &a));
     catalog_fixed_clock(a.deterministic);
@@ -276,11 +278,12 @@ int main(int argc, char **argv) {
         catalog_drives(drives, sizeof drives);
         dosbox_set_drives(drives); /* kept, so a restart mounts them again */
     }
-    dos_init(theatre_mhz(&th), atoi(setup_memory()), a.deterministic);
+    dos_init(th.mhz_stop, atoi(setup_memory()), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */
     dosbox_set_cycles(theatre_cycles(&th)); /* the clock the display shows */
     dosbox_set_mhz(theatre_mhz(&th));       /* the same, as the BIOS screen prints it */
+    dosbox_set_cpu(th.mhz_stop);            /* and the chip it names */
     tell_the_core(&o);
     if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
         const char *msg = "DOS ex Machina could not start its DOS.\n\n"
@@ -318,9 +321,16 @@ int main(int argc, char **argv) {
             else if (r == INPUT_POWER)
                 power_pressed = 1; /* the switch: off, from this frame's clock */
             else if (r == INPUT_BUTTON) {
+                int was = th.mhz_stop;
                 theatre_button(&th, in.button);
                 dosbox_set_cycles(theatre_cycles(&th));
                 dosbox_set_mhz(theatre_mhz(&th));
+                dosbox_set_cpu(th.mhz_stop);
+                /* a new stop is kept at once, so the machine comes up on it
+                 * next time - not under --deterministic, whose machine
+                 * reads and writes no settings */
+                if (th.mhz_stop != was && !a.deterministic)
+                    setup_set_processor(th.mhz_stop);
             } else if (r == INPUT_RESIZED) {
                 app_measure(&a);
                 gpu_resize(a.gpu, a.W, a.H);
@@ -406,15 +416,17 @@ int main(int argc, char **argv) {
         if (setup_take_reboot()) {
             /* The machine does not go off and on: the mains stayed on, so
              * there is no relay, no degauss and no fade up out of black, and
-             * the clock the turbo display is showing stays where it was set.
+             * the turbo display goes to whichever chip SETUP now says.
              * The tube simply has nothing to show until the POST starts
              * again, which is what a restart looks like. */
             dxm_log("machine: restarting");
             dosbox_stop();
-            dos_init(theatre_mhz(&th), atoi(setup_memory()), a.deterministic);
+            th.mhz_stop = setup_processor(); /* SETUP may have chosen another chip */
+            dos_init(th.mhz_stop, atoi(setup_memory()), a.deterministic);
             tell_the_core(&o);
             dosbox_set_cycles(theatre_cycles(&th));
             dosbox_set_mhz(theatre_mhz(&th));
+            dosbox_set_cpu(th.mhz_stop);
             if (dosbox_start(o.dosbox_core, c_drive(&o, &a), a.pref) != 0) {
                 dxm_log("machine: it did not come back up");
                 quit = 1;

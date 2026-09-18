@@ -13,23 +13,8 @@
 #ifndef DXM_SEGDISP_H
 #define DXM_SEGDISP_H
 
-/* The clock's stops, in MHz: the speeds a 1993 case could claim, and then
- * the Pentiums that went into the same beige boxes over the next four
- * years, up to the 233 MMX.  A late-DOS game in a high VESA mode wanted
- * one of those and will crawl below them, which is what the stops above
- * 100 are for. */
-#define SEG_MHZ_STOPS {33, 40, 50, 66, 80, 100, 133, 166, 200, 233}
-/* and what each stop asks of the emulator: DOSBox cycles, instructions
- * per millisecond, at roughly the machine each clock names - a 386DX at
- * 33, a 486DX4 at 100, a Pentium MMX at 233.  Cycles climb faster than
- * the clock because the later chips did more in each one.
- *
- * A stop is what the machine is ASKED for, not what it gets: the host has
- * to be able to execute that many, and the top stops want the recompiler
- * rather than the interpreter. */
-#define SEG_MHZ_CYCLES {10000, 14000, 20000, 30000, 40000, 60000, 100000, 125000, 150000, 175000}
-#define SEG_MHZ_NSTOPS 10
-#define SEG_MHZ_DEFAULT 3 /* index: 66 */
+/* The clock's stops are the processors (processors.h): the display shows
+ * the MHz of whichever the machine is set to. */
 
 /* the window, in mm: a 0.3" digit set, three wide */
 #define SEG_WIN_W_MM 19.5f

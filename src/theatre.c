@@ -3,6 +3,7 @@
 #include "sound.h"
 #include "log.h"
 #include "segdisp.h"
+#include "processors.h"
 #include <math.h>
 #include <string.h>
 
@@ -19,7 +20,7 @@ void theatre_power_on(theatre *th, int deterministic) {
     th->pwr = 0.0f;
     th->deterministic = deterministic;
     th->fps = -1;
-    th->mhz_stop = SEG_MHZ_DEFAULT;
+    th->mhz_stop = DXM_PROCESSOR_DEFAULT;
     th->mode = 0;
     memset(th->seg_lvl, 0, sizeof th->seg_lvl);
     th->leg_lvl[0] = th->leg_lvl[1] = 0.0f;
@@ -45,16 +46,12 @@ void theatre_fps(theatre *th, int fps) {
     th->fps = fps > 999 ? 999 : fps;
 }
 
-static const int mhz_stops[SEG_MHZ_NSTOPS] = SEG_MHZ_STOPS;
-
-static const int mhz_cycles[SEG_MHZ_NSTOPS] = SEG_MHZ_CYCLES;
-
 int theatre_mhz(const theatre *th) {
-    return mhz_stops[th->mhz_stop];
+    return dxm_processors[th->mhz_stop].mhz;
 }
 
 int theatre_cycles(const theatre *th) {
-    return mhz_cycles[th->mhz_stop];
+    return dxm_processors[th->mhz_stop].cycles;
 }
 
 void theatre_button(theatre *th, int which) {
@@ -62,10 +59,10 @@ void theatre_button(theatre *th, int which) {
         th->mode ^= 1;
     else if (th->mode == 0) {
         int n = th->mhz_stop + (which == 2 ? 1 : -1);
-        if (n >= 0 && n < SEG_MHZ_NSTOPS)
+        if (n >= 0 && n < DXM_NPROCESSORS)
             th->mhz_stop = n;
     }
-    dxm_log("display: %s, %d MHz", th->mode ? "fps" : "mhz", mhz_stops[th->mhz_stop]);
+    dxm_log("display: %s, %s", th->mode ? "fps" : "mhz", dxm_processors[th->mhz_stop].name);
 }
 
 /* the three digits of v, leading zeros blank, as on the real displays */
@@ -153,7 +150,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
          * fifth of a second, so a change of speed or of mode crossfades
          * rather than cuts.  The mode lights crossfade the same way. */
         int mask[3];
-        seg_figures(th->mode ? th->fps : mhz_stops[th->mhz_stop], mask);
+        seg_figures(th->mode ? th->fps : dxm_processors[th->mhz_stop].mhz, mask);
         float dt = th->seg_t < 0.0 ? 1.0f : (float)(t - th->seg_t);
         th->seg_t = t;
         float k = 1.0f - expf(-dt / 0.22f);

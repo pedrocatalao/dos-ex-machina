@@ -6,6 +6,7 @@
  * printed inside the emulator by the core's own BIOS program (the fork's
  * dosbox_pure_dxm.h), so DOS's greeting and prompt come up under it. */
 #include "internal.h"
+#include "processors.h"
 #include "version.h" /* the BIOS banner carries the release */
 #include <time.h>
 
@@ -51,22 +52,22 @@ static const step POST[] = {
 #define DETECT_SEEK 0.25 /* the pause before a drive answers */
 
 static double t0, next_boot;
-static int at;               /* the next step of POST[]                  */
-static int footed;           /* the SETUP prompt and the clock are up    */
-static const char *found;    /* a drive's answer, still to be printed    */
-static int mhz, fixed_clock; /* the clock the turbo display powered on at */
-static time_t epoch;         /* the wall time at t0                      */
-static int mem_counting;     /* the memory test is spinning              */
-static double mem_next;      /* next number update                       */
-static long mem_shown;       /* KB counted so far                        */
-static int mem_row, mem_col; /* where to overwrite the digits            */
+static int at;                /* the next step of POST[]                  */
+static int footed;            /* the SETUP prompt and the clock are up    */
+static const char *found;     /* a drive's answer, still to be printed    */
+static int proc, fixed_clock; /* the chip the turbo display powered on at */
+static time_t epoch;          /* the wall time at t0                      */
+static int mem_counting;      /* the memory test is spinning              */
+static double mem_next;       /* next number update                       */
+static long mem_shown;        /* KB counted so far                        */
+static int mem_row, mem_col;  /* where to overwrite the digits            */
 
-void boot_init(int clock_mhz, int mem_mb, int fixed) {
+void boot_init(int processor, int mem_mb, int fixed) {
     t0 = -1;
     next_boot = 0;
     at = footed = 0;
     found = NULL;
-    mhz = clock_mhz;
+    proc = processor >= 0 && processor < DXM_NPROCESSORS ? processor : DXM_PROCESSOR_DEFAULT;
     /* whole megabytes, so MEM_STEPS always divides the count evenly and it
      * lands exactly on the total; nothing sensible sent here means 16 MB */
     mem_total_kb = mem_mb > 0 ? (long)mem_mb * 1024L : 16384L;
@@ -77,10 +78,6 @@ void boot_init(int clock_mhz, int mem_mb, int fixed) {
 }
 void boot_skip(void) {
     next_boot = 0;
-}
-
-static const char *cpu_name(void) {
-    return mhz >= 100 ? "486DX4" : mhz >= 50 ? "486DX2" : "486DX";
 }
 
 /* The bottom of the screen: the way into SETUP, and the BIOS ID line with
@@ -150,7 +147,8 @@ int boot_update(double t) {
         term_sayln(s->text);
         break;
     case CPU:
-        snprintf(buf, sizeof buf, "%s CPU at %dMHz", cpu_name(), mhz);
+        snprintf(buf, sizeof buf, "%s CPU at %dMHz", dxm_processors[proc].chip,
+                 dxm_processors[proc].mhz);
         term_sayln(buf);
         break;
     case MEMORY: /* start the live count here */

@@ -73,6 +73,8 @@ const char *machine_cpu_core(void);
 const char *machine_midi(void); /* auto | off | mt32 | sc55 | sf2 */
 int machine_boot_catalogue(void);
 const char *machine_voodoo(void);
+int machine_processor(void); /* which chip (processors.h) */
+void machine_set_processor(int stop);
 
 /* banner.c — the artwork, opened from the file it was made as and fitted
  * to the palette entries the interface leaves it */

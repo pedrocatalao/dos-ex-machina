@@ -123,6 +123,14 @@ int setup_boot_catalogue(void) {
 const char *setup_voodoo(void) {
     return machine_voodoo();
 }
+int setup_processor(void) {
+    return machine_processor();
+}
+void setup_set_processor(int stop) {
+    machine_set_processor(stop);
+    if (S.dxm_cfg)
+        machine_save(S.dxm_cfg);
+}
 
 static void add(const char *name, float *val, float lo, float hi) {
     if (nset < MAXSET)

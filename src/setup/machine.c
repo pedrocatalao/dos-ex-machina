@@ -13,6 +13,7 @@
  * core itself wants to be told, so a line can be read without a table. */
 #include "internal.h"
 #include "log.h"
+#include "processors.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +28,12 @@ static const char *const KB_CODE[] = {"auto", "us", "uk", "fr", "gr", "it", "sp"
 static const char *const KB_NAME[] = {
     "Auto (the host's)", "United States", "United Kingdom", "France", "Germany", "Italy", "Spain",
     "Portugal",          "Brazil",        "Netherlands",    "Sweden", "Denmark", "Norway"};
+
+/* The processor is the one setting the machine itself can change while
+ * it is up - the turbo display's - and + step it - so it is kept the
+ * moment it changes, not only when SETUP saves.  SETUP lists the chips
+ * by name; the file keeps the code. */
+static const char *proc_name[DXM_NPROCESSORS];
 
 static const char *const MEM_CODE[] = {"4", "8", "16", "32", "64"};
 static const char *const MEM_NAME[] = {"4 MB", "8 MB", "16 MB", "32 MB", "64 MB"};
@@ -80,11 +87,11 @@ static int dynamic_core_ok(void) {
 
 /* what it is set to: an index into each list above */
 static struct {
-    int kb, mem, cpu, boot, midi, voodoo;
+    int kb, mem, cpu, boot, midi, voodoo, proc;
     char c_drive[1024];
-} M = {.mem = 2, .voodoo = 2}; /* 16 MB, Auto - the fastest core the host
-                                * allows - and the 8 MB Voodoo, as the core
-                                * itself defaults to */
+} M = {.mem = 2, .voodoo = 2, .proc = DXM_PROCESSOR_DEFAULT};
+/* 16 MB, Auto - the fastest core the host allows - the 8 MB Voodoo, as the
+ * core itself defaults to, and the 486DX2 at 66 */
 
 static int on_c(const char *name) {
     char path[1200];
@@ -147,6 +154,13 @@ int machine_boot_catalogue(void) {
 const char *machine_voodoo(void) {
     return VOODOO_CODE[M.voodoo];
 }
+int machine_processor(void) {
+    return M.proc;
+}
+void machine_set_processor(int stop) {
+    if (stop >= 0 && stop < DXM_NPROCESSORS)
+        M.proc = stop;
+}
 
 int machine_settings(int section, setting *out, int max) {
     int n = 0;
@@ -164,6 +178,16 @@ int machine_settings(int section, setting *out, int max) {
                        .next_boot = 1,
                        .note = "Auto reads what the host's own keys produce."}));
     } else if (section == SEC_MACHINE) {
+        if (!proc_name[0])
+            for (int i = 0; i < DXM_NPROCESSORS; i++)
+                proc_name[i] = dxm_processors[i].name;
+        PUT(((setting){.name = "Processor",
+                       .kind = SET_CHOICE,
+                       .pick = &M.proc,
+                       .opts = proc_name,
+                       .nopts = DXM_NPROCESSORS,
+                       .next_boot = 1,
+                       .note = "The turbo display's keys step it too, and it is kept."}));
         PUT(((setting){.name = "Memory",
                        .kind = SET_CHOICE,
                        .pick = &M.mem,
@@ -252,10 +276,13 @@ void machine_load(const char *path) {
         else if (!strcmp(name, "voodoo"))
             at = find(VOODOO_CODE, (int)(sizeof VOODOO_CODE / sizeof VOODOO_CODE[0]), value),
             M.voodoo = at < 0 ? M.voodoo : at;
+        else if (!strcmp(name, "processor"))
+            at = dxm_processor_find(value), M.proc = at < 0 ? M.proc : at;
     }
     fclose(f);
-    dxm_log("setup: keyboard %s, memory %s MB, core %s, midi %s, voodoo %s", machine_keyboard(),
-            machine_memory(), machine_cpu_core(), machine_midi(), machine_voodoo());
+    dxm_log("setup: %s, keyboard %s, memory %s MB, core %s, midi %s, voodoo %s",
+            dxm_processors[M.proc].name, machine_keyboard(), machine_memory(), machine_cpu_core(),
+            machine_midi(), machine_voodoo());
 }
 
 void machine_save(const char *path) {
@@ -266,6 +293,7 @@ void machine_save(const char *path) {
     }
     fprintf(f, "# DOS ex Machina: what the machine is set to.  Read when it\n"
                "# powers on; the tube's own settings are in crt.cfg.\n");
+    fprintf(f, "processor = %s\n", dxm_processors[M.proc].code);
     fprintf(f, "keyboard = %s\n", machine_keyboard());
     fprintf(f, "memory = %s\n", machine_memory());
     fprintf(f, "cpu_core = %s\n", machine_cpu_core());

@@ -155,11 +155,15 @@ from a handful of keys, and an unfamiliar board falls back to US;
 log says which it chose.
 
 **The turbo display** beside the power button shows the CPU clock in MHz.
-Its **−** and **+** buttons step it through 33, 40, 50, 66, 80 and 100 MHz,
-which set DOSBox's speed from a 386DX to a 486DX4; 66 is the default. A game
-that paces itself by the clock plays the same at any of them, and anything
-that runs flat out shows the difference. **MODE** switches the display to the
-frames per second the machine is drawing.
+Its **−** and **+** buttons step the machine through its processors, from a
+486DX at 33 MHz through the 486DX2 and DX4 to the Pentium-S at 100, 133 and
+166 and the Pentium-MMX at 200 and 233, each setting DOSBox's speed to
+roughly what that chip did; the 486DX2 at 66 is the default. The chip is
+kept between runs, can also be chosen in SETUP's MACHINE section, and is
+what the POST prints as the CPU type and clock. A game that paces itself by
+the clock plays the same at any of them, and anything that runs flat out
+shows the difference. **MODE** switches the display to the frames per second
+the machine is drawing.
 
 **SETUP** is the machine's own configuration screen, in 640x400 and 256
 colours with a piece of artwork across the top. Press **SPACE** while the

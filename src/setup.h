@@ -32,6 +32,11 @@ const char *setup_midi(void); /* which MIDI device, or none */
 int setup_boot_catalogue(void);
 /* the 3dfx card, as the core's option wants it: "off", "4mb", "8mb", "12mb" */
 const char *setup_voodoo(void);
+/* The processor, as a stop of the turbo display (processors.h).  The one
+ * setting the machine changes while it is up - the display's keys step it
+ * - so setting it here keeps it at once, in the same file as the rest. */
+int setup_processor(void);
+void setup_set_processor(int stop);
 
 void setup_open(void);
 void setup_close(void);

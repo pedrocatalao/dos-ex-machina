@@ -49,8 +49,11 @@ void dosbox_type(const char *s);
  * dosbox_start() it is what the machine boots with. */
 void dosbox_set_cycles(int cycles);
 /* The same speed as the turbo display reads it, for the BIOS screen the
- * core draws after the handover. */
+ * core draws after the handover - and the chip that speed names, as a
+ * stop of the processor table (processors.h), for that screen's CPU Type
+ * line. */
 void dosbox_set_mhz(int mhz);
+void dosbox_set_cpu(int stop);
 /* Force the DOS keyboard layout ("us", "po", "fr", ...) instead of the one
  * guessed from the host's keyboard.  Set before dosbox_start(). */
 void dosbox_set_layout(const char *code);
