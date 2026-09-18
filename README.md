@@ -15,7 +15,7 @@ the picture spilling onto the plastic around it.
 
 | | |
 |---|---|
-| ![Tyrian 2000 in its attract mode](docs/screenshots/tyrian.jpg) | ![CATALOG, the machine's shop](docs/screenshots/catalog.jpg) |
+| ![The POST: the BIOS banner, the processor and the memory count](docs/screenshots/post.jpg) | ![Tyrian 2000 in its attract mode](docs/screenshots/tyrian.jpg) |
 | ![FreeDOS EDIT at the DOS prompt](docs/screenshots/edit.jpg) | ![SETUP, the machine's configuration](docs/screenshots/setup.jpg) |
 
 > [!NOTE]
@@ -48,7 +48,7 @@ to do where SDL3 is not packaged.
   machine has the mouse.
 - **SPACE** during the POST, or **`SETUP`** at the prompt, opens the
   machine's configuration: processor, memory, keyboard, MIDI, the 3dfx card.
-- **Shift+F1**, or the OSD key on the case, opens the monitor's own
+- The **OSD key** on the case opens the monitor's own
   on-screen display for the tube's settings.
 - **`dxm.log`**, in the preferences directory, is the bug report if
   something goes wrong.
