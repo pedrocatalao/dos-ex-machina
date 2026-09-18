@@ -1,5 +1,6 @@
 /* input.c — see input.h. */
 #include "input.h"
+#include "keygrab.h"
 #include "cursor.h"
 #include "log.h"
 #include "dos.h"
@@ -290,6 +291,9 @@ input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs
 
 void input_mouse_sync(input_state *in, app *a) {
     int want = in->captured;
+    /* the keyboard follows the mouse: the desktop's shortcuts are off while
+     * the machine has it, and back the moment it has not (keygrab.h) */
+    keygrab_sync(a->win, want);
     if (want == in->holding)
         return;
     in->holding = want;
