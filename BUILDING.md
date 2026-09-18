@@ -63,4 +63,9 @@ The data baked under `src/gen/` is machine output from the sources in
 `assets/`; `tools/regen.sh` rebuilds it and `tools/regen.sh --check` is what
 CI runs. [src/gen/README.md](src/gen/README.md) lists each file.
 
+The website is the `docs/` folder, served by GitHub Pages. Its User's Guide
+page, `docs/manual.html`, is made from [MANUAL.md](MANUAL.md) by
+`tools/mksite.py` and is never edited by hand; `tools/mksite.py --check`
+fails if the two have drifted apart.
+
 [fork]: https://github.com/pedrocatalao/dosbox-pure/tree/dosexmachina

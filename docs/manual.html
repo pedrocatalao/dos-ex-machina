@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>User's Guide — DOS ex Machina</title>
+<meta name="description" content="How to use DOS ex Machina: the C: drive, the controls on the case, SETUP, CATALOG, the monitor's OSD, MIDI, command-line flags and known gaps.">
+<link rel="canonical" href="https://dosexmachina.com/manual.html">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ddd5bf">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0e0d">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DOS ex Machina">
+<meta property="og:title" content="DOS ex Machina — User's Guide">
+<meta property="og:url" content="https://dosexmachina.com/manual.html">
+<meta property="og:image" content="https://dosexmachina.com/img/og.jpg">
+<link rel="icon" href="icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script>
+try { var t = localStorage.getItem("dxm-lights"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,100..125,500..800;1,100..125,500..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<!-- Made from MANUAL.md by tools/mksite.py.  Edit that, not this. -->
+
+<header class="mast">
+  <div class="wrap">
+    <a class="brand" href="./">DOS <i>ex</i> Machina</a>
+    <nav class="nav" aria-label="Site">
+      <a href="./#panel">Front panel</a>
+      <a href="./#spec">Specifications</a>
+      <a href="./#get">Get it</a>
+      <a href="manual.html" aria-current="page">User's Guide</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina">GitHub</a>
+    </nav>
+    <button class="lights" type="button" aria-pressed="false" title="Switch the room's lights">
+      <span>Lights</span><span class="rocker" aria-hidden="true"></span>
+    </button>
+  </div>
+</header>
+
+<main>
+<div class="guide-cover"><div class="wrap">
+  <span class="label">Horizon Computer Systems &middot; Desktop series</span>
+  <h1>User's Guide</h1>
+  <p class="lede">DOSBox runs DOS. DOS ex Machina is the machine it runs in: the case, the tube, the drive that spins when a program loads, the power switch. DOSBox's picture goes through the same CRT pipeline the machine draws its own POST with, and the handover between the two is invisible: the BIOS clears its first screen, and the second one, the system configuration, is drawn by DOSBox itself, with DOS's prompt coming up under it in the same VGA font.</p>
+  <div class="part"><span>Part No. 2A4KD000C-00</span><span>10 chapters</span><span>Keep this guide near the machine</span></div>
+</div></div>
+
+<div class="wrap guide">
+  <nav class="toc" aria-label="Contents">
+    <span class="label">Contents</span>
+    <ol>
+      <li><a href="#installing-a-build">Installing a build</a></li>
+      <li><a href="#your-c-drive">Your C: drive</a></li>
+      <li><a href="#the-machine">The machine</a></li>
+      <li><a href="#the-controls-on-the-case">The controls on the case</a></li>
+      <li><a href="#setup">SETUP</a></li>
+      <li><a href="#catalog">CATALOG</a></li>
+      <li><a href="#the-osd">The OSD</a></li>
+      <li><a href="#the-log">The log</a></li>
+      <li><a href="#command-line-flags">Command-line flags</a></li>
+      <li><a href="#known-gaps">Known gaps</a></li>
+    </ol>
+  </nav>
+
+  <div>
+    <article class="chapter" id="installing-a-build">
+      <header><span class="no" aria-hidden="true">1</span><h2>Installing a build</h2></header>
+      <div class="prose">
+        <p>There are no releases yet. The builds CI produces, and the releases to come, are self-contained: unpack and run. The DOSBox core travels inside.</p>
+        <p>On macOS it is a <code>DOS ex Machina.app</code> bundle. It is ad-hoc signed rather than notarised, so the first launch needs <strong>right-click → Open</strong>; double-clicking will refuse it. If it still balks, System Settings → Privacy and Security → General has an <strong>Open Anyway</strong> button.</p>
+        <p>On Windows, unzip and run <code>dxm.exe</code>. Everything it needs is in the same folder and nothing has to be installed. The executable is unsigned, so SmartScreen shows <em>"Windows protected your PC"</em> the first time: <strong>More info → Run anyway</strong>.</p>
+        <p>On Linux the tarball runs from wherever you unpack it: <code>./dxm</code>. If you want it in your applications menu, <code>./install.sh</code> puts it under <code>~/.local</code>, writes a desktop entry and installs the icon. It needs no root, touches nothing system-wide, does not modify your shell configuration or <code>PATH</code>, and prints exactly what to delete to undo it.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="your-c-drive">
+      <header><span class="no" aria-hidden="true">2</span><h2>Your C: drive</h2></header>
+      <div class="prose">
+        <p>The machine has its own C: drive, a folder in its preferences directory, created the first time it runs:</p>
+        <div class="tablewrap"><table><thead><tr><th>Platform</th><th>C: is</th></tr></thead><tbody><tr><td>macOS</td><td><code>~/Library/Application Support/DOSexMachina/dxm/C</code></td></tr><tr><td>Windows</td><td><code>%APPDATA%\DOSexMachina\dxm\C</code></td></tr><tr><td>Linux</td><td><code>~/.local/share/DOSexMachina/dxm/C</code></td></tr></tbody></table></div>
+        <p>Put your DOS software in it, as folders, the way it sat on a hard disk. The machine writes one file there, <code>DOSBOX.BAT</code>, which DOSBox runs at boot to print the greeting under the BIOS's second screen. Replace it with your own and the machine leaves it alone.</p>
+        <p>Above the greeting is a message of the day, drawn afresh at each boot. Put a <code>MOTD.TXT</code> in the root of C:, one message a line, and the machine reads yours instead of its own; a line starting with <code>;</code> is a comment.</p>
+        <p><code>--dosbox DIR</code> mounts another folder as C: instead, and so does the <code>DXM_DOSBOX</code> environment variable.</p>
+        <p>No software comes with it. Plenty of DOS software was released as freeware by its authors, and their own sites are the place to get it; the <a href="#catalog">catalogue</a> knows a few.</p>
+        <p><strong>MIDI.</strong> For a Roland MT-32 or a Sound Canvas SC-55, put the ROM files in the root of C:: <code>MT32_CONTROL.ROM</code> and <code>MT32_PCM.ROM</code> for the MT-32, the <code>.BIN</code> set for the SC-55. SETUP's <strong>Sound</strong> section lists whichever it finds and lets you pick one, or none; set the program's music to General MIDI or Roland to hear it. The SC-55 is worth knowing about before switching on: it emulates the module's own processor continuously, so it costs the same whether anything is playing or not.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="the-machine">
+      <header><span class="no" aria-hidden="true">3</span><h2>The machine</h2></header>
+      <div class="prose">
+        <p>Fullscreen is real fullscreen: the case fills the display edge to edge with no background around it. Extra width becomes more machine, never letterboxing.</p>
+        <figure><img src="screenshots/prompt.jpg" srcset="screenshots/prompt-960.jpg 960w, screenshots/prompt.jpg 1600w" sizes="(max-width: 900px) 100vw, 736px" loading="lazy" alt="The system configuration screen with the DOS prompt under it"><p class="figcap"><b>Figure 1</b>The second BIOS screen, drawn by DOSBox itself, and DOS coming up under it.</p></figure>
+        <p>The machine powers on, degausses, warms up and runs its POST. By the time the memory count is done, DOSBox has booted behind it; the screen clears, the system configuration comes up, the drive runs, and the DOS prompt arrives under it. <code>EXIT</code>, or pressing and letting go of the <strong>power button</strong> with the mouse released, powers the machine down properly: the raster collapses, the fans spin down, and the room goes dark.</p>
+        <p><strong>The mouse</strong> belongs to the machine: no pointer over the glass, and a DOS program that uses a mouse gets it. <kbd>Ctrl</kbd><span class="plus">+</span><kbd>F10</kbd> gives it back to your operating system, where it wears a period arrow and can work the controls on the case, and takes it back again. On a Mac, a tap of <kbd>Command</kbd> on its own does the same. Under the left speaker's holes, two lamps, <strong>HOST</strong> and <strong>DXM</strong>, say which has it, and the <strong>MOUSE</strong> key over them gives it to the machine.</p>
+        <p><strong>The keyboard goes with the mouse.</strong> While the machine has the mouse your desktop's own shortcuts are off – switching spaces, showing the desktop, cycling windows – so Ctrl with the arrows moves a word in a DOS editor instead of moving you to another desktop. They are back the moment the mouse is, or the window loses the focus.</p>
+        <p><strong>The keyboard layout</strong> is the one you already have: the machine reads what your keys produce and gives DOS the matching national layout, so a Portuguese board types <code>ç</code> at the prompt and a French one is AZERTY. It is a guess from a handful of keys, and an unfamiliar board falls back to US; <code>--keyboard CODE</code> (or <code>DXM_KEYBOARD</code>) forces one — <code>us</code>, <code>uk</code>, <code>fr</code>, <code>gr</code>, <code>it</code>, <code>sp</code>, <code>po</code>, <code>br</code>, <code>sv</code>, <code>dk</code>, <code>no</code> and the rest of DOSBox's set. The log says which it chose.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="the-controls-on-the-case">
+      <header><span class="no" aria-hidden="true">4</span><h2>The controls on the case</h2></header>
+      <div class="prose">
+        <p><strong>The power button</strong> switches the machine off, with the mouse released.</p>
+        <figure><img src="img/detail-panel.jpg" loading="lazy" alt="The maker&#x27;s badge, the power button with its lamp, and the turbo display reading 66"><p class="figcap"><b>Figure 2</b>The power button and its lamp, and the turbo display with MODE, minus and plus.</p></figure>
+        <p><strong>The turbo display</strong> beside it shows the CPU clock in MHz. Its <kbd>−</kbd> and <kbd>+</kbd> buttons step the machine through its processors, from a 486DX at 33 MHz through the 486DX2 and DX4 to the Pentium-S at 100, 133 and 166 and the Pentium-MMX at 200 and 233, each setting DOSBox's speed to roughly what that chip did; the 486DX2 at 66 is the default. The chip is kept between runs, can also be chosen in SETUP's MACHINE section, and is what the POST prints as the CPU type and clock. A game that paces itself by the clock plays the same at any of them, and anything that runs flat out shows the difference. <kbd>MODE</kbd> switches the display to the frames per second the machine is drawing.</p>
+        <p><strong>The OSD key</strong> on the right speaker opens the monitor's on-screen display, and a second press closes it.</p>
+        <p><strong>The two knobs</strong> under it are brightness and contrast: grab one and drag up or down.</p>
+        <p><strong>The MOUSE key</strong> on the left speaker gives the mouse to the machine.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="setup">
+      <header><span class="no" aria-hidden="true">5</span><h2>SETUP</h2></header>
+      <div class="prose">
+        <p>The machine's own configuration screen, in 640x400 and 256 colours with a piece of artwork across the top. Press <kbd>SPACE</kbd> while the POST is on screen, as it says, or type <code>SETUP</code> at the DOS prompt. Arrows move, <kbd>TAB</kbd> crosses to the settings and back, <kbd>SPACE</kbd> changes the picture, <kbd>ESC</kbd> steps out.</p>
+        <figure><img src="screenshots/setup.jpg" srcset="screenshots/setup-960.jpg 960w, screenshots/setup.jpg 1600w" sizes="(max-width: 900px) 100vw, 736px" loading="lazy" alt="SETUP on its MACHINE section"><p class="figcap"><b>Figure 3</b>SETUP, on MACHINE: the processor, the memory and the processor core.</p></figure>
+        <p>It holds the tube's own settings, which move as you drag them; the keyboard layout; which processor the machine is, how much memory it has and which processor core runs it; the 3dfx card; which MIDI device answers the MPU-401; and where the boot ends up. Only the tube is live – everything else is read as the machine starts, which is why the way out is <strong>SAVE &amp; REBOOT</strong>: it keeps both files and starts the machine again so they take effect. Machine settings live in <code>dxm.cfg</code> beside the preferences, the tube's in <code>crt.cfg</code>.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="catalog">
+      <header><span class="no" aria-hidden="true">6</span><h2>CATALOG</h2></header>
+      <div class="prose">
+        <p>The shop: type <code>CATALOG</code> at the DOS prompt. The catalogues the machine ships with are drives – freeware on C:, shareware on D: – and each is a tab with its titles in a list. Just type to find one: the list narrows as you go.</p>
+        <figure><img src="screenshots/catalog.jpg" srcset="screenshots/catalog-960.jpg 960w, screenshots/catalog.jpg 1600w" sizes="(max-width: 900px) 100vw, 736px" loading="lazy" alt="CATALOG with a list of freeware titles"><p class="figcap"><b>Figure 4</b>CATALOG. The dot beside a title says it is installed.</p></figure>
+        <ul><li><kbd>Enter</kbd>, or a double-click, installs the chosen title – downloaded, checked against the hash the catalogue names, unpacked into <code>\GAMES\&lt;ID&gt;</code> or wherever its category says – or runs it once it is there.</li><li><kbd>F2</kbd> runs the title's own setup program when it has one.</li><li><kbd>F3</kbd> drops you at a DOS prompt in its directory; <code>EXIT</code> comes back.</li><li><kbd>Left</kbd> and <kbd>Right</kbd> change catalogue.</li><li><kbd>Esc</kbd> clears the search, then leaves.</li></ul>
+        <p>The key hints along the foot do the same when clicked. Running, setting up and the prompt are errands: the catalogue is back as you left it when they return. Artwork is fetched as a title is looked at and kept in <code>artwork/</code> in the preferences, so the shelf works offline afterwards. Every title in the bundled catalogues is freeware or shareware from its author's own site; the machine carries none of it.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="the-osd">
+      <header><span class="no" aria-hidden="true">7</span><h2>The OSD</h2></header>
+      <div class="prose">
+        <p>From the OSD key, or <kbd>Shift</kbd><span class="plus">+</span><kbd>F1</kbd> anywhere: the monitor's own display on the glass, over the lower half of the picture. Every CRT setting, on three pages – PICTURE, GEOMETRY and TUBE. The arrows choose and adjust one step at a time (Shift for ten), TAB changes page, ESC puts it away, and every other key still reaches DOS. Everything saves to <code>crt.cfg</code> in the preferences directory.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="the-log">
+      <header><span class="no" aria-hidden="true">8</span><h2>The log</h2></header>
+      <div class="prose">
+        <p>Every run writes <code>dxm.log</code> to the preferences directory, one folder up from C:, with a timestamp for each startup step, the GL driver in use and what DOSBox reports. If something goes wrong, that file is the bug report.</p>
+      </div>
+    </article>
+
+    <article class="chapter" id="command-line-flags">
+      <header><span class="no" aria-hidden="true">9</span><h2>Command-line flags</h2></header>
+      <div class="prose">
+        <div class="tablewrap"><table><thead><tr><th>Flag</th><th></th></tr></thead><tbody><tr><td><code>--windowed</code>, <code>--size WxH</code></td><td>a window instead of fullscreen, and its size</td></tr><tr><td><code>--dosbox DIR</code></td><td>mount another folder as C: (also <code>DXM_DOSBOX</code>)</td></tr><tr><td><code>--dosbox-core PATH</code></td><td>use another DOSBox Pure core (also <code>DXM_DOSBOX_CORE</code>)</td></tr><tr><td><code>--keyboard CODE</code></td><td>force a DOS keyboard layout (also <code>DXM_KEYBOARD</code>)</td></tr><tr><td><code>--setup</code>, <code>--catalog</code></td><td>come up in SETUP, or in CATALOG</td></tr><tr><td><code>--type "CMD;CMD"</code></td><td>type commands at the DOS prompt, one a second</td></tr><tr><td><code>--shot out.bmp --frames N</code></td><td>write a screenshot after N frames and quit</td></tr><tr><td><code>--deterministic</code></td><td>a fixed 60 Hz clock and the shipped CRT defaults, so a given frame is the same picture on every run; reads and writes no settings</td></tr><tr><td><code>--ambient N</code></td><td>the room's light</td></tr><tr><td><code>--dump-audio FILE</code></td><td>write the audio to a file</td></tr></tbody></table></div>
+      </div>
+    </article>
+
+    <article class="chapter" id="known-gaps">
+      <header><span class="no" aria-hidden="true">10</span><h2>Known gaps</h2></header>
+      <div class="prose">
+        <ul><li><strong>Unsigned.</strong> Code-signing certificates carry a yearly fee to each platform's authority, so macOS and Windows each show a first-run warning; see <a href="#installing-a-build">Installing a build</a> for the way through it.</li><li><strong>The drive LED is a guess.</strong> The floppy runs when a program starts or ends, judged by the picture changing mode, not by the emulated drive.</li><li><strong>One C: drive.</strong> CD-ROM images and floppy images have to be mounted by hand from DOS for now.</li></ul>
+      </div>
+    </article>
+
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <p>This guide is made from <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/MANUAL.md">MANUAL.md</a> in the repository. If something in it is wrong, that is the file to fix.</p>
+      <p class="fine">DOS ex Machina is free software under the GPL, version 2 or later. Horizon Computer Systems is fictional, and so is the part number.</p>
+    </div>
+    <nav aria-label="Elsewhere">
+      <a href="./">Front page</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina">Source on GitHub</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina/issues">Report a problem</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/BUILDING.md">Building it</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js" defer></script>
+</body>
+</html>

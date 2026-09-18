@@ -3,645 +3,311 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DOS ex Machina — a 1993 PC on your screen, running native DOS game ports in a simulated CRT</title>
-<meta name="description" content="DOS ex Machina draws a 1993 beige-box PC procedurally — case, CRT and all — boots a DOS prompt, and runs natively ported DOS games behind the glass. No emulation. Free, open source, for macOS, Windows and Linux.">
+<title>DOS ex Machina — a 1993 PC on your screen that boots a real DOS</title>
+<meta name="description" content="DOS ex Machina draws a 1993 beige-box PC, case and CRT and all, and boots a real DOS inside it with DOSBox Pure. Free software for macOS, Windows and Linux.">
 <link rel="canonical" href="https://dosexmachina.com/">
-<meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="theme-color" content="#0a0e15">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ddd5bf">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0e0d">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DOS ex Machina">
 <meta property="og:title" content="DOS ex Machina — a 1993 PC on your screen">
-<meta property="og:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation. macOS, Windows, Linux.">
+<meta property="og:description" content="A beige-box 486, drawn procedurally with a simulated CRT, that boots a real DOS. Whatever you put on its C: drive runs behind the glass.">
 <meta property="og:url" content="https://dosexmachina.com/">
-<meta property="og:image" content="https://dosexmachina.com/screenshot-tyrian.jpg">
+<meta property="og:image" content="https://dosexmachina.com/img/og.jpg">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="675">
-<meta property="og:image:alt" content="Tyrian running inside the simulated CRT of DOS ex Machina">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tyrian 2000 running on the simulated CRT of DOS ex Machina, the beige case lit by the picture">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="DOS ex Machina — a 1993 PC on your screen">
-<meta name="twitter:description" content="A procedurally-drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. No emulation.">
-<meta name="twitter:image" content="https://dosexmachina.com/screenshot-tyrian.jpg">
-<!-- The machine's own icon, from assets/icon-src.png.  Relative, unlike
-     the images in the page: an icon has to resolve wherever the site is
-     served from - a local preview, a fork's pages, or the real domain. -->
-<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
-<link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
+<link rel="icon" href="icon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
+<script>
+/* the room's lights, before first paint: a stored choice beats the system */
+try { var t = localStorage.getItem("dxm-lights"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,100..125,500..800;1,100..125,500..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="site.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "DOS ex Machina",
-  "alternateName": "DXM",
-  "url": "https://dosexmachina.com/",
-  "description": "A procedurally-drawn 1993 beige-box PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games. The games are native C ports, not emulated.",
   "applicationCategory": "GameApplication",
-  "operatingSystem": "macOS 11+, Windows 10+, Linux (glibc 2.35+)",
-  "softwareVersion": "1.0",
-  "softwareRequirements": "OpenGL 3.3 core",
-  "license": "https://opensource.org/licenses/MIT",
+  "operatingSystem": "macOS, Windows, Linux",
+  "description": "A 1993 beige-box PC drawn procedurally, with a simulated CRT, that boots a real DOS with DOSBox Pure.",
+  "url": "https://dosexmachina.com/",
+  "license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "downloadUrl": "https://github.com/pedrocatalao/dos-ex-machina/releases/latest",
-  "codeRepository": "https://github.com/pedrocatalao/dos-ex-machina",
-  "screenshot": [
-    "https://dosexmachina.com/screenshot-prompt.jpg",
-    "https://dosexmachina.com/screenshot-tyrian.jpg",
-    "https://dosexmachina.com/screenshot-skyroads.jpg",
-    "https://dosexmachina.com/screenshot-nc.jpg"
-  ],
-  "author": { "@type": "Person", "name": "Pedro Catalão", "url": "https://github.com/pedrocatalao" }
+  "codeRepository": "https://github.com/pedrocatalao/dos-ex-machina"
 }
 </script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    { "@type": "Question", "name": "What is DOS ex Machina?",
-      "acceptedAnswer": { "@type": "Answer", "text": "DOS ex Machina is a free, open-source program that draws a 1993 beige-box PC on your screen — the case, a CRT monitor and all — boots a simulated DOS prompt, and runs natively ported DOS games inside the simulated CRT. It runs on macOS, Windows and Linux." } },
-    { "@type": "Question", "name": "Is DOS ex Machina an emulator?",
-      "acceptedAnswer": { "@type": "Answer", "text": "No. The games are native C ports of the original programs, compiled for your computer and loaded as modules. Nothing is emulated; the DOS prompt is a fiction and the CRT is a rendering pipeline." } },
-    { "@type": "Question", "name": "Which games can it run?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Games arrive as .dxm modules through a catalogue fetched at run time. The catalogue holds SkyRoads (BlueMoon Software, 1993) and Tyrian (Eclipse Productions / Epic MegaGames, 1995). Any DOS game with a native port that follows the porting contract can be added, without a new release of DXM." } },
-    { "@type": "Question", "name": "What does it need to run?",
-      "acceptedAnswer": { "@type": "Answer", "text": "A graphics driver with OpenGL 3.3, which any computer of the last decade has. The downloads are self-contained: unpack and run, nothing to install." } },
-    { "@type": "Question", "name": "Is it free?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. DOS ex Machina is MIT licensed and free to download. No game code or game data lives in its repository; each game is a separately licensed port." } }
-  ]
-}
-</script>
-<style>
-  /* ---------------------------------------------------------------------
-     A dark room with a machine in it.
-
-     The page is the room: a deep grey-blue that lifts where the tube is
-     and falls away at the edges.  Everything the machine itself says sits
-     behind glass.  Its parts keep their real colours, taken from the code
-     that draws them - the beige of the case on the keys, the badge plate
-     and its four stripes on every heading, the cream of a diskette label.
-
-     Scanlines belong to glass the machine is quoting itself through, and
-     to nothing else: not to the page, and not to the hero, which glows
-     rather than being photographed.
-     --------------------------------------------------------------------- */
-  :root{
-    --bg:#0a0e15;          /* the room, at its darkest                    */
-    --bg-lift:#141d2e;     /* where the tube lights it                    */
-    --panel:#161e2c;       /* a surface standing off the wall             */
-    --panel-hi:rgba(255,255,255,.055);
-    --line:rgba(255,255,255,.09);
-    --text:#c9d4e6;
-    --dim:#8b98ae;
-    --blue:#3ba0e6;        /* the logo blue - links and emphasis          */
-    --case:#bfaf8a;        /* PLASTIC_R/G/B - the moulded case, on keys   */
-    --label:#22262f;       /* the badge plate                             */
-    --label-ink:#ece8dc;   /* "PC-486"                                    */
-    --label-dim:#a8b0c6;   /* "MULTIMEDIA"                                */
-    --screen:#07090d;      /* inside the tube                             */
-    --phosphor:#d9d4c6;
-    --s1:#2e4ca8; --s2:#2e8c50; --s3:#c89a28; --s4:#b83c34;   /* the badge's stripes */
-    /* Two voices: the machine speaks in a DOS terminal face, the page
-       speaks in a reading face.  Everything the machine would have put on
-       a screen, a label or a key is set in --dos. */
-    --dos:'VT323', ui-monospace, 'Courier New', monospace;
-    --stripes:linear-gradient(90deg,
-        var(--s1) 0 25%, var(--s2) 25% 50%, var(--s3) 50% 75%, var(--s4) 75% 100%);
-  }
-  *{margin:0; padding:0; box-sizing:border-box}
-  html{scroll-behavior:smooth; background:var(--bg)}
-  @media(prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
-
-  body{
-    color:var(--text);
-    background:
-      /* the light the tube throws into the room */
-      radial-gradient(1100px 620px at 50% -80px, rgba(59,160,230,.13), transparent 70%),
-      radial-gradient(900px 700px at 15% 42%, rgba(46,76,168,.10), transparent 68%),
-      linear-gradient(180deg, #0c111a 0%, var(--bg-lift) 46%, var(--bg) 100%);
-    background-attachment:fixed;
-    font-family:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
-    font-size:17px; line-height:1.65; overflow-x:hidden;
-    -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:1180px; margin:0 auto; padding:0 32px}
-  @media(max-width:700px){ .wrap{padding:0 20px} }
-  a{color:var(--blue); text-decoration:none; border-bottom:1px solid rgba(59,160,230,.32)}
-  a:hover{border-bottom-color:var(--blue)}
-  a:focus-visible{outline:2px solid var(--blue); outline-offset:3px; border-bottom-color:transparent}
-  b,strong{font-weight:600; color:#e4ecf8}
-  code{font-family:var(--dos); font-size:1.18em; line-height:1; color:#a8d8ff;
-       background:rgba(59,160,230,.10); padding:0 5px; border-radius:2px}
-
-  /* A surface standing off the wall, lit from above. */
-  .plate{
-    background:linear-gradient(180deg, var(--panel), #121927);
-    border-radius:4px;
-    box-shadow:inset 0 1px 0 var(--panel-hi), 0 0 0 1px var(--line), 0 6px 18px rgba(0,0,0,.30);
-  }
-
-  /* ---- glass --------------------------------------------------------- */
-  .glass{
-    background:var(--screen); border-radius:5px; position:relative; overflow:hidden;
-    box-shadow:
-      inset 0 0 0 1px #000, inset 0 0 40px rgba(0,0,0,.85),
-      0 0 0 1px rgba(255,255,255,.07), 0 10px 34px rgba(0,0,0,.45);
-  }
-  .glass::after{                       /* scanlines: only on quoted glass */
-    content:""; position:absolute; inset:0; pointer-events:none;
-    background:repeating-linear-gradient(180deg, transparent 0 2px, rgba(0,0,0,.20) 2px 3px);
-  }
-
-  /* ---- the head ------------------------------------------------------ */
-  header{padding:76px 0 12px}
-  /* No panel here.  The hero stands on the page, in the light the room
-     already has: a box around it read as a screenshot of a screenshot. */
-  .tube{text-align:center}
-  .tube img{width:min(660px,86%); height:auto; display:block; margin:0 auto}
-  /* A paragraph, so the page's reading width applies to it; without
-     these it centres inside that box rather than on the page. */
-  .tagline{
-    margin:28px auto 0; max-width:none; text-align:center; color:var(--phosphor);
-    font-family:var(--dos); font-size:clamp(20px,2.7vw,29px); letter-spacing:.01em;
-  }
-  .tagline b{color:#9fd0ff; font-weight:400}
-  .chip{
-    display:inline-block; margin-top:26px; padding:5px 15px;
-    font-family:var(--dos); font-size:18px; letter-spacing:.1em;
-    color:var(--label-dim); border:1px solid #2f3646; border-radius:2px; background:#11141c;
-  }
-  .cta{margin-top:34px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap}
-  /* The count comes from GitHub at run time; until it answers, the link
-     still says what it is, and if it never answers nothing is missing. */
-  .stars{margin:22px auto 0; max-width:none; text-align:center;
-         font-family:var(--dos); font-size:19px}
-  .stars a{color:var(--dim); border-bottom:0; letter-spacing:.04em}
-  .stars a:hover{color:var(--text)}
-  .stars .star{color:var(--s3); font-size:21px; vertical-align:-1px}
-
-  /* The keys are the machine's own plastic: the case, moulded. */
-  .btn{
-    display:inline-block; padding:10px 24px; border-radius:3px; border-bottom:0;
-    font-family:var(--dos); font-size:20px; letter-spacing:.12em; text-transform:uppercase;
-    background:linear-gradient(180deg,#e8e0cd,#c3b795); color:#20242c;
-    box-shadow:inset 0 1px 0 #fff8e8, inset 0 -2px 0 rgba(0,0,0,.22), 0 3px 6px rgba(0,0,0,.5);
-  }
-  .btn:hover{background:linear-gradient(180deg,#fff8ea,#d2c6a4)}
-  .btn:active{transform:translateY(1px); box-shadow:inset 0 1px 4px rgba(0,0,0,.4)}
-  .btn.ghost{
-    background:linear-gradient(180deg,#212a3a,#151b27); color:#b9c6da;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.09), 0 0 0 1px var(--line), 0 3px 6px rgba(0,0,0,.45);
-  }
-  .btn.ghost:hover{color:#fff; background:linear-gradient(180deg,#28344a,#1a2130)}
-
-  /* ---- sections ------------------------------------------------------ */
-  main{padding:0 0 10px}
-  section{padding:62px 0 56px}
-  section + section{border-top:1px solid rgba(255,255,255,.055)}
-
-  /* A section heading is the PC-486 badge: a dark plate, light ink, and
-     the four stripes under it. */
-  .badge{display:inline-block; margin-bottom:24px}
-  .badge .plate-in{
-    background:linear-gradient(180deg,#2a3040,var(--label)); border-radius:3px;
-    padding:8px 20px 7px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 3px 10px rgba(0,0,0,.45);
-  }
-  .badge h2{
-    font-family:var(--dos); font-size:24px; font-weight:400;
-    letter-spacing:.16em; text-transform:uppercase; color:var(--label-ink); line-height:1.05;
-  }
-  .badge .bars{height:4px; margin-top:7px; border-radius:0 0 2px 2px; background:var(--stripes)}
-  .story p{font-size:22px; line-height:1.6; max-width:60ch; margin-bottom:20px; color:#dbe4f2}
-  .story b{color:#fff; font-weight:600}
-  .story .sign{
-    font-family:var(--dos); font-size:27px; letter-spacing:.02em;
-    color:var(--phosphor); margin-top:26px; margin-bottom:34px;
-    text-shadow:0 0 10px rgba(200,215,255,.20);
-  }
-  @media(max-width:640px){ .story p{font-size:19px} .story .sign{font-size:23px} }
-  .lede{font-size:21px; line-height:1.5; color:#dde6f4; max-width:70ch; margin-bottom:22px}
-  p{margin-bottom:15px; max-width:76ch}
-  .dim{color:var(--dim)}
-
-  figure{margin:28px 0}
-  figure img, figure video{width:100%; height:auto; display:block; border-radius:2px}
-  figure video{background:#000}
-  .framed{
-    padding:10px; border-radius:6px;
-    background:linear-gradient(180deg,#1b2331,#121825);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 0 0 1px rgba(0,0,0,.5),
-               0 10px 28px rgba(0,0,0,.42);
-  }
-  figcaption{color:var(--dim); font-size:15px; margin-top:10px}
-  .framed figcaption{margin:10px 4px 2px}
-
-  /* ---- what the machine prints -------------------------------------- */
-  pre.code{
-    padding:22px 26px; margin:20px 0; overflow-x:auto; position:relative; z-index:1;
-    font-family:var(--dos); font-size:21px; line-height:1.35; color:#9fd0ff;
-  }
-
-  /* ---- panels -------------------------------------------------------- */
-  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:26px}
-  .grid.two{grid-template-columns:repeat(2,1fr)}
-  @media(max-width:880px){ .grid, .grid.two{grid-template-columns:1fr} }
-  .card{padding:22px 24px}
-  .card h3{
-    font-family:var(--dos); font-size:19px; letter-spacing:.13em; text-transform:uppercase;
-    color:var(--blue); font-weight:400; margin-bottom:8px;
-  }
-  .card p{font-size:16px; margin:0; color:var(--dim); max-width:none}
-
-  /* ---- the key bar, as the navigator draws it ------------------------ */
-  .keybar{
-    margin:26px 0 22px; display:grid; grid-template-columns:auto 1fr;
-    font-family:var(--dos); font-size:20px; border-radius:3px; overflow:hidden;
-    box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 6px 18px rgba(0,0,0,.35);
-  }
-  .keybar b{background:#0a0a8c; color:#fff; font-weight:400; padding:5px 13px; white-space:nowrap}
-  .keybar span{background:#00a8a8; color:#001616; padding:5px 15px}
-
-  /* ---- the disks ------------------------------------------------------
-     A download is a 3.5" diskette, label side up, at its real proportions -
-     90 wide by 94 tall: the metal shutter along the top with its head window
-     right of centre, the moulded arrow at the top-left, the chamfered corner
-     at the top-right, the write-protect hole at the bottom-left, and the
-     label over the lower two thirds with its colour band and ruled lines. */
-  .disks{display:grid; grid-template-columns:repeat(3,1fr); gap:32px; margin-top:28px}
-  @media(max-width:880px){ .disks{grid-template-columns:1fr; max-width:340px} }
-  .disk{aspect-ratio:90/94; position:relative; background:#2a2e38; border-radius:5px;
-        clip-path:polygon(0 0, 95% 0, 100% 5%, 100% 100%, 0 100%);
-        box-shadow:inset 0 1px 0 #454a57, inset 0 0 0 1px #12151c, 0 8px 22px rgba(0,0,0,.45)}
-  .disk .arrow{position:absolute; left:6%; top:5%; width:0; height:0;
-        border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:11px solid #454a57}
-  .disk .shutter{position:absolute; left:23%; top:0; width:62%; height:31%;
-        background:linear-gradient(180deg,#c3c6cc,#8f939b); border-radius:0 0 3px 3px;
-        box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
-  .disk .shutter::before{content:""; position:absolute; left:56%; top:14%; width:24%; height:74%;
-        background:#2a2e38; border-radius:2px; box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
-  .disk .shutter::after{content:""; position:absolute; left:4%; top:38%; width:40%; height:2px;
-        background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 3px,transparent 3px 6px)}
-  .disk .wp{position:absolute; left:4%; bottom:3.5%; width:5.5%; height:5.5%; background:#05070c;
-        border-radius:1px; box-shadow:inset 0 0 0 1px #000}
-  /* the label reaches almost to the bottom edge, a hair of shell showing
-     below it, and stays clear of the write-protect hole */
-  .disk .label{position:absolute; left:13%; right:13%; top:40%; bottom:2px; background:#f6f3ea;
-        color:#232220; border-radius:2px; overflow:hidden;
-        background-image:repeating-linear-gradient(180deg,transparent 0 25px,#ddd8c9 25px 26px);
-        background-position:0 32px; box-shadow:0 0 0 1px rgba(0,0,0,.35)}
-  .disk .band{height:9%; background:var(--stripes)}
-  .disk .body{padding:7px 12px 0}
-  .disk .title{font-family:var(--dos); font-size:13px; letter-spacing:.1em;
-        text-transform:uppercase; color:#6a675c; line-height:17px}
-  .disk h3{font-family:var(--dos); font-size:27px; line-height:26px; margin:0 0 2px;
-        color:#232220; font-weight:400}
-  .disk ul{list-style:none; margin:0}
-  .disk li{font-family:var(--dos); font-size:19px; line-height:26px; white-space:nowrap}
-  .disk li a{color:#1f3f9a; border-bottom-color:rgba(31,63,154,.35)}
-  .disk li .arch{color:#7a776b; font-size:16px; margin-left:7px}
-  .disk-note{font-size:15px; color:var(--dim); margin-top:15px; line-height:1.55; max-width:34ch}
-  .disk-note b{color:var(--text); font-weight:500}
-
-  /* ---- the plate of specifications ----------------------------------- */
-  dl.glance{
-    display:grid; grid-template-columns:max-content 1fr; margin-top:26px;
-    border-radius:4px; overflow:hidden; font-size:16px;
-    box-shadow:0 0 0 1px var(--line), 0 6px 18px rgba(0,0,0,.30);
-  }
-  dl.glance dt{
-    font-family:var(--dos); font-size:18px; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--dim); padding:9px 20px; background:rgba(255,255,255,.035); white-space:nowrap;
-  }
-  dl.glance dd{padding:9px 20px; margin:0; background:rgba(255,255,255,.015)}
-  @media(max-width:640px){
-    dl.glance{grid-template-columns:1fr; box-shadow:none}
-    dl.glance dt{padding:8px 0 0; background:transparent}
-    dl.glance dd{padding:0 0 8px; background:transparent}
-  }
-
-  /* ---- questions ------------------------------------------------------ */
-  .faq details{border-bottom:1px solid var(--line)}
-  .faq details:first-of-type{border-top:1px solid var(--line)}
-  .faq summary{
-    cursor:pointer; list-style:none; display:flex; justify-content:space-between;
-    gap:18px; padding:16px 2px; font-weight:600; color:#e4ecf8;
-  }
-  .faq summary::-webkit-details-marker{display:none}
-  .faq summary::after{content:"+"; color:var(--blue); font-family:var(--dos); font-size:22px}
-  .faq details[open] summary::after{content:"-"}
-  .faq details p{margin:0 0 18px; color:var(--dim); max-width:76ch}
-
-  footer{padding:44px 0 64px; color:var(--dim); font-size:15px}
-  footer p{max-width:76ch; margin-bottom:8px}
-  footer .rule{height:4px; margin-bottom:28px; border-radius:2px; background:var(--stripes); opacity:.9}
-</style>
 </head>
 <body>
 
-<header>
+<header class="mast">
   <div class="wrap">
-    <div class="tube">
-      <img src="https://dosexmachina.com/logo-page.png" alt="DOS ex Machina">
-      <p class="tagline">A 1993 PC on your screen. <b>Case, CRT and all.</b></p>
-      <div class="chip">Version 1.0 · macOS, Windows, Linux · Two games so far (more soon)</div>
-      <div class="cta">
-        <a class="btn" href="#download">Download</a>
-        <a class="btn ghost" href="https://github.com/pedrocatalao/dos-ex-machina">Source</a>
-        <a class="btn ghost" href="#build">Build it</a>
-      </div>
-      <p class="stars">
-        <a href="https://github.com/pedrocatalao/dos-ex-machina/stargazers">
-          <span class="star" aria-hidden="true">&#9733;</span>
-          <span id="starcount">Star it on GitHub</span>
-        </a>
-      </p>
-    </div>
+    <a class="brand" href="./">DOS <i>ex</i> Machina</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#panel">Front panel</a>
+      <a href="#tube">The tube</a>
+      <a href="#spec">Specifications</a>
+      <a href="#get">Get it</a>
+      <a href="manual.html">User's Guide</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina">GitHub</a>
+    </nav>
+    <button class="lights" type="button" aria-pressed="false" title="Switch the room's lights">
+      <span>Lights</span><span class="rocker" aria-hidden="true"></span>
+    </button>
   </div>
 </header>
 
 <main>
 
-<section>
-  <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>What it is</h2></div><div class="bars"></div></div>
-    <div class="story">
-      <p>You remember this machine. Maybe not this one exactly, but one like
-      it: beige, warm, a little too loud, in a room that was yours or a
-      friend's or a parent's. You remember the fan starting, the drive
-      grinding, the prompt coming up, and the moment when a game filled the
-      screen and nothing else in the world mattered for an hour.</p>
-      <p>This is about that. Not the hardware. <b>The feeling.</b></p>
-      <p>So the games here are the real ones, running as they ran, behind
-      glass that curves and glows the way it did. The case has its scuffs.
-      The fan runs. The drive seeks. It was built with care, by someone who
-      was there, for anyone who was too, and for anyone who wasn't, and
-      wonders how it was.</p>
-      <p class="sign">Switch it on. Stay a while.</p>
+<!-- ====================================================== the cover -->
+<div class="cover wrap">
+  <div class="cover-head">
+    <div>
+      <span class="label">Horizon Computer Systems &middot; Desktop series &middot; 1993</span>
+      <h1>The PC you had in 1993. <em>On the screen you have now.</em></h1>
     </div>
-    <figure class="framed">
-      <!-- The trailer, served from this repository: no third-party player,
-           nothing to consent to, nothing that outlives the page.  It does
-           not autoplay - twenty megabytes and a soundtrack are not something
-           to spend on a visitor's behalf - so the poster is the still it
-           replaced and the page reads the same at rest. -->
-      <video controls playsinline preload="none" width="1200" height="675"
-             poster="https://dosexmachina.com/screenshot-prompt.jpg">
-        <source src="https://dosexmachina.com/dxm-trailer-web.mp4" type="video/mp4">
-        <p>Your browser will not play this here.
-        <a href="https://dosexmachina.com/dxm-trailer-web.mp4">Download the trailer</a>
-        (MP4, 35 seconds).</p>
-      </video>
-      <figcaption>Thirty-five seconds of it. Sound on.</figcaption>
-    </figure>
-    <p class="lede">A beige box that boots a DOS prompt, and runs real games behind the glass.</p>
-    <p>DOS ex Machina draws a 1993 PC — the case, the moulding, the speaker
-    grilles, thirty years of wear — and puts a working CRT in the middle of
-    it. It boots: POST, memory count, <code>AUTOEXEC.BAT</code>. From the
-    <code>C:\&gt;</code> prompt you browse a catalogue, download a game, and
-    play it in the tube. When you type <code>EXIT</code> the raster collapses
-    to a dot and the fans spin down.</p>
-    <p>The games are <strong>not emulated</strong>. Each one is a native C
-    port of the original, which also ships as a standalone game in its own
-    right. DXM is the optional machine you can put it inside.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Nothing here is a photograph</h2></div><div class="bars"></div></div>
-    <p class="lede">The machine is solved, not painted.</p>
-    <div class="grid">
-      <div class="card plate">
-        <h3>The case</h3>
-        <p>Drawn procedurally at your display's resolution from signed-distance
-        geometry and a lighting model. Moulding partings, speaker pods, vent
-        cuts, ejector-pin marks, scuffs and yellowing — all computed. A wider
-        screen gets more machine, never black bars.</p>
-      </div>
-      <div class="card plate">
-        <h3>The tube</h3>
-        <p>Phosphor persistence, barrel curvature, footprint-integrated
-        scanlines, an aperture-grille mask, bloom, and coloured light spilling
-        from the picture onto the plastic around it. Two real knobs under the
-        right speaker set brightness and contrast — grab one and turn it.</p>
-      </div>
-      <div class="card plate">
-        <h3>The sound</h3>
-        <p>Fan, hum and drive spindle synthesised at run time from measured
-        spectra. The mains switch, the degauss thump, the POST beep. Only the
-        floppy drive sound is sampled.</p>
+    <div>
+      <p class="lede">DOS ex Machina draws a beige-box 486, <strong>case and CRT and all</strong>, and boots a real DOS inside it. It powers on, degausses, counts its memory, and lands at <code>C:\&gt;</code>. Whatever you put on its C: drive runs behind the same glass.</p>
+      <div class="actions">
+        <a class="btn primary" id="cta-primary" href="#get">Get it <small>build from source</small></a>
+        <a class="btn" href="manual.html">Read the User's Guide</a>
       </div>
     </div>
   </div>
-</section>
 
-<section id="games">
-  <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Getting a game</h2></div><div class="bars"></div></div>
-    <p class="lede">Type NC. See the catalogue, download a game and <b>play</b> it. That is the whole of it.</p>
-    <figure class="framed">
-      <img src="https://dosexmachina.com/screenshot-nc.jpg" width="1200" height="675" alt="The NC navigator inside the CRT: a table listing Tyrian and SkyRoads with their versions and last-played dates, and the highlighted game's artwork and description in the right pane" loading="lazy">
-    </figure>
-    <div class="keybar">
-      <b>Enter</b><span>play the game, or download it if it isn't on the disk yet</span>
-      <b>F2 F3 F4</b><span>delete it, reset it, update it when a newer release is on offer</span>
-      <b>Tab</b><span>move to the description and scroll it</span>
-      <b>Ctrl+F10</b><span>take the mouse from DXM, or give it back</span>
+  <div class="machine">
+    <div class="frames">
+      <img class="on" data-frame="post" src="screenshots/post.jpg" srcset="screenshots/post-960.jpg 960w, screenshots/post.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="The machine running its POST: the BIOS banner, a 486DX2 at 66 MHz, the memory count, and the turbo display reading 66" fetchpriority="high">
+      <img data-frame="prompt" data-src="screenshots/prompt.jpg" data-srcset="screenshots/prompt-960.jpg 960w, screenshots/prompt.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="The system configuration screen and the DOS prompt under it, with the machine's greeting">
+      <img data-frame="edit" data-src="screenshots/edit.jpg" data-srcset="screenshots/edit-960.jpg 960w, screenshots/edit.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="FreeDOS EDIT in blue text mode, the tube's blue light spilling onto the bezel">
+      <img data-frame="game" data-src="screenshots/tyrian.jpg" data-srcset="screenshots/tyrian-960.jpg 960w, screenshots/tyrian.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="Tyrian 2000 in its attract mode, with INSERT COIN on screen">
+      <img data-frame="setup" data-src="screenshots/setup.jpg" data-srcset="screenshots/setup-960.jpg 960w, screenshots/setup.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="SETUP, the machine's configuration screen, on its MACHINE section: processor, memory and processor core">
+      <img data-frame="catalog" data-src="screenshots/catalog.jpg" data-srcset="screenshots/catalog-960.jpg 960w, screenshots/catalog.jpg 1600w" sizes="(max-width: 1300px) 100vw, 1240px" width="1600" height="1000" alt="CATALOG, the machine's shop, with a list of freeware titles and SkyRoads selected">
     </div>
-    <p>DXM ships with no games and links none. The catalogue is fetched at run
-    time and cached, so adding a title is an edit to a JSON file rather than a
-    new release — and a machine that has been online once keeps working
-    offline afterwards.</p>
-    <p>An install fetches the game's module and its data, checks both against
-    a SHA-256, and keeps them in your preferences directory. After that it
-    runs with no network, forever. Game data is never mirrored: for freeware
-    titles the catalogue points at the publisher's own download.</p>
-    <p>Two games are in it today —
-    <a href="https://github.com/pedrocatalao/skyroads-sdl">SkyRoads</a>
-    (BlueMoon Software, 1993) and
-    <a href="https://github.com/pedrocatalao/tyrian-sdl">Tyrian</a>
-    (Eclipse Productions / Epic MegaGames, 1995) — and each also ships as a
-    standalone program in its own right, which runs perfectly well without
-    the machine around it.</p>
-    <figure class="framed">
-      <img src="https://dosexmachina.com/screenshot-tyrian.jpg" width="1200" height="675" alt="Tyrian in play inside the simulated CRT of DOS ex Machina, the ship over a canyon with the status panel down the right" loading="lazy">
-      <figcaption>Tyrian, 1995 — behind the same glass, on the same phosphor</figcaption>
-    </figure>
+    <div class="channels" role="group" aria-label="What is on the tube">
+      <span class="label">On the tube</span>
+      <button class="cap" type="button" aria-pressed="true" data-frame="post" data-caption="<b>Power on.</b> The mains relay, the degauss thump, the tube warming up, and then the POST: BIOS banner, processor, a memory count that counts.">POST</button>
+      <button class="cap" type="button" aria-pressed="false" data-frame="prompt" data-caption="<b>The handover.</b> The second BIOS screen is drawn by DOSBox itself, and DOS comes up under it in the same VGA font. You cannot see the join.">DOS</button>
+      <button class="cap" type="button" aria-pressed="false" data-frame="edit" data-caption="<b>Text mode, 80 by 25.</b> FreeDOS EDIT ships inside the machine. The blue on the bezel is not painted: it is the picture's own light, spilling onto the plastic.">EDIT</button>
+      <button class="cap" type="button" aria-pressed="false" data-frame="game" data-caption="<b>A game.</b> Tyrian 2000, which its authors made freeware, running its attract mode on a 486DX2 at 66. Unmodified, as it shipped.">GAME</button>
+      <button class="cap" type="button" aria-pressed="false" data-frame="setup" data-caption="<b>SETUP.</b> Press SPACE during the POST, as the screen says. Which processor the machine is, how much memory it has, the keyboard, the MIDI device, the 3dfx card.">SETUP</button>
+      <button class="cap" type="button" aria-pressed="false" data-frame="catalog" data-caption="<b>CATALOG.</b> Type it at the prompt. Freeware and shareware, downloaded from where its authors put it, checked against a hash, and installed onto the machine's drives.">CATALOG</button>
+    </div>
+    <p class="caption" aria-live="polite"></p>
   </div>
-</section>
+</div>
 
-<section id="download">
+<!-- =================================================== Figure 1 -->
+<section id="panel">
   <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Download</h2></div><div class="bars"></div></div>
-    <p class="lede">Version 1.0 — self-contained. Unpack it and run it; nothing to build, nothing to install.</p>
-    <div class="disks">
-
+    <div class="sec-head">
       <div>
-        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled macOS">
-          <div class="arrow"></div>
-          <div class="shutter"></div>
-          <div class="wp"></div>
-          <div class="label">
-            <div class="band"></div>
-            <div class="body">
-              <div class="title">DOS ex Machina · disk 1</div>
-              <h3>macOS</h3>
-              <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-macos-universal.zip">DOS ex Machina.app</a><span class="arch">universal</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <p class="disk-note">Drag it to Applications. Signed ad-hoc, not
-        notarised, so the first launch is <b>right-click → Open</b>. macOS 11
-        or newer.</p>
+        <span class="label">Front panel</span>
+        <h2>Every control on the case works.</h2>
       </div>
+      <p class="muted">Give the mouse back to your desktop with <kbd>Ctrl</kbd><span class="plus">+</span><kbd>F10</kbd> and the case is yours to operate: keys press in, knobs turn, the power switch switches. While the machine has the mouse it has your keyboard too, so your desktop's shortcuts stand down and every key reaches DOS.</p>
+    </div>
 
+    <div class="panel-fig">
       <div>
-        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled Linux">
-          <div class="arrow"></div>
-          <div class="shutter"></div>
-          <div class="wp"></div>
-          <div class="label">
-            <div class="band"></div>
-            <div class="body">
-              <div class="title">DOS ex Machina · disk 2</div>
-              <h3>Linux</h3>
-              <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-x86_64.tar.gz">Tarball</a><span class="arch">x86_64</span></li>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-linux-arm64.tar.gz">Tarball</a><span class="arch">arm64</span></li>
-              </ul>
-            </div>
-          </div>
+        <div class="plan">
+          <img src="screenshots/post.jpg" srcset="screenshots/post-960.jpg 960w, screenshots/post.jpg 1600w" sizes="(max-width: 960px) 100vw, 760px" width="1600" height="1000" loading="lazy" alt="The front of the machine, with nine numbered markers on its parts">
+          <button class="pin" type="button" data-pin="1" style="left:50%;top:44%" aria-label="1: the tube">1</button>
+          <button class="pin" type="button" data-pin="2" style="left:9.8%;top:34%" aria-label="2: the speakers">2</button>
+          <button class="pin" type="button" data-pin="3" style="left:9.8%;top:68%" aria-label="3: the MOUSE key and its lamps">3</button>
+          <button class="pin" type="button" data-pin="4" style="left:90.2%;top:63%" aria-label="4: the OSD key">4</button>
+          <button class="pin" type="button" data-pin="5" style="left:90.2%;top:72.5%" aria-label="5: brightness and contrast">5</button>
+          <button class="pin" type="button" data-pin="6" style="left:7%;top:91%" aria-label="6: power">6</button>
+          <button class="pin" type="button" data-pin="7" style="left:18.4%;top:91%" aria-label="7: the turbo display">7</button>
+          <button class="pin" type="button" data-pin="8" style="left:83.7%;top:91%" aria-label="8: the floppy drive">8</button>
+          <button class="pin" type="button" data-pin="9" style="left:10.2%;top:80.5%" aria-label="9: the maker's badge">9</button>
         </div>
-        <p class="disk-note">Unpack and run <code>./dxm</code>; SDL3 travels
-        with it. <code>./install.sh</code> adds a menu entry under
-        <code>~/.local</code> — no root, and it leaves your PATH alone. glibc
-        2.35 or newer.</p>
+        <p class="figcap"><b>Figure 1</b>Front panel. Drawn at your display's resolution, from geometry and a lighting model: there is no photograph anywhere in it.</p>
       </div>
+      <ol class="legend">
+        <li data-pin="1" tabindex="0"><b>The tube</b><span>A CRT with its own on-screen display, and a bezel whose dish takes the picture's light.</span></li>
+        <li data-pin="2" tabindex="0"><b>Speakers</b><span>Two moulded pods. What DOS plays, they play: Sound Blaster, AdLib, the PC speaker, and a Roland if you bring its ROMs.</span></li>
+        <li data-pin="3" tabindex="0"><b>MOUSE key and lamps</b><span>HOST or DXM: the lamps say who has the mouse. The key gives it to the machine; <kbd>Ctrl</kbd><span class="plus">+</span><kbd>F10</kbd> takes it back.</span></li>
+        <li data-pin="4" tabindex="0"><b>OSD key</b><span>The monitor's menu, on the glass: picture, geometry and tube, three pages of it. <kbd>Shift</kbd><span class="plus">+</span><kbd>F1</kbd> does the same.</span></li>
+        <li data-pin="5" tabindex="0"><b>Brightness and contrast</b><span>Grab a knob and drag. They turn, and the picture follows.</span></li>
+        <li data-pin="6" tabindex="0"><b>Power</b><span>Switches off properly: the raster collapses to a line, the line to a dot, the fans spin down, the room goes dark.</span></li>
+        <li data-pin="7" tabindex="0"><b>Turbo display</b><span>The clock in MHz. Minus and plus step the machine through ten processors; MODE shows frames per second instead.</span></li>
+        <li data-pin="8" tabindex="0"><b>Floppy drive</b><span>It runs, and sounds, when a program loads.</span></li>
+        <li data-pin="9" tabindex="0"><b>The maker's badge</b><span>Horizon Computer Systems never existed. The sticker is a little sun-faded all the same, and half a degree off square.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
 
+<!-- ==================================================== the tube -->
+<section id="tube">
+  <div class="wrap">
+    <div class="sec-head">
       <div>
-        <div class="disk" role="img" aria-label="A 3.5-inch diskette labelled Windows">
-          <div class="arrow"></div>
-          <div class="shutter"></div>
-          <div class="wp"></div>
-          <div class="label">
-            <div class="band"></div>
-            <div class="body">
-              <div class="title">DOS ex Machina · disk 3</div>
-              <h3>Windows</h3>
-              <ul>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-x86_64.zip">Zip</a><span class="arch">x86_64</span></li>
-                <li><a href="https://github.com/pedrocatalao/dos-ex-machina/releases/latest/download/dxm-windows-arm64.zip">Zip</a><span class="arch">arm64</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <p class="disk-note">Unpack and run <code>dxm.exe</code>. Unsigned, so
-        SmartScreen interposes once: <b>More info → Run anyway</b>.</p>
+        <span class="label">The tube</span>
+        <h2>Nothing here is a photograph.</h2>
+      </div>
+      <p class="muted">The case is solved, not painted: moulding partings, speaker pods, louvres and thirty years of wear come out of signed-distance geometry and a lighting model, at whatever resolution your display has. The picture goes through a real pipeline, the same one for the machine's own POST and for DOS, which is why the handover between them is invisible.</p>
+    </div>
+
+    <div class="plates">
+      <figure>
+        <img src="img/detail-phosphor.jpg" width="720" height="450" loading="lazy" alt="A close crop of the picture, showing scanlines, the aperture-grille mask and bloom around bright shots">
+        <h3>The picture, pixel for pixel</h3>
+        <p>Scanlines integrated over each pixel's footprint, an aperture-grille mask locked to the source grid, persistence, and bloom where the beam is hot.</p>
+      </figure>
+      <figure>
+        <img src="img/detail-spill.jpg" width="720" height="450" loading="lazy" alt="The top-left corner of the tube showing a blue text screen, with blue light on the bezel around it">
+        <h3>Light on the plastic</h3>
+        <p>The bezel's dish faces the glass, so it takes the picture's colour. A blue screen makes a blue room. The edge of the glass is antialiased along the barrel's curve.</p>
+      </figure>
+      <figure>
+        <img src="img/detail-panel.jpg" width="720" height="364" loading="lazy" alt="The maker's badge, the power button with its green lamp, and the seven-segment turbo display reading 66">
+        <h3>Parts, not pixels</h3>
+        <p>The turbo display bakes its unlit segments into the case and lights the rest in the shader. The power cap throws a shadow that draws in when you press it.</p>
+      </figure>
+    </div>
+
+    <ol class="path" aria-label="The signal path, in order">
+      <li><b>Signal</b><span>DOSBox's frame, or the machine's own text screen</span></li>
+      <li><b>Persistence</b><span>Phosphor that takes a moment to let go</span></li>
+      <li><b>Deflection</b><span>Barrel curvature, jitter, sync drift</span></li>
+      <li><b>Beam and mask</b><span>Scanlines and an aperture grille</span></li>
+      <li><b>Bloom</b><span>Light bleeding round what is bright</span></li>
+      <li><b>Glass</b><span>The glass's own darkening toward its edges, and its sheen</span></li>
+      <li><b>Spill</b><span>The picture's light on the case</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================================================ specifications -->
+<section id="spec">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label">Specifications</span>
+        <h2>Ten processors. Pick one.</h2>
+      </div>
+      <p class="muted">The turbo display's minus and plus step through them, SETUP lists them by name, and the POST prints whichever you chose. The machine remembers it between runs. A game that paces itself by the clock plays the same on any of them; anything that runs flat out shows the difference.</p>
+    </div>
+
+    <div class="spec">
+      <div class="tablewrap">
+        <table class="chips">
+          <caption class="label">Processors, and what each asks of the emulator</caption>
+          <thead><tr><th>Processor</th><th class="num">Clock</th><th class="num">Cycles / ms</th><th style="width:34%"><span class="label" style="color:inherit">Relative</span></th></tr></thead>
+          <tbody>
+            <tr><td>486DX</td><td class="num">33 MHz</td><td class="num">10,000</td><td><span class="bar" style="width:5.7%"></span></td></tr>
+            <tr><td>486DX</td><td class="num">40 MHz</td><td class="num">14,000</td><td><span class="bar" style="width:8%"></span></td></tr>
+            <tr><td>486DX2</td><td class="num">50 MHz</td><td class="num">20,000</td><td><span class="bar" style="width:11.4%"></span></td></tr>
+            <tr class="default"><td>486DX2</td><td class="num">66 MHz</td><td class="num">30,000</td><td><span class="bar" style="width:17.1%"></span></td></tr>
+            <tr><td>486DX4</td><td class="num">75 MHz</td><td class="num">40,000</td><td><span class="bar" style="width:22.9%"></span></td></tr>
+            <tr><td>Pentium-S</td><td class="num">100 MHz</td><td class="num">60,000</td><td><span class="bar" style="width:34.3%"></span></td></tr>
+            <tr><td>Pentium-S</td><td class="num">133 MHz</td><td class="num">100,000</td><td><span class="bar" style="width:57.1%"></span></td></tr>
+            <tr><td>Pentium-S</td><td class="num">166 MHz</td><td class="num">125,000</td><td><span class="bar" style="width:71.4%"></span></td></tr>
+            <tr><td>Pentium-MMX</td><td class="num">200 MHz</td><td class="num">150,000</td><td><span class="bar" style="width:85.7%"></span></td></tr>
+            <tr><td>Pentium-MMX</td><td class="num">233 MHz</td><td class="num">175,000</td><td><span class="bar" style="width:100%"></span></td></tr>
+          </tbody>
+        </table>
       </div>
 
+      <dl class="sheet">
+        <dt>Memory</dt><dd>4, 8, 16, 32 or 64 MB</dd>
+        <dt>Video</dt><dd>VGA and SVGA, and a 3dfx Voodoo with 4, 8 or 12 MB</dd>
+        <dt>Sound</dt><dd>Sound Blaster 16, AdLib, PC speaker; Roland MT-32 and SC-55 with your own ROMs</dd>
+        <dt>Keyboard</dt><dd>Yours. The machine reads your layout and gives DOS the matching one</dd>
+        <dt>Drives</dt><dd>C: is a folder on your disk. The catalogues mount as drives of their own</dd>
+        <dt>DOS</dt><dd><a href="https://github.com/schellingb/dosbox-pure">DOSBox Pure</a>, built from a fork and carried inside</dd>
+        <dt>Runs on</dt><dd>macOS, Windows and Linux; x86_64 and arm64; OpenGL 3.3</dd>
+        <dt>Licence</dt><dd>GPL-2.0-or-later. Free software</dd>
+      </dl>
     </div>
-    <p style="margin-top:30px">Every build needs a graphics driver with
-    <strong>OpenGL 3.3</strong>, which any computer of the last decade has.
-    Every build is verified on real hardware, on both x86_64 and arm64.
-    Every run writes a <code>dxm.log</code> in the preferences directory that
-    says how far it got and which GL driver it found. Release notes and older
-    builds are on
-    <a href="https://github.com/pedrocatalao/dos-ex-machina/releases">the releases page</a>.</p>
   </div>
 </section>
 
-<section id="build">
-  <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Build it</h2></div><div class="bars"></div></div>
-    <p class="lede">Needs SDL3, libcurl and zlib. No game checkout required.</p>
-    <div class="glass">
-<pre class="code">git clone https://github.com/pedrocatalao/dos-ex-machina
-cd dos-ex-machina
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j8
-./build/dxm</pre>
+<!-- ===================================================== software -->
+<section id="software">
+  <div class="wrap two">
+    <div>
+      <span class="label">Software</span>
+      <h2 style="margin-top:.9rem">Comes with no software. On purpose.</h2>
+      <ul class="points">
+        <li><b>Bring your own.</b> C: is an ordinary folder. Put DOS programs in it, as folders, the way they sat on a hard disk, and run them from the prompt. Nothing needs porting or patching.</li>
+        <li><b>Or type <code>CATALOG</code>.</b> A shelf of freeware and shareware that its authors give away. The machine downloads each title from where they put it, checks it against a hash, and installs it. It carries none of it itself.</li>
+        <li><b>It's a PC.</b> Trackers, editors, demos, compilers. If it ran on a 486 with a VGA card, it has a fair chance here.</li>
+      </ul>
     </div>
-    <p style="margin-top:18px">Then <code>NC</code> at the prompt, and Enter on
-    a game. macOS, Linux and Windows, on x86_64 and arm64, all built by CI.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Porting a game</h2></div><div class="bars"></div></div>
-    <p class="lede">Three exported symbols, and no dependencies of its own.</p>
-    <p>A game is a <code>.dxm</code> module opened at run time. It exports
-    <code>dxm_core_get_info</code>, <code>dxm_core_main</code> and
-    <code>dxm_core_audio</code>, hides everything else, and links no SDL and
-    no threading library — which is what makes it loadable everywhere DXM
-    runs. Its ABI version is checked before anything starts.</p>
-    <div class="grid two">
-      <div class="card plate"><h3>No exit()</h3><p>The machine has to survive the game.</p></div>
-      <div class="card plate"><h3>Unwinds on request</h3><p>So it can be started again in the same process.</p></div>
-      <div class="card plate"><h3>Declares its video modes</h3><p>So the tube knows what it is showing.</p></div>
-      <div class="card plate"><h3>Audio pulled, not pushed</h3><p>The machine asks for samples when it needs them.</p></div>
+    <div>
+      <img src="screenshots/catalog.jpg" srcset="screenshots/catalog-960.jpg 960w, screenshots/catalog.jpg 1600w" sizes="(max-width: 960px) 100vw, 640px" width="1600" height="1000" loading="lazy" alt="CATALOG on the machine's screen: a searchable list of freeware titles, with artwork and details for the selected one">
+      <p class="figcap"><b>Figure 2</b>CATALOG. Just type to find a title; Enter installs it, or runs it once it is there.</p>
     </div>
-    <p style="margin-top:22px"><a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/PORTING.md">PORTING.md</a>
-    is the normative contract;
-    <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/SPEC.md">SPEC.md</a>
-    covers the machine itself.</p>
   </div>
 </section>
 
-<section id="glance">
+<!-- ======================================================== get it -->
+<section id="get">
   <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>At a glance</h2></div><div class="bars"></div></div>
-    <dl class="glance">
-      <dt>Name</dt><dd>DOS ex Machina (DXM)</dd>
-      <dt>What</dt><dd>A procedurally drawn 1993 PC with a simulated CRT that boots a DOS prompt and runs natively ported DOS games</dd>
-      <dt>Version</dt><dd>1.0</dd>
-      <dt>Platforms</dt><dd>macOS 11+ (universal), Windows 10+ (x86_64, arm64), Linux with glibc 2.35+ (x86_64, arm64)</dd>
-      <dt>Requires</dt><dd>OpenGL 3.3 core</dd>
-      <dt>Games</dt><dd>SkyRoads (BlueMoon Software, 1993), Tyrian (Eclipse Productions / Epic MegaGames, 1995); more through the catalogue</dd>
-      <dt>Emulation</dt><dd>None — native C ports, loaded as modules</dd>
-      <dt>License</dt><dd>MIT; no game code or data in the repository</dd>
-      <dt>Source</dt><dd><a href="https://github.com/pedrocatalao/dos-ex-machina">github.com/pedrocatalao/dos-ex-machina</a></dd>
-    </dl>
+    <div class="sec-head">
+      <div>
+        <span class="label">Get it</span>
+        <h2>Free, and yours to take apart.</h2>
+      </div>
+      <p class="muted" id="dl-state">There is no release to download yet. Until there is, building it is four commands and a few minutes.</p>
+    </div>
+
+    <div class="get">
+      <div>
+        <div class="plate" aria-live="polite">
+          <div class="lamps" id="ver-lamps">
+            <span data-lamp="rel"><i></i>RELEASE</span>
+            <span data-lamp="src" class="lit"><i></i>SOURCE</span>
+          </div>
+          <div class="seg" id="ver-seg"><noscript>latest</noscript></div>
+        </div>
+        <span class="plate-note" id="ver-note">This display asks GitHub for the newest release. Right now there isn't one.</span>
+        <div id="dl-panel"></div>
+      </div>
+
+      <div id="build">
+        <h3>Build it from source</h3>
+        <p class="muted" style="margin:.5rem 0 1.1rem">You need SDL3, a C and a C++ compiler, GNU make, libcurl and zlib.</p>
+        <div class="codebox">
+          <button class="copy" type="button">Copy</button>
+<pre><code><span class="ln">git clone --recursive https://github.com/pedrocatalao/dos-ex-machina</span>
+<span class="ln">cmake -S dos-ex-machina -B build -DCMAKE_BUILD_TYPE=Release</span>
+<span class="ln">cmake --build build -j8</span>
+<span class="ln">./build/dxm</span></code></pre>
+        </div>
+        <div class="note"><p>The DOSBox core is a submodule and builds with everything else. <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/BUILDING.md">BUILDING.md</a> has the options, the tests, and what to do where SDL3 is not packaged yet.</p></div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section id="faq" class="faq">
+<!-- ===================================================== questions -->
+<section id="questions">
   <div class="wrap">
-    <div class="badge"><div class="plate-in"><h2>Questions</h2></div><div class="bars"></div></div>
-    <details>
-      <summary>Is DOS ex Machina an emulator?</summary>
-      <p>No. The games are native C ports of the original programs, compiled
-      for your computer and loaded as modules. The DOS prompt is a fiction and
-      the CRT is a rendering pipeline; nothing is emulated.</p>
-    </details>
-    <details>
-      <summary>Which games can it run?</summary>
-      <p>Games arrive as <code>.dxm</code> modules through a catalogue the
-      machine fetches at run time. It holds SkyRoads and Tyrian today. Any DOS
-      game with a native port that follows PORTING.md can be added by editing
-      the catalogue, without a new release of DXM.</p>
-    </details>
-    <details>
-      <summary>Why does my computer warn me the first time I run it?</summary>
-      <p>The downloads are not code-signed, which costs a yearly fee to each
-      platform's certificate authority: macOS asks for right-click → Open on
-      the first launch, and Windows SmartScreen wants More info → Run anyway.
-      Once, each. Nothing is installed; unpack the download and run it.</p>
-    </details>
-    <details>
-      <summary>Where do the games and settings live?</summary>
-      <p>In your preferences directory: <code>~/Library/Application Support/DOSexMachina/dxm/</code>
-      on macOS, <code>~/.local/share/DOSexMachina/dxm/</code> on Linux,
-      <code>%APPDATA%\DOSexMachina\dxm\</code> on Windows. Games go under
-      <code>games/</code>, the CRT settings in <code>crt.cfg</code>, and each
-      run's <code>dxm.log</code> beside them.</p>
-    </details>
+    <div class="sec-head">
+      <div>
+        <span class="label">Questions</span>
+        <h2>Before you ask.</h2>
+      </div>
+      <p class="muted">The <a href="manual.html">User's Guide</a> has the long answers: the C: drive, every control, SETUP, CATALOG, the OSD, MIDI, and the command-line flags.</p>
+    </div>
+    <div class="qa">
+      <div><h3>Is this an emulator?</h3><p>The emulating is DOSBox Pure's. DOS ex Machina is the machine it runs in: the case, the tube, the drive that spins, the power switch, and the BIOS that hands over to it.</p></div>
+      <div><h3>Why not just use DOSBox?</h3><p>You can, and it's excellent. This is for when you want the computer as well as the program: the wait while it counts its memory, the glow on the desk, the knob you turn.</p></div>
+      <div><h3>Will my system warn me about it?</h3><p>Once releases exist, yes, the first time. The builds are not code-signed yet, so macOS and Windows each ask before running them. The guide shows the way through.</p></div>
+      <div><h3>Does it need a fast computer?</h3><p>It needs a GPU with OpenGL 3.3. Most virtual machines don't offer one. The top processors want DOSBox's dynamic core, which it uses wherever your system allows it.</p></div>
+      <div><h3>Who is Horizon Computer Systems?</h3><p>Nobody. The badge on the case needed a maker, and a 1993 PC without a slightly optimistic brand name would not be a 1993 PC.</p></div>
+      <div><h3>There was an older version?</h3><p>An earlier incarnation ran natively ported games behind a simulated prompt. That code lives on the <a href="https://github.com/pedrocatalao/dos-ex-machina/tree/legacy">legacy branch</a>. This one runs the real thing.</p></div>
+    </div>
   </div>
 </section>
 
@@ -649,30 +315,20 @@ cmake --build build -j8
 
 <footer>
   <div class="wrap">
-    <div class="rule"></div>
-    <p>MIT licensed. No game code or data lives in the repository.</p>
-    <p>The Sound Blaster wordmark on the modelled case is a trademark of
-    Creative Technology Ltd, shown as a period detail.</p>
-    <p style="margin-top:14px">
-      <a href="https://github.com/pedrocatalao/dos-ex-machina">github.com/pedrocatalao/dos-ex-machina</a>
-    </p>
+    <div>
+      <p><strong>DOS ex Machina</strong> is free software under the GPL, version 2 or later. It is built on <a href="https://github.com/schellingb/dosbox-pure">DOSBox Pure</a> by Bernhard Schelling and the DOSBox team, and on SDL. <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/THIRD-PARTY.md">The full list of what it stands on.</a></p>
+      <p class="fine">No software or data for DOS is in the project or its builds. MS-DOS, 486, Pentium, MMX, 3dfx, Voodoo, Sound Blaster, AdLib and Roland are names of their owners, used here to say what the machine is like. Horizon Computer Systems is fictional. Insert disk. Change reality.</p>
+    </div>
+    <nav aria-label="Elsewhere">
+      <a href="manual.html">User's Guide</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina">Source on GitHub</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina/issues">Report a problem</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/ARCHITECTURE.md">How it is built</a>
+      <a href="https://github.com/pedrocatalao/dos-ex-machina/blob/main/SPEC.md">The machine's specification</a>
+    </nav>
   </div>
 </footer>
 
-<script>
-  /* The star count, straight from GitHub.  Progressive: the link already
-     says what it is, so a rate limit or an offline reader loses nothing. */
-  fetch('https://api.github.com/repos/pedrocatalao/dos-ex-machina')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      if (!d || typeof d.stargazers_count !== 'number') return;
-      var n = d.stargazers_count;
-      document.getElementById('starcount').textContent =
-        n.toLocaleString() + (n === 1 ? ' star on GitHub \u2014 add yours'
-                                      : ' stars on GitHub \u2014 add yours');
-    })
-    .catch(function () {});
-</script>
-
+<script src="site.js" defer></script>
 </body>
 </html>

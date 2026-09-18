@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bad command or file name — DOS ex Machina</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/icon-32.png" sizes="32x32" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body class="dos">
+<main>
+<p>C:\&gt;<span class="hi" id="path"></span>
+Bad command or file name
+
+Not ready reading drive <span class="hi">WWW</span>
+Abort, Retry, Fail? <span class="hi">A</span>
+
+C:\&gt;<a href="/">CD \</a>          <span style="color:#555">the front page</span>
+C:\&gt;<a href="/manual.html">TYPE MANUAL.TXT</a> <span style="color:#555">the User's Guide</span>
+C:\&gt;<span class="cur"></span></p>
+</main>
+<script>
+/* say which file was asked for, as DOS would have had it typed */
+var p = decodeURIComponent(location.pathname).replace(/^\/+/, "").replace(/\//g, "\\").toUpperCase();
+document.getElementById("path").textContent = p.slice(0, 48);
+</script>
+</body>
+</html>
