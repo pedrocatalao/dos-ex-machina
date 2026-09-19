@@ -144,6 +144,7 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_CATALOG (RETRO_ENVIRONMENT_PRIVATE | 7)
 #define DXM_ENV_DRIVES (RETRO_ENVIRONMENT_PRIVATE | 8)
 #define DXM_ENV_CPU (RETRO_ENVIRONMENT_PRIVATE | 9)
+#define DXM_ENV_TEXT (RETRO_ENVIRONMENT_PRIVATE | 10)
 /* the drives besides C:, as the core wants them: "D=LABEL=/folder/" a line */
 static char g_drives[2048];
 void dosbox_set_drives(const char *list) {
@@ -160,6 +161,9 @@ void dosbox_set_boot_catalogue(int on) {
 static SDL_AtomicInt g_setup_req, g_setup_up;
 static SDL_AtomicInt g_mhz, g_floppy;
 static SDL_AtomicInt g_cpu; /* the chip, as a stop of the processor table */
+/* what the core says the card's mode is: 0 it has never said (a core built
+ * from upstream), 1 graphics, 2 text */
+static SDL_AtomicInt g_text;
 
 int dosbox_take_setup(void) {
     return SDL_SetAtomicInt(&g_setup_req, 0);
@@ -436,6 +440,12 @@ static bool RETRO_CALLCONV env_cb(unsigned cmd, void *data) {
     case DXM_ENV_CATALOG:
         cat_env((dxm_catalog_msg *)data);
         return true;
+    case DXM_ENV_TEXT: {
+        int now = *(const bool *)data ? 2 : 1;
+        if (SDL_SetAtomicInt(&g_text, now) != now) /* said once per change */
+            dxm_log("dosbox: the card is in a %s mode", now == 2 ? "text" : "graphics");
+        return true;
+    }
     case DXM_ENV_DRIVES:
         *(const char **)data = g_drives;
         return true;
@@ -924,11 +934,16 @@ const uint8_t *dosbox_frame(int *w, int *h, int *crt_lines) {
     *crt_lines = db.sh[f] < 300 ? db.fh[f] * 2 : db.fh[f];
     return db.fb[f];
 }
-/* Whether the frame being shown is a text mode, by its geometry: the
- * 8- or 9-dot 80-column modes at 350 or 400 lines.  A guess a graphics
- * mode of the same size would fool; reading the card's mode register
- * is the honest answer, and a patch to the core away. */
+/* Whether the frame being shown is a text mode.  The fork's core says so
+ * at every mode set (DXM_ENV_TEXT), and that is believed.  A core that has
+ * never said - one built from upstream - leaves the old guess from the
+ * frame's geometry: the 8- or 9-dot 80-column modes at 350 or 400 lines,
+ * which a graphics mode of the same size fools, and which the 43-line
+ * screen, 344 rows tall, slipped past. */
 int dosbox_text_mode(void) {
+    int told = SDL_GetAtomicInt(&g_text);
+    if (told)
+        return told == 2;
     int f = db.reading;
     if (f < 0)
         return 0;

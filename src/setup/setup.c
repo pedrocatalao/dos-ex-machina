@@ -150,10 +150,12 @@ static void fill(int section) {
     gpu_knobs *k = S.knobs;
     add("Brightness", &k->brightness, 0.0f, 1.0f);
     add("Contrast", &k->contrast, 0.4f, 1.8f);
+    add("Sharpness", &k->sharpness, 0.0f, 1.0f);
     add("Bloom", &k->bloom, 0.0f, 1.5f);
     add("Persistence", &k->persistence, 0.0f, 1.0f);
     add("Scanlines", &k->scan, 0.0f, 1.0f);
     add("Pixel grid", &k->vgrid, 0.0f, 1.0f);
+    add("Mask", &k->mask, 0.0f, 1.0f);
     add("Curvature", &k->warp, 0.0f, 0.45f);
     add("Burn in", &k->burn_in, 0.0f, 1.0f);
     add("Static noise", &k->noise, 0.0f, 1.0f);

@@ -612,6 +612,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
                 (float)g->persist_w / fmaxf(tw * (float)g->out_w, 1.0f),
                 (float)g->persist_h / fmaxf(th * (float)g->out_h, 1.0f));
     glUniform1f(glGetUniformLocation(p, "u_sharp"), k->sharp_text);
+    glUniform1f(glGetUniformLocation(p, "u_sharpness"), k->sharpness);
     glUniform1f(glGetUniformLocation(p, "u_overscan"), k->overscan);
     glUniform1f(glGetUniformLocation(p, "u_shoulder"), DXM_BEZEL_BAND);
     glUniform1f(glGetUniformLocation(p, "u_shoulder_r"), DXM_BEZEL_R_MID);
@@ -620,6 +621,7 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform1f(glGetUniformLocation(p, "u_dish_warp"), DXM_WARP);
     glUniform1f(glGetUniformLocation(p, "u_fillet"), DXM_FILLET_START);
     glUniform1f(glGetUniformLocation(p, "vgrid"), k->vgrid);
+    glUniform1f(glGetUniformLocation(p, "u_mask"), k->mask);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, g->tex_burn[g->burn_cur]);
     glUniform1i(glGetUniformLocation(p, "burnsrc"), 5);

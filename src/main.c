@@ -98,10 +98,10 @@ static gpu_knobs shipped_knobs(float ambient) {
     /* brightness, contrast, bloom, burn_in, noise, jitter, glow_line,
      * ambient, flicker, hsync, rgb_shift, chassis_glow, persistence,
      * scan, vgrid, sharp_text, warp, margin, overscan, aperture_r,
-     * crt_lines, crt_cols */
+     * crt_lines, crt_cols, mask, sharpness */
     gpu_knobs k = {0.219f,   0.710f, 0.190f, 0.044f, 0.190f, 0.029f, 0.087f, ambient,
                    0.229f,   0.029f, 0.048f, 0.646f, 0.490f, 0.414f, 0.077f, 1.0f,
-                   DXM_WARP, 0.0f,   1.0f,   0.0f,   400,    DOS_W};
+                   DXM_WARP, 0.0f,   1.0f,   0.0f,   400,    DOS_W,  1.0f,   0.0f};
     return k;
 }
 

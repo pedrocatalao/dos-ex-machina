@@ -32,7 +32,8 @@ int dosbox_shown(void);
  * writes it - until dosbox_frame_done(). */
 const uint8_t *dosbox_frame(int *w, int *h, int *crt_lines);
 void dosbox_frame_done(void);
-/* the frame being shown is a text mode, as far as its geometry says */
+/* the frame being shown is a text mode: what the fork's core says of the
+ * card's mode, or a guess from the frame's geometry if it never said */
 int dosbox_text_mode(void);
 
 /* Input, straight from the SDL event: the SDL scancode, relative mouse

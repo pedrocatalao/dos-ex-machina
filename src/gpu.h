@@ -44,6 +44,8 @@ typedef struct gpu_knobs {
     float aperture_r;   /* aperture corner radius in output px        */
     int crt_lines;      /* physical scanlines for this mode           */
     int crt_cols;       /* source pixel columns                       */
+    float mask;         /* aperture-grille stripes: 0 none, 1 full    */
+    float sharpness;    /* text's pixel edges: 0 eased, 1 hard        */
 } gpu_knobs;
 
 /* tube rect in output pixels, and the whole composite */

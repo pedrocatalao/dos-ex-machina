@@ -25,8 +25,10 @@ uniform vec2  seg_lean;   // slant, end stand-back/thickness
 uniform vec2  u_raster;         // deflection: fraction of the raster drawn
 uniform float u_gain;           // beam drive
 uniform float crt_lines, crt_cols, vgrid;
+uniform float u_mask;             // the aperture grille's strength, 0 none
 uniform vec2  texsize, texelpx;   // tube texture, and one output pixel
 uniform float u_sharp;            // 1 on the DOS screen, 0 in a game
+uniform float u_sharpness;        // text's edges: 0 eased over a pixel, 1 hard
 uniform float u_overscan;         // picture overflow, in OUTPUT pixels
 uniform float u_shoulder, u_shoulder_r, u_shoulder_warp; // the bezel's shoulder (crt.h)
 uniform float u_dish_rin, u_dish_warp, u_fillet;         // the dish, and where it rolls off
@@ -51,12 +53,16 @@ float hash(vec2 p){
 // hard pixels - any smoothing there just reads as lost resolution.
 // The edge width is passed in rather than taken from fwidth(), which is
 // undefined inside the non-uniform control flow this runs in.
+// How wide text's edge is, is the SHARPNESS setting: at 0 the full output
+// pixel, at 1 nothing, which is nearest-neighbour by another road.  Even
+// strokes and crisp ones pull opposite ways at a scale that is not a whole
+// number, and which wins is a matter of the display and the eye.
 vec2 tap(vec2 c){
   vec2 p = c*texsize;
   vec2 i = floor(p) + 0.5;
   if (u_sharp < 0.5) return i/texsize;      // exactly nearest
   vec2 d = p - i;
-  vec2 w = max(texelpx*0.5, vec2(1e-5));
+  vec2 w = max(texelpx*0.5*(1.0 - u_sharpness), vec2(1e-5));
   return (i + clamp(d/w, -1.0, 1.0)*0.5) / texsize;
 }
 
@@ -94,21 +100,63 @@ vec2 dish(vec2 t){
   float edge = u_fillet*(din - dout);
   return vec2(max(din - edge, 0.0), clamp(din/max(edge, 1e-3), 0.0, 1.0));
 }
-// beam profile INTEGRATED over the pixel footprint, so scanlines do not
-// alias when tube height is not a multiple of crt_lines (SPEC 6.4).
+// ---- the beam, and the tube's dot structure, INTEGRATED over the pixel ----
+// A scanline is a few output pixels tall and never a whole number of them:
+// 3.7 for a 400-line mode on a 2160-line display.  Evaluating the beam's
+// profile at one point per pixel - which is what this did, whatever it
+// said - beats against the pixel grid, and the barrel's curvature, which
+// changes the local pitch by a tenth across the glass, bends the beats into
+// moire: slow curved bands, worst wherever the local pitch passes a whole
+// number of pixels.  Measured at 3.9 pixels a line it was 2.4% of the
+// brightness; integrated it is 0.06%.  So each of these is the true AVERAGE
+// of its pattern over the pixel's footprint, in closed form.  (SPEC 6.4)
+
+// erf, Abramowitz & Stegun 7.1.26, good to 1.5e-7; GLSL 3.30 has none
+float erf_as(float x){
+  float a = abs(x), t = 1.0/(1.0 + 0.3275911*a);
+  float y = 1.0 - (((((1.061405429*t - 1.453152027)*t) + 1.421413741)*t
+                    - 0.284496736)*t + 0.254829592)*t*exp(-a*a);
+  return sign(x)*y;
+}
+// The profile exp(-k d^2), d = 2|fract(l)-0.5| - a gaussian on the middle of
+// each cell, cut at the cell's edges - averaged over [l-h/2, l+h/2].  The
+// footprint is split at cell boundaries and each piece integrated against
+// its own cell's gaussian, so it is the same profile as before, exactly.
+// A footprint is under two cells wide at any sane size; five are allowed.
+float cell_gauss(float l, float h, float k){
+  float a = l - 0.5*h, b = l + 0.5*h, s = 2.0*sqrt(k);
+  float n0 = floor(a), tot = 0.0;
+  for (int n = 0; n < 5; n++) {
+    float lo = n0 + float(n);
+    if (lo >= b) break;
+    float c = lo + 0.5;
+    tot += erf_as(s*(min(b, lo + 1.0) - c)) - erf_as(s*(max(a, lo) - c));
+  }
+  return tot*0.8862269/(s*h);                       // sqrt(pi)/2
+}
 float beam(float y, float px){
-  float l = y*crt_lines;
-  float d = abs(fract(l)-0.5)*2.0;
-  float w = clamp(px*crt_lines, 0.6, 4.0);
-  float g = exp(-d*d*3.0/ (w*0.55));
-  return mix(1.0, g, scan);
+  if (scan <= 0.0) return 1.0;
+  float h = max(px*crt_lines, 1e-4);                // one pixel, in scanlines
+  float w = clamp(h, 0.6, 4.0);
+  return mix(1.0, cell_gauss(y*crt_lines, h, 3.0/(w*0.55)), scan);
 }
 float column(float x, float px){
-  float c = x*crt_cols;
-  float d = abs(fract(c)-0.5)*2.0;
-  float w = clamp(px*crt_cols, 0.6, 4.0);
-  float g = exp(-d*d*3.0/ (w*0.62));
-  return mix(1.0, g, vgrid);
+  if (vgrid <= 0.0) return 1.0;
+  float h = max(px*crt_cols, 1e-4);                 // one pixel, in columns
+  float w = clamp(h, 0.6, 4.0);
+  return mix(1.0, cell_gauss(x*crt_cols, h, 3.0/(w*0.62)), vgrid);
+}
+// How much of the footprint [a,b], in cells, lies in the part [lo,hi] of
+// each cell: the aperture grille's stripes are steps, and a step sampled
+// at a point aliases the same way the beam did.
+float cell_cover(float a, float b, float lo, float hi){
+  float n0 = floor(a), tot = 0.0;
+  for (int n = 0; n < 5; n++) {
+    float o = n0 + float(n);
+    if (o >= b) break;
+    tot += max(0.0, min(b, o + hi) - max(a, o + lo));
+  }
+  return tot/(b - a);
 }
 // segment endpoints in the digit's half-extents, y up: a b c d e f g
 const vec4 SEG_ENDS[7] = vec4[7](
@@ -204,10 +252,21 @@ void main(){
       // sub-phase of the stripes, so the same glyph came out with a
       // bright left edge in one column and a bright right edge in the
       // next, with colour fringing that changed across the screen.
-      float gx = fract(cb.x*crt_cols);
-      vec3 mask = vec3(0.94);
-      mask.r += 0.20*step(gx,0.333); mask.g += 0.20*step(0.333,gx)*step(gx,0.666);
-      mask.b += 0.20*step(0.666,gx);
+      // Its strength is the MASK setting.  At 1 it is exactly what it
+      // always was; at 0 there are no stripes and the picture is flat, which
+      // matters most in a low-resolution mode, where one source pixel is
+      // five or six output pixels and each stripe is wide enough to see.
+      // Each stripe's share of this pixel's footprint, not which stripe
+      // its centre happens to fall in: see the beam, above.
+      vec3 mask = vec3(1.0);
+      if (u_mask > 0.0) {
+        float mh = max(crt_cols/max(rect.z*outsize.x, 1.0), 1e-4);   // one pixel, in columns
+        float ma = cb.x*crt_cols - 0.5*mh, mb = ma + mh;
+        mask = vec3(0.94) + 0.20*vec3(cell_cover(ma, mb, 0.0, 0.333),
+                                      cell_cover(ma, mb, 0.333, 0.666),
+                                      cell_cover(ma, mb, 0.666, 1.0));
+        mask = mix(vec3(1.0), mask, u_mask);
+      }
       col = max(s,0.0)*bm*mask*u_gain;
 
       // BURN-IN: the slow accumulator, added as a faint ghost

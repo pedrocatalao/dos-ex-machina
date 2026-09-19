@@ -40,14 +40,19 @@ void osd_init(gpu_knobs *k) {
     O.n = 0;
     add("BRIGHTNESS", &k->brightness, 0.0f, 1.0f, PAGE_PICTURE);
     add("CONTRAST", &k->contrast, 0.4f, 1.8f, PAGE_PICTURE);
+    add("SHARPNESS", &k->sharpness, 0.0f, 1.0f, PAGE_PICTURE); /* text's edges */
     add("BLOOM", &k->bloom, 0.0f, 1.5f, PAGE_PICTURE);
     add("PERSISTENCE", &k->persistence, 0.0f, 1.0f, PAGE_PICTURE);
     add("SCANLINES", &k->scan, 0.0f, 1.0f, PAGE_PICTURE);
-    add("PIXEL GRID", &k->vgrid, 0.0f, 1.0f, PAGE_PICTURE);
     add("CURVATURE", &k->warp, 0.0f, 0.45f, PAGE_GEOMETRY);
     add("JITTER", &k->jitter, 0.0f, 1.0f, PAGE_GEOMETRY);
     add("HORIZ SYNC", &k->hsync, 0.0f, 1.0f, PAGE_GEOMETRY);
     add("RGB SHIFT", &k->rgb_shift, 0.0f, 1.0f, PAGE_GEOMETRY);
+    /* the tube's own dot structure, the grille's stripes and the columns'
+     * division: on this page because a page holds six rows, and PICTURE's
+     * are taken */
+    add("MASK", &k->mask, 0.0f, 1.0f, PAGE_GEOMETRY);
+    add("PIXEL GRID", &k->vgrid, 0.0f, 1.0f, PAGE_GEOMETRY);
     add("BURN IN", &k->burn_in, 0.0f, 1.0f, PAGE_TUBE);
     add("STATIC NOISE", &k->noise, 0.0f, 1.0f, PAGE_TUBE);
     add("FLICKERING", &k->flicker, 0.0f, 1.0f, PAGE_TUBE);
