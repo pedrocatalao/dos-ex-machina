@@ -33,4 +33,24 @@ void dos_name(const char *in, char *out, size_t n);
  * them, so `prez.exe` is reached perfectly well by PREZ.EXE. */
 int dos_reachable(const char *name);
 
+/* ---- paths made of those names ---------------------------------------- */
+
+/* The name at the end of a path, whichever way its separators lean. */
+const char *dos_leaf(const char *path);
+
+/* A path without its trailing separator, in place.  A drive's root keeps
+ * its own: C: is not a folder and C:\ is. */
+void dos_trim_sep(char *p);
+
+/* The folder above `at`, or 0 when there is nothing above it - the root of
+ * a disk on one system, a drive letter on another.  The separator stays on
+ * the end, since that is how a folder is named here. */
+int dos_up(const char *at, char *out, size_t n);
+
+/* Upper case, in place: every DOS name the machine writes down is. */
+void dos_upper(char *p);
+
+/* Whether DOS would start this: .EXE, .COM or .BAT, in any case. */
+int dos_is_program(const char *name);
+
 #endif

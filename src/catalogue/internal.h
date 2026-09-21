@@ -127,6 +127,14 @@ void gui_bar(int x, int y, int w, int h, float t); /* a progress bar */
 void gui_chip(int x, int y, int w, int h, const char *label, const char *value, int active,
               int hover);
 void gui_panel(int x, int y, int w, int h); /* a panel over the screen */
+/* `s` cut down to `w` pixels, with three dots where it was cut.  A name is
+ * cut at its end and a path at its front: the end of a path is the part
+ * that says where you are. */
+void gui_fit(const char *s, int w, int from_front, char *out, int n);
+/* What a key puts in a field.  The scancode is where the key sits, not what
+ * is printed on it, so a board that is not American gives its own marks for
+ * the punctuation. */
+char gui_typed(int sdl_scancode, int shift);
 
 /* ---- edit.c — changing what is in a catalogue ------------------------- */
 

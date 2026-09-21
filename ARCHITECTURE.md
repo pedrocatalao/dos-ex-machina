@@ -64,10 +64,14 @@ dos-ex-machina/
 │   │   │                   here alone, so the editor is held to the reader's; no SDL,
 │   │   │                   no network
 │   │   ├── screen.c        CATALOG: the shelves, the keys, the errands, the screen
-│   │   ├── edit.c          adding, changing and removing titles and catalogues, the
-│   │   │                   file browser, and the destination asked before an install;
-│   │   │                   a shipped catalogue is never written to, so an edit writes
-│   │   │                   a whole copy into the preferences that shadows it
+│   │   ├── edit.c          adding, changing and removing titles and catalogues, and
+│   │   │                   the destination asked before an install; a shipped
+│   │   │                   catalogue is never written to, so an edit writes a whole
+│   │   │                   copy into the preferences that shadows it
+│   │   ├── browse.c/.h     the machine's own file browser - this computer's folders
+│   │   │                   and the emulated drives, shown the same way - and the
+│   │   │                   listing of what a folder holds; knows nothing of titles,
+│   │   │                   and says what was chosen rather than acting on it
 │   │   ├── where.c/.h      where each title ended up on this machine, in installed.cfg:
 │   │   │                   a catalogue says what a title is, this says where it is, so
 │   │   │                   no catalogue carries a path off somebody's disk
@@ -107,11 +111,10 @@ dos-ex-machina/
 
 Rules the tree aims to keep: no hand-written file over about 600 lines; no
 function over about 120 lines except tables; one `static struct` of state
-per module; a subdirectory once a module has more than three files. Six
+per module; a subdirectory once a module has more than three files. Five
 files are over the first line and due a split, worst first:
-`catalogue/edit.c` (the browser is a module of its own waiting to be
-lifted out), `chassis/parts.c`, `catalogue/screen.c`, `dosbox/dosbox.c`,
-`gpu.c` and `catalogue/install.c`.
+`catalogue/edit.c`, `chassis/parts.c`, `catalogue/screen.c`,
+`dosbox/dosbox.c` and `catalogue/install.c`.
 
 ## A frame
 

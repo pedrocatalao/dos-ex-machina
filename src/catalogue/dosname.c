@@ -53,3 +53,56 @@ int dos_reachable(const char *name) {
             return 0;
     return *a == *b;
 }
+
+/* ---- paths made of those names ---------------------------------------- */
+
+const char *dos_leaf(const char *path) {
+    /* Either may be absent, and comparing two pointers that are not into
+     * the same object is not something C defines. */
+    const char *slash = strrchr(path, '/'), *back = strrchr(path, '\\');
+    const char *at = (back && (!slash || back > slash)) ? back : slash;
+    return at ? at + 1 : path;
+}
+
+void dos_trim_sep(char *p) {
+    size_t k = strlen(p);
+    while (k > 3 && (p[k - 1] == '/' || p[k - 1] == '\\'))
+        p[--k] = 0;
+}
+
+int dos_up(const char *at, char *out, size_t n) {
+    char p[512];
+    snprintf(p, sizeof p, "%s", at);
+    size_t k = strlen(p);
+    while (k > 0 && (p[k - 1] == '/' || p[k - 1] == '\\'))
+        k--; /* its own trailing separator */
+    while (k > 0 && p[k - 1] != '/' && p[k - 1] != '\\')
+        k--; /* and the name it ends with */
+    if (k == 0)
+        return 0;
+    p[k] = 0; /* the separator stays: a folder is named with one */
+    if (!strcmp(p, at))
+        return 0; /* a root is its own parent */
+    snprintf(out, n, "%s", p);
+    return 1;
+}
+
+void dos_upper(char *p) {
+    for (; *p; p++)
+        *p = (char)toupper((unsigned char)*p);
+}
+
+int dos_is_program(const char *name) {
+    const char *dot = strrchr(name, '.');
+    if (!dot)
+        return 0;
+    const char *ext[] = {".EXE", ".COM", ".BAT"};
+    for (int i = 0; i < 3; i++) {
+        const char *a = dot, *b = ext[i];
+        while (*a && *b && toupper((unsigned char)*a) == (unsigned char)*b)
+            a++, b++;
+        if (!*a && !*b)
+            return 1;
+    }
+    return 0;
+}

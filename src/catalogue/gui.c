@@ -5,6 +5,7 @@
  * the VGA sixteen and the artwork. */
 #include "internal.h"
 #include "setup/internal.h"
+#include <SDL3/SDL.h>
 #include <string.h>
 
 /* the interface's colours, in the order of the enum */
@@ -132,4 +133,76 @@ void gui_bar(int x, int y, int w, int h, float t) {
         t = 1.0f;
     cv_rect(x, y, w, h, G_TROUGH);
     cv_rect(x, y, (int)((float)w * t + 0.5f), h, G_GOLD);
+}
+
+/* `s` cut down to `w` pixels, with three dots where it was cut.  A name is
+ * cut at its end and a path at its front: the end of a path is the part
+ * that says where you are. */
+void gui_fit(const char *s, int w, int from_front, char *out, int n) {
+    snprintf(out, (size_t)n, "%s", s);
+    if (cv_width(out) <= w)
+        return;
+    char tmp[CAT_PATH + 8] = "";
+    if (from_front) {
+        for (const char *p = s; *p; p++) {
+            snprintf(tmp, sizeof tmp, "...%s", p);
+            if (cv_width(tmp) <= w)
+                break;
+        }
+    } else {
+        for (size_t k = strlen(s); k > 0;) {
+            snprintf(tmp, sizeof tmp, "%.*s...", (int)--k, s);
+            if (cv_width(tmp) <= w)
+                break;
+        }
+    }
+    snprintf(out, (size_t)n, "%s", tmp);
+}
+
+/* What a key puts in a field.  The scancode is where the key sits, not what
+ * is printed on it, so a board that is not American gives its own marks for
+ * the punctuation - the same bargain the Find field already makes. */
+char gui_typed(int sc, int shift) {
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z)
+        return (char)((shift ? 'A' : 'a') + (sc - SDL_SCANCODE_A));
+    if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_9) {
+        static const char UPPER[] = "!@#$%^&*(";
+        return shift ? UPPER[sc - SDL_SCANCODE_1] : (char)('1' + (sc - SDL_SCANCODE_1));
+    }
+    if (sc >= SDL_SCANCODE_KP_1 && sc <= SDL_SCANCODE_KP_9)
+        return (char)('1' + (sc - SDL_SCANCODE_KP_1));
+    switch (sc) {
+    case SDL_SCANCODE_0:
+        return shift ? ')' : '0';
+    case SDL_SCANCODE_KP_0:
+        return '0';
+    case SDL_SCANCODE_SPACE:
+        return ' ';
+    case SDL_SCANCODE_MINUS:
+        return shift ? '_' : '-';
+    case SDL_SCANCODE_EQUALS:
+        return shift ? '+' : '=';
+    case SDL_SCANCODE_PERIOD:
+    case SDL_SCANCODE_KP_PERIOD:
+        return shift ? '>' : '.';
+    case SDL_SCANCODE_COMMA:
+        return shift ? '<' : ',';
+    case SDL_SCANCODE_SLASH:
+    case SDL_SCANCODE_KP_DIVIDE:
+        return shift ? '?' : '/';
+    case SDL_SCANCODE_BACKSLASH:
+        return shift ? '|' : '\\';
+    case SDL_SCANCODE_SEMICOLON:
+        return shift ? ':' : ';';
+    case SDL_SCANCODE_APOSTROPHE:
+        return shift ? '"' : '\'';
+    case SDL_SCANCODE_LEFTBRACKET:
+        return shift ? '{' : '[';
+    case SDL_SCANCODE_RIGHTBRACKET:
+        return shift ? '}' : ']';
+    case SDL_SCANCODE_GRAVE:
+        return shift ? '~' : '`';
+    default:
+        return 0;
+    }
 }
