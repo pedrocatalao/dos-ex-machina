@@ -33,6 +33,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_PNG
+/* GIF is here for the catalogue, not the banner: the screenshot archive.org
+ * holds for an MS-DOS item is one, and it is the sharpest picture of a
+ * title the machine can get.  The decoders are compiled in this one file,
+ * so a format the catalogue wants has to be asked for here. */
+#define STBI_ONLY_GIF
 #define STBI_NO_STDIO
 #define STBI_NO_LINEAR
 #define STBI_NO_HDR

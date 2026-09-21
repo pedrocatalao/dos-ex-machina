@@ -24,6 +24,7 @@
 #include "where.h"
 #include "dosname.h"
 #include "browse.h"
+#include "artfind.h"
 #include "setup/internal.h"
 #include "log.h"
 #include <SDL3/SDL.h>
@@ -114,6 +115,10 @@ typedef struct {
     int upper;  /* a DOS name: what is typed goes in upper case */
     int browse; /* ENTER opens the browser to fill it in */
     const char *hint;
+    /* What the row says when there is nothing typed in it but something is
+     * nonetheless there - a picture held by its hash has no address to
+     * show, and a blank row would be a lie about an empty field. */
+    const char *empty;
 } field;
 
 #define FIELDS 28
@@ -157,7 +162,8 @@ static struct {
     cat_title work;
     char year[8], size[16], sound[96], controls[96];
     int category, video, players, network;
-    char found[200]; /* what the machine can say about where a disk title is */
+    char found[200];   /* what the machine can say about where a disk title is */
+    char art_note[80]; /* what the artwork row says when it holds no address */
 
     /* a catalogue's own particulars */
     char shelf_name[CAT_NAME], shelf_id[CAT_ID], shelf_about[CAT_DESC];
@@ -199,7 +205,7 @@ static void add_chose_zip(void);
 static void add_chose_dir(void);
 
 int edit_up(void) {
-    return E.panel != PANEL_NONE || browse_open();
+    return E.panel != PANEL_NONE || browse_open() || artfind_up();
 }
 
 static void add_hit(int x, int y, int w, int h, int what) {
@@ -220,27 +226,27 @@ static int hit_at(int x, int y) {
 static void f_text(const char *label, char *text, int size, int upper, const char *hint) {
     if (E.nf >= FIELDS)
         return;
-    E.f[E.nf++] = (field){label, FLD_TEXT, text, size, NULL, NULL, 0, upper, 0, hint};
+    E.f[E.nf++] = (field){label, FLD_TEXT, text, size, NULL, NULL, 0, upper, 0, hint, NULL};
 }
 static void f_num(const char *label, char *text, int size, const char *hint) {
     if (E.nf >= FIELDS)
         return;
-    E.f[E.nf++] = (field){label, FLD_NUM, text, size, NULL, NULL, 0, 0, 0, hint};
+    E.f[E.nf++] = (field){label, FLD_NUM, text, size, NULL, NULL, 0, 0, 0, hint, NULL};
 }
 static void f_choice(const char *label, int *pick, const char *const *opts, int n) {
     if (E.nf >= FIELDS)
         return;
-    E.f[E.nf++] = (field){label, FLD_CHOICE, NULL, 0, pick, opts, n, 0, 0, NULL};
+    E.f[E.nf++] = (field){label, FLD_CHOICE, NULL, 0, pick, opts, n, 0, 0, NULL, NULL};
 }
 static void f_note(const char *label, char *text) {
     if (E.nf >= FIELDS)
         return;
-    E.f[E.nf++] = (field){label, FLD_NOTE, text, 0, NULL, NULL, 0, 0, 0, NULL};
+    E.f[E.nf++] = (field){label, FLD_NOTE, text, 0, NULL, NULL, 0, 0, 0, NULL, NULL};
 }
 static void f_rule(void) {
     if (E.nf >= FIELDS)
         return;
-    E.f[E.nf++] = (field){NULL, FLD_RULE, NULL, 0, NULL, NULL, 0, 0, 0, NULL};
+    E.f[E.nf++] = (field){NULL, FLD_RULE, NULL, 0, NULL, NULL, 0, 0, 0, NULL, NULL};
 }
 
 /* The form for a title.  What it asks for after the particulars is the
@@ -293,7 +299,8 @@ static void build_title_form(void) {
                 E.work.run, 64,
                 NULL,       NULL,
                 0,          0,
-                pickable,   pickable ? "ENTER to pick it from the folder" : "the file DOS starts"};
+                pickable,   pickable ? "ENTER to pick it from the folder" : "the file DOS starts",
+                NULL};
     E.nf++;
     E.f[E.nf] = (field){"Setup",
                         FLD_TEXT,
@@ -304,7 +311,8 @@ static void build_title_form(void) {
                         0,
                         0,
                         pickable,
-                        pickable ? "ENTER to pick it, if it has one" : "its own setup program"};
+                        pickable ? "ENTER to pick it, if it has one" : "its own setup program",
+                        NULL};
     E.nf++;
     f_text("About", E.work.description, CAT_DESC, 0, "a few lines for the right-hand side");
     f_rule();
@@ -322,7 +330,33 @@ static void build_title_form(void) {
     } else {
         f_note("Where it is", E.found);
     }
-    f_text("Artwork", E.work.artwork.url, CAT_URL, 0, "a picture for the right-hand side");
+    /* Somebody listing what is already on their own disk will hardly ever
+     * have a picture of the game to hand, so the machine offers to go and
+     * look for one rather than leave a plate there for ever. */
+    int findable = E.shelf && E.shelf->cat.holds == CAT_DISK;
+    /* A picture taken off this machine is held by its hash and has no
+     * address, so the row has nothing to print and would look empty when it
+     * is not.  Say what is there instead; the head of the hash is enough to
+     * tell one picture from another. */
+    E.art_note[0] = 0;
+    if (!E.work.artwork.url[0] && E.work.artwork.sha256[0])
+        snprintf(E.art_note, sizeof E.art_note, "\x07 a picture kept on this machine   %.8s",
+                 E.work.artwork.sha256);
+    if (E.nf < FIELDS) {
+        E.f[E.nf] = (field){"Artwork",
+                            FLD_TEXT,
+                            E.work.artwork.url,
+                            CAT_URL,
+                            NULL,
+                            NULL,
+                            0,
+                            0,
+                            findable,
+                            findable ? "ENTER to look one up, F3 for a file on this computer"
+                                     : "a picture for the right-hand side",
+                            E.art_note[0] ? E.art_note : NULL};
+        E.nf++;
+    }
 }
 
 static void build_shelf_form(void) {
@@ -884,8 +918,25 @@ static void add_chose_zip(void) {
 
 /* ---- what the browser hands back --------------------------------------- */
 
-/* The archive an add starts from. */
-void browse_took_archive(const char *host_path) {
+/* A file on this computer: the archive an add starts from, or a picture for
+ * the title being edited. */
+void browse_took_archive(const char *host_path, browse_for what) {
+    if (what == BROWSE_PICTURE) {
+        /* It is copied in and recorded by its hash, so the catalogue keeps
+         * no path off this disk and the picture survives the file being
+         * moved or thrown away afterwards. */
+        char sha[65], err[160];
+        E.panel = PANEL_TITLE;
+        if (!art_adopt(host_path, sha, err, sizeof err)) {
+            snprintf(E.fault, sizeof E.fault, "%s", err);
+            return;
+        }
+        E.work.artwork.url[0] = 0;
+        snprintf(E.work.artwork.sha256, sizeof E.work.artwork.sha256, "%s", sha);
+        E.work.artwork.size = 0;
+        E.fault[0] = 0;
+        return;
+    }
     snprintf(E.add_zip, sizeof E.add_zip, "%s", host_path);
     E.fault[0] = 0;
     add_chose_zip();
@@ -934,7 +985,30 @@ void browse_took_program(const char *dos_dir, const char *name, browse_for what)
 
 void browse_gave_up(browse_for what) {
     /* back to whatever put it up */
-    E.panel = what == BROWSE_DEST ? PANEL_DEST : (E.add_step == ADD_HERE ? PANEL_ADD : PANEL_TITLE);
+    if (what == BROWSE_DEST)
+        E.panel = PANEL_DEST;
+    else if (what == BROWSE_PICTURE) /* always the form, whatever an add was doing */
+        E.panel = PANEL_TITLE;
+    else
+        E.panel = E.add_step == ADD_HERE ? PANEL_ADD : PANEL_TITLE;
+}
+
+/* A picture that was looked up rather than typed.  The hash goes in beside
+ * the address exactly as it would for one somebody pasted: what the machine
+ * fetched is what it hashed, so the catalogue says what it means. */
+void artfind_took(const char *url, const char *sha256) {
+    snprintf(E.work.artwork.url, sizeof E.work.artwork.url, "%s", url);
+    snprintf(E.work.artwork.sha256, sizeof E.work.artwork.sha256, "%s", sha256);
+    E.work.artwork.size = 0; /* artwork does not say, and never has */
+    E.fault[0] = 0;
+}
+
+void artfind_gave_up(void) {
+    /* The form was never taken down; there is nothing to put back. */
+}
+
+void artfind_wants_file(void) {
+    browse_archive("", BROWSE_PICTURE);
 }
 
 /* The two ways in. */
@@ -955,7 +1029,7 @@ static void add_take(int way) {
     if (way == ADD_FROM_ZIP) {
         E.add_zip[0] = 0;
         E.add_step = ADD_ZIP;
-        browse_archive(E.add_zip);
+        browse_archive(E.add_zip, BROWSE_ARCHIVE);
     } else {
         char root[8];
         snprintf(root, sizeof root, "%c:\\", cat_default_drive());
@@ -1044,8 +1118,15 @@ static void form_key(int sc, int shift) {
     case SDL_SCANCODE_RETURN:
     case SDL_SCANCODE_KP_ENTER:
         if (f && f->browse) {
-            browse_programs(E.add_root[0] ? E.add_root : E.add_dir,
-                            f->text == E.work.setup ? BROWSE_SETUP : BROWSE_RUN);
+            if (f->text == E.work.artwork.url) {
+                /* It is looked up by name, so there has to be one. */
+                if (!E.work.name[0])
+                    snprintf(E.fault, sizeof E.fault, "give it a name first, to look one up by");
+                else
+                    artfind_open(E.work.name, cat_pref_dir());
+            } else
+                browse_programs(E.add_root[0] ? E.add_root : E.add_dir,
+                                f->text == E.work.setup ? BROWSE_SETUP : BROWSE_RUN);
             return;
         }
         if (f && f->kind == FLD_CHOICE) {
@@ -1061,6 +1142,11 @@ static void form_key(int sc, int shift) {
                 f->text[n - 1] = 0;
             E.fault[0] = 0;
         }
+        return;
+    case SDL_SCANCODE_F3:
+        /* the other way to answer the artwork field: a file, not a lookup */
+        if (f && f->browse && f->text == E.work.artwork.url)
+            browse_archive("", BROWSE_PICTURE);
         return;
     case SDL_SCANCODE_F10:
         if (E.panel == PANEL_SHELF)
@@ -1095,6 +1181,10 @@ static void form_key(int sc, int shift) {
 void edit_key(int sc, int shift) {
     if (browse_open()) { /* it is over everything, and answers first */
         browse_key(sc, shift);
+        return;
+    }
+    if (artfind_up()) {
+        artfind_key(sc, shift);
         return;
     }
     switch (E.panel) {
@@ -1159,6 +1249,10 @@ void edit_click(int mx, int my) {
         browse_click(browse_hit(mx, my));
         return;
     }
+    if (artfind_up()) {
+        artfind_click(artfind_hit(mx, my));
+        return;
+    }
     int what = hit_at(mx, my);
     if (what < 0) {
         if (E.panel == PANEL_MENU)
@@ -1214,7 +1308,12 @@ void edit_click(int mx, int my) {
         } else if (row_stops(row)) {
             field *f = &E.f[row];
             E.row = row;
-            if (f->browse)
+            if (f->browse && f->text == E.work.artwork.url) {
+                if (E.work.name[0])
+                    artfind_open(E.work.name, cat_pref_dir());
+                else
+                    snprintf(E.fault, sizeof E.fault, "give it a name first, to look one up by");
+            } else if (f->browse)
                 browse_programs(E.add_root[0] ? E.add_root : E.add_dir,
                                 f->text == E.work.setup ? BROWSE_SETUP : BROWSE_RUN);
             else if (f->kind == FLD_CHOICE) {
@@ -1300,6 +1399,8 @@ static void draw_field(const field *f, int y, int on, int caret) {
     int tw = 0;
     if (*s)
         tw = cv_text(E_VALUE_X, y + 1, s, on ? G_WHITE : G_TEXT, -1);
+    else if (f->empty) /* nothing typed, but something there all the same */
+        cv_text(E_VALUE_X, y + 1, f->empty, on ? G_TEXT : G_TEXT2, -1);
     else if (f->hint && on)
         cv_text(E_VALUE_X, y + 1, f->hint, G_OFF, -1);
     if (on && caret)
@@ -1687,12 +1788,16 @@ static void draw_ask(void) {
 }
 
 void edit_draw(void) {
-    if (E.panel == PANEL_NONE && !browse_open())
+    if (E.panel == PANEL_NONE && !browse_open() && !artfind_up())
         return;
     E.nhit = 0;
     cv_scrim(0, 0, SCR_W, SCR_H, 2, 0); /* everything behind it goes quiet */
     if (browse_open()) {                /* over whatever sent it */
         browse_draw();
+        return;
+    }
+    if (artfind_up()) {
+        artfind_draw();
         return;
     }
     switch (E.panel) {

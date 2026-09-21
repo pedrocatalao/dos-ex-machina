@@ -251,17 +251,18 @@ static void open_at(int mode, browse_for what, const char *start) {
     list_folder(start, NULL);
 }
 
-void browse_archive(const char *start) {
+void browse_archive(const char *start, browse_for what) {
     /* where the field already points, if it points anywhere; otherwise the
-     * folder a browser would have put the archive in */
+     * folder the thing being looked for is usually kept in */
     char at[B_PATH] = "";
     if (!start || !start[0] || !dos_up(start, at, sizeof at)) {
-        const char *dl = SDL_GetUserFolder(SDL_FOLDER_DOWNLOADS);
+        const char *dl =
+            SDL_GetUserFolder(what == BROWSE_PICTURE ? SDL_FOLDER_PICTURES : SDL_FOLDER_DOWNLOADS);
         if (!dl)
             dl = SDL_GetUserFolder(SDL_FOLDER_HOME);
         snprintf(at, sizeof at, "%s", dl ? dl : "/");
     }
-    open_at(B_HOST, BROWSE_ARCHIVE, at);
+    open_at(B_HOST, what, at);
 }
 
 void browse_drive(const char *start, browse_for what) {
@@ -371,7 +372,7 @@ static void take_row(void) {
     char path[1400];
     snprintf(path, sizeof path, "%s%s", B.at, e->name);
     B.up = 0;
-    browse_took_archive(path);
+    browse_took_archive(path, B.what);
 }
 
 /* ---- the keys ----------------------------------------------------------- */
@@ -474,6 +475,8 @@ static const char *heading(void) {
     switch (B.what) {
     case BROWSE_ARCHIVE:
         return "Find the archive";
+    case BROWSE_PICTURE:
+        return "Find the picture";
     case BROWSE_DEST:
         return "Where to put it";
     case BROWSE_RUN:

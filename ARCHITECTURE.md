@@ -80,7 +80,13 @@ dos-ex-machina/
 │   │   ├── gui.c           its look - the ground, wells, tabs, filters, scrollbars, hints
 │   │   ├── plate.c         the EGA plate and the category marks, drawn not stored, for
 │   │   │                   a title with no artwork
-│   │   ├── art.c           artwork fetched, cached, fitted and quantised as a set
+│   │   ├── art.c           artwork fetched, cached, fitted and quantised as a set; one
+│   │   │                   chosen off this computer is copied in and kept by its hash,
+│   │   │                   so the catalogue holds no path
+│   │   ├── artfind.c/.h    looking a picture up on archive.org for a title that has
+│   │   │                   none, which is most of them in a catalogue of your own
+│   │   │                   disk; proposes, never takes - the picture is shown at the
+│   │   │                   size it will be shown at before it can be accepted
 │   │   ├── install.c       download, check, unpack, find the title, put it on the drive
 │   │   ├── net.c/.h        libcurl: the only file that talks to the network
 │   │   ├── unzip.c/.h      zlib and a walk of the archive; refuses paths that escape

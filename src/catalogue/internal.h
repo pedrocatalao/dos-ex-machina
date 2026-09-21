@@ -52,6 +52,17 @@ void art_offline(int on);
  * on a later call.  Returns 1 when the picture or the palette changed since
  * the last call, so the caller knows to look again. */
 int art_want(const shelf *s, const cat_title *t);
+/* A file to show instead of any title's, for as long as something is being
+ * chosen: the picture box is the only honest place to judge a picture, so
+ * artfind.c puts a candidate in it.  NULL gives the box back to art_want.
+ * Returns 1 when what is on screen changed. */
+int art_preview(const char *path);
+/* A picture chosen off this computer.  It is copied into the machine's own
+ * artwork folder and known by its hash from then on, so a catalogue records
+ * the hash and no address: it never carries a path off somebody's disk, and
+ * a machine that has not got the file shows the plate instead.  Refuses
+ * anything that will not open as a picture, saying why in `err`. */
+int art_adopt(const char *host_path, char sha[65], char *err, size_t n);
 const art_img *art_picture(void); /* w is 0 when there is none to show */
 const uint8_t *art_palette(void); /* ART_COLOURS RGB triples */
 

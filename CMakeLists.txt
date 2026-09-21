@@ -46,6 +46,7 @@ add_executable(dxm
     src/catalogue/catalogue.c src/catalogue/net.c src/catalogue/unzip.c src/catalogue/sha256.c
     src/catalogue/art.c src/catalogue/install.c src/catalogue/screen.c src/catalogue/gui.c
     src/catalogue/plate.c src/catalogue/edit.c src/catalogue/where.c src/catalogue/dosname.c src/catalogue/browse.c
+    src/catalogue/artfind.c
     ${DXM_WIN_RC})
 # The catalogues travel beside the program, as the core does (SPEC §8.2):
 # copied next to the binary here, and into the package by each platform's

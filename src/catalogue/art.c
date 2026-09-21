@@ -27,6 +27,7 @@
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_PNG
+#define STBI_ONLY_GIF /* what archive.org keeps a DOS screenshot as */
 #define STBI_NO_STDIO
 #define STBI_NO_LINEAR
 #define STBI_NO_HDR
@@ -57,6 +58,13 @@ static const char *ext_of(const char *url) {
  * title's picture then names a file the cache has not got, and the new one
  * is fetched, rather than the old one being shown for ever. */
 static void cache_path(const shelf *s, const cat_title *t, char *out, size_t n) {
+    /* A picture that came off this computer has no address, only a hash,
+     * and lives by it: shared between whatever titles chose the same file,
+     * and undisturbed when a title is renamed or put in another category. */
+    if (!t->artwork.url[0] && t->artwork.sha256[0]) {
+        snprintf(out, n, "%sartwork/.local/%s.img", pref, t->artwork.sha256);
+        return;
+    }
     char tag[10] = "";
     if (t->artwork.sha256[0])
         snprintf(tag, sizeof tag, "-%.8s", t->artwork.sha256);
@@ -236,6 +244,62 @@ static int fit_file(const char *path, int box_w, int box_h, fitted *out) {
     return 1;
 }
 
+/* ---- a picture chosen off this computer --------------------------------- */
+
+int art_adopt(const char *host_path, char sha[65], char *err, size_t n) {
+    FILE *f = fopen(host_path, "rb");
+    if (!f) {
+        snprintf(err, n, "that file will not open");
+        return 0;
+    }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = (sz > 0 && sz < 16L * 1024 * 1024) ? malloc((size_t)sz) : NULL;
+    int read_ok = buf && fread(buf, 1, (size_t)sz, f) == (size_t)sz;
+    fclose(f);
+    if (!read_ok) {
+        free(buf);
+        snprintf(err, n, "%s",
+                 sz >= 16L * 1024 * 1024 ? "that file is too big to be a picture"
+                                         : "that file will not read");
+        return 0;
+    }
+    /* Asked before it is kept rather than after: a file that turns out not
+     * to be a picture should be refused where somebody can still pick
+     * another, not silently leave an empty box on the catalogue screen. */
+    int w, h, comp;
+    if (!stbi_info_from_memory(buf, (int)sz, &w, &h, &comp)) {
+        free(buf);
+        snprintf(err, n, "that is not a picture the machine can open");
+        return 0;
+    }
+    sha256 c;
+    sha256_init(&c);
+    sha256_update(&c, buf, (size_t)sz);
+    sha256_final(&c, sha);
+
+    char dir[1100], path[1400];
+    snprintf(dir, sizeof dir, "%sartwork/.local", pref);
+    SDL_CreateDirectory(dir);
+    snprintf(path, sizeof path, "%s/%s.img", dir, sha);
+    if (!exists(path)) { /* the same picture twice is the same file */
+        FILE *o = fopen(path, "wb");
+        int wrote = o && fwrite(buf, 1, (size_t)sz, o) == (size_t)sz;
+        if (o)
+            fclose(o);
+        if (!wrote) {
+            remove(path);
+            free(buf);
+            snprintf(err, n, "the picture could not be kept");
+            return 0;
+        }
+    }
+    free(buf);
+    dxm_log("catalog: took %s as artwork, %dx%d", host_path, w, h);
+    return 1;
+}
+
 /* ---- the picture on screen, and its palette ----------------------------- */
 
 #define CELLS (32 * 32 * 32)
@@ -382,11 +446,15 @@ static void refit(void) {
 static int slot(int n, const shelf *s, const cat_title *t, int box_w, int box_h) {
     char key[CAT_ID * 2 + 8] = "";
     char path[1400] = "";
-    if (t && t->artwork.url[0] && !offline) {
+    if (t && (t->artwork.url[0] || t->artwork.sha256[0]) && !offline) {
         snprintf(key, sizeof key, "%s/%s/%s", s->cat.id, t->category, t->id);
         cache_path(s, t, path, sizeof path);
         if (!exists(path)) {
-            fetch(s, t, path);
+            /* One with only a hash is one this machine either has or has
+             * not: there is nowhere to fetch it from, and the plate stands
+             * in - which is what somebody else's machine will show. */
+            if (t->artwork.url[0])
+                fetch(s, t, path);
             key[0] = 0; /* nothing to show for it yet */
         }
     }
@@ -400,7 +468,35 @@ static int slot(int n, const shelf *s, const cat_title *t, int box_w, int box_h)
     return 1;
 }
 
+/* Something being judged, rather than a title's own.  It is held by path
+ * because it has no title yet: it is a file that arrived a moment ago and
+ * may never be taken. */
+static char preview[1400];
+
+int art_preview(const char *path) {
+    if (!path || !path[0]) {
+        if (!preview[0])
+            return 0;
+        preview[0] = 0;
+    } else {
+        if (!strcmp(preview, path))
+            return 0;
+        snprintf(preview, sizeof preview, "%s", path);
+    }
+    free(A.img[0].rgb);
+    memset(&A.img[0], 0, sizeof A.img[0]);
+    /* The key is cleared either way, so that giving the box back makes
+     * art_want fit the chosen title again rather than see no change. */
+    A.key[0][0] = 0;
+    if (preview[0] && fit_file(preview, ART_W, ART_H, &A.img[0]))
+        snprintf(A.key[0], sizeof A.key[0], "*");
+    refit();
+    return 1;
+}
+
 int art_want(const shelf *s, const cat_title *t) {
+    if (preview[0])
+        return 0; /* whoever is choosing one owns the box */
     int changed = F.arrived;
     F.arrived = 0;
     if (changed) /* whatever landed: look at every slot again */

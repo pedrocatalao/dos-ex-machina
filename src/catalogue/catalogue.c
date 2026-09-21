@@ -271,12 +271,15 @@ const char *cat_title_fault(const cat_title *t, int holds) {
         if (t->download.size <= 0)
             return "download.size missing";
     }
-    if (t->artwork.url[0]) {
-        if (strncmp(t->artwork.url, "https://", 8) && strncmp(t->artwork.url, "http://", 7))
-            return "artwork.url is not http(s)";
-        if (t->artwork.sha256[0] && !hex64(t->artwork.sha256))
-            return "artwork.sha256 is not 64 hex digits";
-    }
+    /* Artwork may be an address, or a hash with no address at all: a
+     * picture chosen off the machine's own disk has nowhere to be fetched
+     * from and is known by its content.  So the hash is checked either
+     * way, and the address only when there is one. */
+    if (t->artwork.url[0] && strncmp(t->artwork.url, "https://", 8) &&
+        strncmp(t->artwork.url, "http://", 7))
+        return "artwork.url is not http(s)";
+    if (t->artwork.sha256[0] && !hex64(t->artwork.sha256))
+        return "artwork.sha256 is not 64 hex digits";
     return NULL;
 }
 
@@ -513,7 +516,9 @@ static void w_words(FILE *f, int *first, int indent, const char *key,
 
 static void w_file(FILE *f, int *first, int indent, const char *key, const cat_file *file,
                    int with_size) {
-    if (!file->url[0])
+    /* A hash on its own is a whole file object: artwork taken off this
+     * machine's disk has one and no address (§8.5). */
+    if (!file->url[0] && !file->sha256[0])
         return;
     w_field(f, first, indent, key);
     fputs("{", f);

@@ -710,6 +710,32 @@ before files, `<DIR>` where a size would go, and a letter typed jumping to
 the next name that starts with it. No dialog of the host's ever appears - it
 would be the one moment in the whole program that admits there is a host.
 
+**A picture can be looked up rather than typed.** Whoever lists what is
+already on their own disk will hardly ever have artwork for it to hand, so
+ENTER on the Artwork field of a disk title asks archive.org for MS-DOS items
+of that name - `collection:softwarelibrary_msdos`, so the platform is a
+condition of the search and not a word in it. What such an item holds is a
+screenshot taken from the game running, which belongs on this machine in a
+way a photograph of a box does not. Nothing is taken automatically: matching
+on a name alone is right most of the time and confidently wrong the rest, so
+the candidates are listed, the one under the cursor has its picture fetched
+and shown at the size it will be shown at later, and ENTER is refused until
+there is something on screen to judge. What is accepted goes into the title
+as an address and the hash of what arrived, exactly as a picture somebody
+pasted would.
+
+**Or a picture off this computer**, with F3 - on the field, or from inside
+the lookup when none of what it found is right. It opens the same browser
+as everything else, starting in the pictures folder. The file is copied into
+the machine's own artwork folder and recorded in the catalogue as a hash
+with *no address at all*: a catalogue carries no path off anybody's disk
+(§8.5), so what passes to somebody else is the hash, and a machine without
+that file shows the plate. Two titles that choose the same picture share the
+one copy, and renaming a title or moving it to another category does not
+disturb it. Anything that will not open as a picture is refused on the
+field, where another can still be chosen, rather than leaving an empty box
+on the catalogue screen later.
+
 Nothing is saved that the reader would not have accepted: the rules are the
 ones a title from a file is held to (§8.2), and the form says which one is
 unmet rather than refusing silently. A path is refused if DOS could not

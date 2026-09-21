@@ -21,6 +21,7 @@
  * one callback can serve two questions of the same shape. */
 typedef enum {
     BROWSE_ARCHIVE, /* a file on this computer */
+    BROWSE_PICTURE, /* a picture on this computer */
     BROWSE_FOLDER,  /* a folder on a drive, and what is in it */
     BROWSE_DEST,    /* a folder on a drive to put something in */
     BROWSE_RUN,     /* which program a title starts */
@@ -30,7 +31,7 @@ typedef enum {
 /* Open it.  `start` is where to begin: a folder on this computer, a DOS
  * path, or the folder whose programs are to be listed.  An empty or
  * unreachable start falls back to somewhere sensible. */
-void browse_archive(const char *start);
+void browse_archive(const char *start, browse_for what);
 void browse_drive(const char *start, browse_for what);
 void browse_programs(const char *dos_dir, browse_for what);
 void browse_close(void);
@@ -45,7 +46,7 @@ void browse_draw(void);       /* which also lays out what can be hit */
 /* ---- what it hands back, which the caller implements ------------------- */
 
 /* A file on this computer, as a host path. */
-void browse_took_archive(const char *host_path);
+void browse_took_archive(const char *host_path, browse_for what);
 /* A folder on a drive, as a DOS path without its trailing separator.  For
  * BROWSE_FOLDER `program` is the one that was chosen inside it, or NULL if
  * the folder itself was taken; for BROWSE_DEST it is always NULL. */

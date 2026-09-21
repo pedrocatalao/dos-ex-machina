@@ -118,6 +118,9 @@ int main(void) {
         {"download", "{ \"url\": \"https://x\", \"sha256\": \"" SHA "\" }"},
         {"video", "\"HERCULES\""},
         {"artwork", "{ \"url\": \"x.png\" }"},
+        /* a hash is checked whether or not an address came with it */
+        {"artwork", "{ \"sha256\": \"abc\" }"},
+        {"artwork", "{ \"url\": \"https://x/a.png\", \"sha256\": \"abc\" }"},
         {"archive", "\"../OMF21.EXE\""},
         {"archive", "\"/OMF21.EXE\""},
         {"archive", "\"C:OMF21.EXE\""},
@@ -130,6 +133,25 @@ int main(void) {
                     faults[i][1] ? faults[i][1] : "(absent)", n, c.n_notes);
         CHECK(n == 0);
         CHECK(c.n_notes == 1);
+    }
+
+    /* Artwork chosen off this machine's own disk: a hash and no address at
+     * all, because there is nowhere to fetch it from.  It has to survive
+     * being written back out, since that is how an edited catalogue is
+     * kept - a writer that insisted on an address would drop the picture
+     * every time the title was touched. */
+    {
+        static cat_catalogue back;
+        const char *at = TEST_TMP "/artwork-hash.cat";
+        CHECK(parse_one(&c, "artwork", "{ \"sha256\": \"" SHA "\" }") == 1);
+        CHECK(c.titles[0].artwork.url[0] == 0);
+        CHECK_STR(c.titles[0].artwork.sha256, SHA);
+
+        CHECK(cat_write(&c, at) == 0);
+        CHECK(cat_read(&back, at) == 1);
+        CHECK(back.titles[0].artwork.url[0] == 0);
+        CHECK_STR(back.titles[0].artwork.sha256, SHA);
+        remove(at);
     }
 
     /* an installer's archive, named inside the download */
