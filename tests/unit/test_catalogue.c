@@ -47,8 +47,8 @@ static void title(char *out, size_t n, const char *replace_key, const char *with
     snprintf(out + k, n - k, "}");
 }
 
-/* where a catalogue goes, without which it is not one */
-#define HEAD "\"id\": \"TEST\", \"drive\": \"D\", \"origin\": \"bundled\","
+/* what a catalogue is, without which it is not one */
+#define HEAD "\"id\": \"TEST\", \"origin\": \"bundled\","
 
 static int parse_one(cat_catalogue *c, const char *replace_key, const char *with) {
     char t[2048], json[2400];
@@ -60,22 +60,25 @@ static int parse_one(cat_catalogue *c, const char *replace_key, const char *with
 int main(void) {
     cat_catalogue c;
 
-    /* the repo's own catalogues read, and say where they go */
+    /* the repo's own catalogues read, and say what they are */
     {
         const struct {
             const char *file, *id;
-            char drive;
-        } own[] = {{"freeware.cat", "FREEWARE", 'C'}, {"shareware.cat", "SHAREWAR", 'D'}};
+        } own[] = {{"freeware.cat", "FREEWARE"}, {"shareware.cat", "SHAREWAR"}};
         for (size_t i = 0; i < sizeof own / sizeof own[0]; i++) {
             char path[512];
             snprintf(path, sizeof path, TEST_REPO "/catalogues/%s", own[i].file);
             CHECK(cat_read(&c, path) >= 0);
             CHECK(c.n_notes == 0);
             CHECK_STR(c.id, own[i].id);
-            CHECK(c.drive == own[i].drive);
+            CHECK(c.holds == CAT_INTERNET); /* said nothing, which is what that means */
             CHECK(c.community == 0);
-            for (int k = 0; k < c.n; k++)
+            for (int k = 0; k < c.n; k++) {
                 CHECK(cat_category_ok(c.titles[k].category));
+                /* every part of a title's path has to be a name DOS holds */
+                CHECK(strlen(c.titles[k].category) <= 8);
+                CHECK(cat_id_ok(c.titles[k].id));
+            }
         }
     }
 
@@ -164,13 +167,12 @@ int main(void) {
     /* where it goes: each of these is not a catalogue the machine can put anywhere */
     {
         const char *heads[] = {
-            "\"drive\": \"D\", \"origin\": \"bundled\",",                    /* no id */
-            "\"id\": \"lower\", \"drive\": \"D\", \"origin\": \"bundled\",", /* not a DOS name */
-            "\"id\": \"T\", \"origin\": \"bundled\",",                       /* no drive */
-            "\"id\": \"T\", \"drive\": \"A\", \"origin\": \"bundled\",",     /* a floppy */
-            "\"id\": \"T\", \"drive\": \"DE\", \"origin\": \"bundled\",",    /* two letters */
-            "\"id\": \"T\", \"drive\": \"D\",",                              /* no origin */
-            "\"id\": \"T\", \"drive\": \"D\", \"origin\": \"mine\",",        /* not an origin */
+            "\"origin\": \"bundled\",",                        /* no id */
+            "\"id\": \"lower\", \"origin\": \"bundled\",",     /* not a DOS name */
+            "\"id\": \"TOOLONGID\", \"origin\": \"bundled\",", /* longer than DOS holds */
+            "\"id\": \"T\",",                                  /* no origin */
+            "\"id\": \"T\", \"origin\": \"mine\",",            /* not an origin */
+            "\"id\": \"T\", \"origin\": \"bundled\", \"holds\": \"both\",", /* not a kind */
         };
         for (size_t i = 0; i < sizeof heads / sizeof heads[0]; i++) {
             char json[400];
@@ -178,9 +180,32 @@ int main(void) {
             CHECK(cat_parse(&c, json) == -1);
             CHECK(c.n_notes == 1);
         }
-        CHECK(cat_parse(&c, "{\"format\": 1, \"id\": \"T\", \"drive\": \"E\", "
+        CHECK(cat_parse(&c, "{\"format\": 1, \"id\": \"T\", \"holds\": \"disk\", "
                             "\"origin\": \"community\", \"titles\": []}") == 0);
-        CHECK(c.drive == 'E' && c.community == 1);
+        CHECK(c.holds == CAT_DISK && c.community == 1);
+        CHECK_STR(c.name, "T"); /* no name of its own: labelled with its id */
+    }
+
+    /* what each kind of catalogue will and will not hold */
+    {
+/* a whole catalogue of the other kind, round one title */
+#define DISK_HEAD                                                                                  \
+    "{\"format\": 1, \"id\": \"MINE\", \"name\": \"Mine\", "                                       \
+    "\"origin\": \"community\", \"holds\": \"disk\", \"titles\": ["
+        char json[2400], t[2048];
+        /* a title with nothing to fetch belongs in a disk catalogue */
+        title(t, sizeof t, "download", NULL);
+        snprintf(json, sizeof json, DISK_HEAD "%s]}", t);
+        CHECK(cat_parse(&c, json) == 1);
+        CHECK(c.titles[0].download.url[0] == 0);
+        /* and the same title is not one an internet catalogue can hold */
+        CHECK(parse_one(&c, "download", NULL) == 0);
+        CHECK(c.n_notes == 1);
+        /* a download in a disk catalogue is turned away, not quietly kept */
+        title(t, sizeof t, NULL, NULL);
+        snprintf(json, sizeof json, DISK_HEAD "%s]}", t);
+        CHECK(cat_parse(&c, json) == 0);
+        CHECK(c.n_notes == 1);
     }
 
     /* the names */

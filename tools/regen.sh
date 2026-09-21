@@ -25,14 +25,13 @@ $PY tools/mksplash.py assets/splash-src.png dxm_splash "$out/splash.c" "$out/spl
 $PY tools/mkfont.py   assets/cp437-8x16.fnt.uu dxm_font16 "$out/font16.h"
 $PY tools/mklogo.py  assets/horizon-sticker.png dxm_horizon "$out/horizon.h"
 $PY tools/mkbanners.py "$out/banners.c" "$out/banners.h" assets/banners/*.jpg
-$PY tools/mkbdf.py   assets/fonts/helvR14.bdf dxm_ui  "$out/uifont.h"      >/dev/null
 $PY tools/mkbdf.py   assets/fonts/helvB14.bdf dxm_uib "$out/uifont_bold.h" >/dev/null
 $PY tools/mkbdf.py   assets/fonts/helvR12.bdf dxm_uis "$out/uifont_small.h" >/dev/null
 
 if [ "$mode" = "--check" ]; then
     rc=0
     for f in mark.h splash.c splash.h font16.h horizon.h banners.c banners.h \
-             uifont.h uifont_bold.h uifont_small.h; do
+             uifont_bold.h uifont_small.h; do
         if ! cmp -s "$out/$f" "src/gen/$f"; then
             echo "src/gen/$f is not what tools/regen.sh produces" >&2; rc=1
         fi
@@ -41,4 +40,4 @@ if [ "$mode" = "--check" ]; then
     exit $rc
 fi
 echo "src/gen: regenerated mark.h splash.c splash.h font16.h horizon.h banners.c" \
-     "banners.h uifont.h uifont_bold.h uifont_small.h"
+     "banners.h uifont_bold.h uifont_small.h"

@@ -273,11 +273,10 @@ int main(int argc, char **argv) {
     catalog_bind(SDL_GetBasePath(), a.pref, c_drive(&o, &a));
     catalog_fixed_clock(a.deterministic);
     catalog_load();
-    {
-        static char drives[2048];
-        catalog_drives(drives, sizeof drives);
-        dosbox_set_drives(drives); /* kept, so a restart mounts them again */
-    }
+    /* No drive but C:, which the core mounts itself from the folder the
+     * machine was given.  A catalogue no longer brings a drive with it, and
+     * the core's side of mounting others (DXM_ENV_DRIVES) is still there
+     * for SETUP to use when it offers it. */
     dos_init(th.mhz_stop, atoi(setup_memory()), a.deterministic);
     /* The DOS boots now, unseen, so it is at its prompt long before the
      * POST is done.  Without it there is no machine: say so and stop. */

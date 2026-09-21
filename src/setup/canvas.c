@@ -10,7 +10,6 @@
  * which is the only place colour actually happens. */
 #include "internal.h"
 #include "font.h"
-#include "gen/uifont.h"
 #include "gen/uifont_bold.h"
 #include "gen/uifont_small.h"
 #include <string.h>
@@ -108,6 +107,27 @@ void cv_frame(int x, int y, int w, int h, uint8_t colour) {
     cv_rect(x, y + h - 1, w, 1, colour);
     cv_rect(x, y, 1, h, colour);
     cv_rect(x + w - 1, y, 1, h, colour);
+}
+
+/* A shade a palette has not got, made the way the period made one: `colour`
+ * laid over what is there in an ordered pattern, so much of it per cell.
+ * The matrix is the 4x4 Bayer one every EGA program used, and `top` and
+ * `bottom` are how many of its sixteen cells are covered at the first row
+ * and the last, ramped between - which is a gradient, on a screen that
+ * cannot blend. */
+void cv_dither(int x, int y, int w, int h, uint8_t colour, int top, int bottom) {
+    static const uint8_t BAYER[4][4] = {
+        {0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+    if (h < 1 || w < 1)
+        return;
+    for (int j = 0; j < h; j++) {
+        int level = h > 1 ? top + (bottom - top) * j / (h - 1) : top;
+        if (level <= 0)
+            continue;
+        for (int i = 0; i < w; i++)
+            if (BAYER[(y + j) & 3][(x + i) & 3] < level)
+                put(x + i, y + j, colour);
+    }
 }
 
 /* A panel you can see through: the pixels are knocked out to black in an
@@ -211,16 +231,24 @@ static void glyph(const dxm_glyph *g, const uint8_t *bits, int pen, int base, ui
  * speaks from.  Returns how far the pen moved, so a caller can put the next
  * word after it without counting cells.  `track` is extra space after every
  * character, for capitals set wide. */
-/* The faces, by the number the calls below take: Helvetica 14, its bold,
- * and Helvetica 12 for labels and small controls.  All three cover the
- * same printable range. */
+/* The faces, by the number the calls below take: Helvetica Bold 14 for the
+ * body and again for a heading, and Helvetica 12 for labels and small
+ * controls.  Both cover the same printable range.
+ *
+ * The body is set in the bold because at fourteen pixels the regular's
+ * stems are one pixel wide, and one pixel does not survive the tube: the
+ * beam spreads it and the text goes grey.  Adobe's bold at this size is
+ * the same letterforms with two-pixel stems and, to the pixel, the same
+ * advances, so nothing on the screen moved when it took over.  Weight is
+ * therefore no longer what marks a heading out - colour is, which is how
+ * every heading here was already drawn. */
 static const struct {
     const dxm_glyph *glyphs;
     const uint8_t *bits;
     int ascent;
 } FACE[] = {
-    {dxm_ui_glyphs, dxm_ui_bits, DXM_UI_ASCENT},
-    {dxm_uib_glyphs, dxm_uib_bits, DXM_UI_ASCENT},
+    {dxm_uib_glyphs, dxm_uib_bits, DXM_UIB_ASCENT},
+    {dxm_uib_glyphs, dxm_uib_bits, DXM_UIB_ASCENT},
     {dxm_uis_glyphs, dxm_uis_bits, DXM_UIS_ASCENT},
 };
 
@@ -233,8 +261,8 @@ static int text(int x, int y, const char *s, uint8_t fg, int bg, int bold, int s
     int pen = x, base = y + FACE[bold].ascent * scale;
     for (int n = 0; s[n]; n++) {
         unsigned char c = (unsigned char)s[n];
-        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST) {
-            const dxm_glyph *g = &G[c - DXM_UI_FIRST];
+        if (c >= DXM_UIB_FIRST && c <= DXM_UIB_LAST) {
+            const dxm_glyph *g = &G[c - DXM_UIB_FIRST];
             if (bg >= 0)
                 cv_rect(pen, y, g->adv * scale + track, CV_LINE * scale, (uint8_t)bg);
             glyph(g, B, pen, base, fg, scale, slant);
@@ -271,8 +299,8 @@ int cv_width_ex(const char *s, int bold, int scale, int track) {
     int w = 0;
     for (int n = 0; s[n]; n++) {
         unsigned char c = (unsigned char)s[n];
-        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
-            w += G[c - DXM_UI_FIRST].adv * scale + track;
+        if (c >= DXM_UIB_FIRST && c <= DXM_UIB_LAST)
+            w += G[c - DXM_UIB_FIRST].adv * scale + track;
         else {
             int x0, x1;
             ink(font_glyph16(c), &x0, &x1);
@@ -367,8 +395,8 @@ int cv_width(const char *s) {
     int w = 0;
     for (int n = 0; s[n]; n++) {
         unsigned char c = (unsigned char)s[n];
-        if (c >= DXM_UI_FIRST && c <= DXM_UI_LAST)
-            w += dxm_ui_glyphs[c - DXM_UI_FIRST].adv;
+        if (c >= DXM_UIB_FIRST && c <= DXM_UIB_LAST)
+            w += dxm_uib_glyphs[c - DXM_UIB_FIRST].adv;
         else {
             int x0, x1;
             ink(font_glyph16(c), &x0, &x1);

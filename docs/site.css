@@ -433,6 +433,11 @@ footer p { max-width: 62ch; }
 .chapter h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 .prose { font: 400 1.09rem/1.68 var(--serif); }
 .prose p { max-width: 66ch; }
+/* a shelf inside a chapter: set apart by its rule and its space, and left
+   unnumbered - the numbers belong to the chapters */
+.prose h3 { font-size: 1.2rem; margin: 2.2em 0 0.9em; padding-top: 0.9em; max-width: 66ch;
+            border-top: 1px solid var(--rule-soft); }
+.prose h3:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .prose p + p, .prose ul + p, .prose .tablewrap + p, .prose figure + p { margin-top: 1em; }
 .prose strong { font-family: var(--text); font-weight: 600; font-size: 0.97em; letter-spacing: 0.005em; }
 .prose ul { margin: 1em 0 0; padding: 0; list-style: none; max-width: 66ch; display: grid; gap: 0.7em; }

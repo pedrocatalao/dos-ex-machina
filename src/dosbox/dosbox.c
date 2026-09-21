@@ -146,10 +146,12 @@ void dosbox_set_option(const char *key, const char *value) {
 #define DXM_ENV_CPU (RETRO_ENVIRONMENT_PRIVATE | 9)
 #define DXM_ENV_TEXT (RETRO_ENVIRONMENT_PRIVATE | 10)
 /* the drives besides C:, as the core wants them: "D=LABEL=/folder/" a line */
-static char g_drives[2048];
-void dosbox_set_drives(const char *list) {
-    snprintf(g_drives, sizeof g_drives, "%s", list ? list : "");
-}
+/* The drives besides C:, as LETTER=LABEL=folder lines.  Nothing fills this
+ * in: a catalogue no longer brings a drive with it (SPEC 8.1) and SETUP
+ * does not yet offer to mount a folder as a letter, so the core is handed
+ * an empty list and mounts nothing.  Its side of it stays, so that when
+ * SETUP does offer it there is only this to write. */
+static const char *g_drives = "";
 static char g_midi[16] = "auto";
 /* where SETUP says the boot ends up: 0 the prompt, 1 the catalogue */
 static int g_boot_cat;

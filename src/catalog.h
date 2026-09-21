@@ -13,13 +13,11 @@
 #include <stdint.h>
 
 /* Where things are: the catalogue files beside the program, the
- * preferences directory (artwork cache, downloads), and the C: folder,
- * which is where a catalogue mounted on C: installs to. */
+ * preferences directory (artwork, downloads, and the note of where each
+ * title ended up), and the folder that is C:, which is the only drive the
+ * machine mounts. */
 void catalog_bind(const char *base_dir, const char *pref_dir, const char *c_drive);
 void catalog_load(void); /* read the list and every catalogue in it */
-/* The catalogues that are drives of their own, as dosbox_set_drives()
- * wants them; the one on C: is the machine's own drive and not listed. */
-void catalog_drives(char *out, size_t n);
 void catalog_fixed_clock(int fixed);
 
 void catalog_open(void);

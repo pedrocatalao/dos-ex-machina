@@ -104,6 +104,11 @@ void cv_banner(int which); /* the artwork at the top, and its palette */
 void cv_banner_slats(const banner *from, const banner *to, float shut, int slats);
 void cv_rect(int x, int y, int w, int h, uint8_t colour);
 void cv_frame(int x, int y, int w, int h, uint8_t colour);
+/* `colour` laid over what is there through the 4x4 Bayer matrix: `top` of
+ * its sixteen cells covered at the first row and `bottom` at the last, so
+ * an even wash at one number and a gradient between two.  The only way to
+ * a shade an indexed screen has not got, and what EGA art was made of. */
+void cv_dither(int x, int y, int w, int h, uint8_t colour, int top, int bottom);
 /* Darken what is already there, leaving one pixel in `n` of it: the way a
  * program of the day made a panel you could see through, and the only way
  * on a canvas whose colours are indices and cannot be blended.  n=2 is a
@@ -125,9 +130,12 @@ int cv_width(const char *s); /* what it will take, without drawing it */
  * `scale`, sheared into an italic by `slant`, `track` pixels after each
  * character.  No background. */
 int cv_text_ex(int x, int y, const char *s, uint8_t fg, int bold, int scale, int slant, int track);
-/* `bold` above is really which face: 0 regular, 1 bold, CV_FACE_SMALL the
- * 12-pixel one.  cv_text_small sets that face on the same line as the
- * regular one - dropped so the two share a baseline when drawn at one y. */
+/* `bold` above is really which face: 0 the body, 1 a heading, CV_FACE_SMALL
+ * the 12-pixel one.  The first two are the same face now - the body is set
+ * in Helvetica's bold, since the regular's one-pixel stems do not survive
+ * the tube - and a heading is told apart by its colour, as it always was.
+ * cv_text_small sets the small face on the same line as the body, dropped
+ * so the two share a baseline when drawn at one y. */
 #define CV_FACE_SMALL 2
 #define CV_SMALL_DROP 2 /* the difference in ascent, 13 against 11 */
 int cv_text_small(int x, int y, const char *s, uint8_t fg);

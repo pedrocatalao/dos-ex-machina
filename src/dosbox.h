@@ -86,7 +86,6 @@ int dosbox_take_catalog_back(void);
 void dosbox_catalog_rescan(char drive);
 /* The drives besides C:, one "D=LABEL=/host/folder/" a line, mounted as
  * the core starts.  Set before dosbox_start(). */
-void dosbox_set_drives(const char *list);
 /* Seconds of drive the core's BIOS screen asked for, taken once. */
 double dosbox_take_floppy(void);
 

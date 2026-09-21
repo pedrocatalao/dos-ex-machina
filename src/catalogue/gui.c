@@ -5,8 +5,6 @@
  * the VGA sixteen and the artwork. */
 #include "internal.h"
 #include "setup/internal.h"
-#include "gen/splash.h"
-#include <stdlib.h>
 #include <string.h>
 
 /* the interface's colours, in the order of the enum */
@@ -33,6 +31,11 @@ void gui_init(void) {
 void gui_backdrop(void) {
     cv_clear(G_BG);
     gui_init();
+    /* The ground is not one even slab: a wash of the bar's grey over the
+     * top of it, dithered away as it comes down, so there is a light in the
+     * screen.  Two shades apart at its thickest - enough to feel and not
+     * enough to see. */
+    cv_dither(0, 0, SCR_W, SCR_H * 2 / 3, G_BAR, 3, 0);
 }
 
 void gui_well(int x, int y, int w, int h) {
@@ -79,66 +82,16 @@ void gui_scrollbar(int x, int y, int w, int h, float at, float shown) {
     cv_rect(x + 2, ty, w - 4, th, G_THUMB);
 }
 
-/* The machine's mark, for a title with no picture yet: the splash, fitted
- * to the space and quantised to sixteen greys just above the ground's own,
- * so it reads as a watermark.  Made once, on first use, into the
- * sixteen palette entries above the interface's. */
-#define G_MARK0 32
-static uint8_t *mark;
-static int mark_w, mark_h;
-
-static void make_mark(int w, int h) {
-    uint8_t *rgba = dxm_splash_rgba();
-    if (!rgba)
-        return;
-    mark_w = w;
-    mark_h = DXM_SPLASH_HT * w / DXM_SPLASH_W;
-    if (mark_h > h) {
-        mark_h = h;
-        mark_w = DXM_SPLASH_W * h / DXM_SPLASH_HT;
-    }
-    mark = malloc((size_t)mark_w * mark_h);
-    if (!mark) {
-        free(rgba);
-        return;
-    }
-    uint8_t levels[16 * 3];
-    for (int i = 0; i < 16; i++) {
-        int v = 40 + i * 48 / 15; /* from the ground's own grey up a little */
-        levels[i * 3] = (uint8_t)v;
-        levels[i * 3 + 1] = (uint8_t)v;
-        levels[i * 3 + 2] = (uint8_t)(v + 4);
-    }
-    cv_palette(G_MARK0, 16, levels);
-    for (int y = 0; y < mark_h; y++)
-        for (int x = 0; x < mark_w; x++) {
-            int y0 = y * DXM_SPLASH_HT / mark_h, y1 = (y + 1) * DXM_SPLASH_HT / mark_h;
-            int x0 = x * DXM_SPLASH_W / mark_w, x1 = (x + 1) * DXM_SPLASH_W / mark_w;
-            long sum = 0, n = 0;
-            for (int j = y0; j < y1; j++)
-                for (int i = x0; i < x1; i++) {
-                    const uint8_t *p = rgba + ((size_t)j * DXM_SPLASH_W + i) * 4;
-                    sum += (p[0] + p[1] + p[2]) / 3 * p[3] / 255;
-                    n++;
-                }
-            int v = n ? (int)(sum / n) : 0;
-            mark[y * mark_w + x] = (uint8_t)(v * 15 / 255);
-        }
-    free(rgba);
-}
-
-/* The picture on the ground itself, no well and no frame round it: the
- * artwork where there is some, the machine's mark where there is not. */
-void gui_picture(int x, int y, int w, int h, const art_img *img) {
+/* The picture: the artwork where a title has some, and where it has not -
+ * which is most of them - the plate CATALOG draws for itself, with the mark
+ * for the title's kind on it (plate.c). */
+void gui_picture(int x, int y, int w, int h, const art_img *img, const char *category) {
     if (img && img->w) {
         int ix = x + (w - img->w) / 2, iy = y + (h - img->h) / 2;
         cv_image(ix, iy, img->w, img->h, img->px, ART_FIRST);
         return;
     }
-    if (!mark)
-        make_mark(w - 40, h - 24);
-    if (mark)
-        cv_image(x + (w - mark_w) / 2, y + (h - mark_h) / 2, mark_w, mark_h, mark, G_MARK0);
+    plate_picture(x, y, w, h, category);
 }
 
 int gui_hint(int x, int y, const char *key, const char *what, int hover, int off) {

@@ -151,24 +151,91 @@ tube's in `crt.cfg`.
 
 ## CATALOG
 
-The shop: type `CATALOG` at the DOS prompt. The catalogues the machine ships
-with are drives - freeware on C:, shareware on D: - and each is a tab with
-its titles in a list. Just type to find one: the list narrows as you go.
+The shop: type `CATALOG` at the DOS prompt. Each catalogue is a tab with its
+titles in a list. Just type to find one: the list narrows as you go.
 
-- **Enter**, or a double-click, installs the chosen title - downloaded,
-  checked against the hash the catalogue names, unpacked into `\GAMES\<ID>`
-  or wherever its category says - or runs it once it is there.
+A catalogue is a list, not a drive. It owns no part of your disk and takes
+no drive letter; it says what a title *is*, and where each one ended up on
+this machine is kept separately, in `installed.cfg` in the preferences.
+
+- **Enter**, or a double-click, runs the chosen title once it is there, and
+  otherwise installs it. A title in a Disk catalogue that has not been
+  pointed at anything has nothing to install from, and says so. Installing
+  asks where first, with
+  `C:\DXM\<CATALOGUE>\<CATEGORY>\<ID>` filled in; Enter again accepts it,
+  or type somewhere else. The download is checked against the size and hash
+  the catalogue names before anything is unpacked.
 - **F2** runs the title's own setup program when it has one.
 - **F3** drops you at a DOS prompt in its directory; `EXIT` comes back.
+- **F8** opens the editor, below.
 - **Left** and **Right** change catalogue.
 - **Esc** clears the search, then leaves.
 
 The key hints along the foot do the same when clicked. Running, setting up
 and the prompt are errands: the catalogue is back as you left it when they
-return. Artwork is fetched as a title is looked at and kept in `artwork/` in
-the preferences, so the shelf works offline afterwards. Every title in the
-bundled catalogues is freeware or shareware from its author's own site; the
-machine carries none of it.
+return. A title with no artwork gets a plate the machine draws itself, with
+a mark on it for its category. Artwork that a catalogue does name is fetched
+as a title is looked at and kept in `artwork/` in the preferences, so the
+shelf works offline afterwards. Every title in the bundled catalogues is
+freeware or shareware from its author's own site; the machine carries none
+of it.
+
+### Putting your own things on a shelf
+
+**F8** opens a menu over the catalogue on screen: add a title, change the
+one under the cursor, say where it is, take it out, make a catalogue of your
+own, reset one, or delete one. Every removal asks first, and takes the title
+out of the *list* only — whatever it installed stays where it is.
+
+A catalogue you make says, once, what kind of titles it holds — and that is
+the whole of the difference between the two:
+
+| Titles come from | What is in it |
+|---|---|
+| Internet | Each title names an address and the sha256 it must turn out to be. The file means the same thing on any machine, so it is one you can pass on. |
+| Disk | Things already on this computer — unpacked from an archive you have, or a folder you point at. Where each one sits is this machine's business, so none of it goes in the file. |
+
+Adding to an **Internet** catalogue is a form: the address, the hash and the
+size are what such a title is.
+
+Adding to a **Disk** catalogue is a sequence, because almost none of it needs
+typing. It asks which way in — an archive on this computer, or something
+already on a drive — then for the archive, or the folder. For an archive it
+asks where it goes, with `C:\DXM\<CATALOGUE>\<CATEGORY>\<ID>` filled in and a
+category to pick, and unpacks it there. Either way the machine then reads
+the folder and works out the id, a name, what to run and what sets it up,
+and only then shows you the form, with all of that already in it to correct.
+
+**Run** and **Setup** can be picked as well as typed: Enter on either row
+lists the programs in the title's folder, with where each one sits, so
+choosing one in a subfolder says both what to run and where to run it.
+
+A title is held to the same rules either way: the editor will not save what
+the reader would have thrown away, and says which rule is unmet. A path is
+refused if DOS could not reach every step of it, naming the step and what
+DOS would have looked for instead.
+
+The machine's own file browser opens wherever a file or a folder is wanted —
+`..` first, folders before files, `<DIR>` where a size would go, and a
+letter typed jumping to the next name that starts with it. No dialog of the
+host's ever appears.
+
+**The catalogues that ship with the machine are never written to.** They
+live inside the application, which on macOS is signed over its own contents,
+and changing a file in there would stop the machine starting. Editing one
+instead writes a whole copy into your preferences directory, as
+`catalogues/<ID>.cat`, and that copy is what loads from then on. It is an
+ordinary catalogue file — the same JSON a curator writes — so you can open
+it in a text editor or send it to somebody. **Reset this catalogue** throws
+your copy away and the one that shipped comes back. Catalogues you made
+yourself have no original underneath, so those are deleted rather than
+reset; what is on the drive is left alone either way.
+
+**The machine deletes only what it made, inside its own preferences folder.**
+Its scratch directories and the archives it downloaded itself, and nothing
+else — never a file on your computer, never anything on a drive. Taking a
+title out of a catalogue takes it out of the *list*; whatever it installed
+stays where it is.
 
 ## The OSD
 
@@ -207,5 +274,7 @@ DOSBox reports. If something goes wrong, that file is the bug report.
   see [Installing a build](#installing-a-build) for the way through it.
 - **The drive LED is a guess.** The floppy runs when a program starts or
   ends, judged by the picture changing mode, not by the emulated drive.
-- **One C: drive.** CD-ROM images and floppy images have to be mounted by
-  hand from DOS for now.
+- **One drive.** The machine mounts C: and nothing else. A catalogue no
+  longer brings a drive with it, and SETUP does not yet offer to mount a
+  folder as another letter, so everything installs under C:. CD-ROM and
+  floppy images have to be mounted by hand from DOS for now.

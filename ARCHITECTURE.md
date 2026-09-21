@@ -59,10 +59,23 @@ dos-ex-machina/
 │   ├── catalogue.h         the catalogue files: the public face of catalogue.c
 │   ├── catalog.h           CATALOG, the program: the public face of screen.c
 │   ├── catalogue/          the catalogues, and the program that shows them (SPEC §8)
-│   │   ├── catalogue.c     reads a .cat, checks where it goes and every title, drops
-│   │   │                   and notes the bad ones; no SDL, no network
+│   │   ├── catalogue.c     reads a .cat and writes one back, checks what it is and
+│   │   │                   every title, drops and notes the bad ones; the rules live
+│   │   │                   here alone, so the editor is held to the reader's; no SDL,
+│   │   │                   no network
 │   │   ├── screen.c        CATALOG: the shelves, the keys, the errands, the screen
+│   │   ├── edit.c          adding, changing and removing titles and catalogues, the
+│   │   │                   file browser, and the destination asked before an install;
+│   │   │                   a shipped catalogue is never written to, so an edit writes
+│   │   │                   a whole copy into the preferences that shadows it
+│   │   ├── where.c/.h      where each title ended up on this machine, in installed.cfg:
+│   │   │                   a catalogue says what a title is, this says where it is, so
+│   │   │                   no catalogue carries a path off somebody's disk
+│   │   ├── dosname.c/.h    what DOS makes of a name before it looks for it; pure, so a
+│   │   │                   folder unpacked as "GAME 2 [RELEASE]" gets one DOS can reach
 │   │   ├── gui.c           its look - the ground, wells, tabs, filters, scrollbars, hints
+│   │   ├── plate.c         the EGA plate and the category marks, drawn not stored, for
+│   │   │                   a title with no artwork
 │   │   ├── art.c           artwork fetched, cached, fitted and quantised as a set
 │   │   ├── install.c       download, check, unpack, find the title, put it on the drive
 │   │   ├── net.c/.h        libcurl: the only file that talks to the network
@@ -79,7 +92,7 @@ dos-ex-machina/
 │   └── gen/                generated data, committed; see its README
 ├── src/third_party/        stb_image.h, vendored as it ships: the only
 │                           third-party code in the program besides SDL3, libcurl and zlib
-├── catalogues/             the bundled .cat files, each saying where it goes; copied beside dxm
+├── catalogues/             the bundled .cat files, each saying what it holds; copied beside dxm
 ├── external/dosbox-pure/   the DOSBox Pure fork, a submodule, built by CMake
 ├── shaders/                one GLSL file per pass, baked into the binary at build time
 ├── tests/
@@ -94,9 +107,11 @@ dos-ex-machina/
 
 Rules the tree aims to keep: no hand-written file over about 600 lines; no
 function over about 120 lines except tables; one `static struct` of state
-per module; a subdirectory once a module has more than three files. Three
-files are over the first line and due a split: `chassis/parts.c`,
-`dosbox/dosbox.c` and `gpu.c`.
+per module; a subdirectory once a module has more than three files. Six
+files are over the first line and due a split, worst first:
+`catalogue/edit.c` (the browser is a module of its own waiting to be
+lifted out), `chassis/parts.c`, `catalogue/screen.c`, `dosbox/dosbox.c`,
+`gpu.c` and `catalogue/install.c`.
 
 ## A frame
 

@@ -42,7 +42,8 @@ to do where SDL3 is not packaged.
 - **C: is a folder** in the machine's preferences directory. Put DOS
   software in it, as folders, and run it from the prompt.
 - **`CATALOG`** at the prompt is the shop: freeware and shareware, downloaded
-  from where its authors put it and installed onto the machine's drives.
+  from where its authors put it and installed where you say, or a list of
+  what is already on your own disk.
 - **Ctrl+F10** hands the mouse back to your desktop and takes it again. The
   keyboard goes with it, so your desktop's shortcuts are off while the
   machine has the mouse.

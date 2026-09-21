@@ -11,6 +11,7 @@
  * as it was. */
 #include "catalog.h"
 #include "internal.h"
+#include "where.h"
 #include "setup/internal.h"
 #include "dosbox.h"
 #include "log.h"
@@ -68,8 +69,8 @@ enum {
 enum { F_TYPE, F_PLAYERS, F_NETWORK, F_YEAR, F_VIDEO, F_SOUND, F_CONTROLS, F_INSTALLED, FILTERS };
 #define ROW_FILTERS 3 /* the ones along the top; the rest are in the panel */
 
-static const char *const TYPE_OPT[] = {"All", "Games", "Education", "Tools", "Music"};
-static const char *const TYPE_CAT[] = {NULL, "GAMES", "EDUCATION", "TOOLS", "MUSIC"};
+static const char *const TYPE_OPT[] = {"All", "Games", "Learning", "Tools", "Music"};
+static const char *const TYPE_CAT[] = {NULL, "GAMES", "LEARNING", "TOOLS", "MUSIC"};
 static const char *const PLAYERS_OPT[] = {"All", "Single", "Multi"};
 static const char *const NETWORK_OPT[] = {"All", "Yes", "No"};
 static const char *const YEAR_OPT[] = {"All", "Before 1990", "1990 - 1994", "1995 - 1999",
@@ -113,7 +114,7 @@ static struct {
     int more;                      /* the panel of more filters is up */
     int more_row;                  /* where its cursor is: a filter, or Reset */
     int shown[CAT_TITLES], nshown; /* the titles that pass, as indices */
-    int mx, my, held, hover;
+    int mx, my, hover;
     int mouse_out; /* the host has the mouse: no pointer, nothing lit under it */
     int fixed_clock;
     Uint64 open_t0, slide_t0, click_t0; /* open_t0 is 0 when there was no loading */
@@ -149,13 +150,16 @@ enum {
     HIT_DETAIL_LINE_UP,
     HIT_DETAIL_LINE_DOWN
 };
-enum { KEY_MAIN, KEY_SETUP, KEY_PROMPT, KEY_FILTERS, KEY_TAB, KEY_BACK, KEY_CANCEL };
+enum { KEY_MAIN, KEY_SETUP, KEY_PROMPT, KEY_FILTERS, KEY_EDIT, KEY_BACK, KEY_CANCEL };
 
 void catalog_bind(const char *base_dir, const char *pref_dir, const char *c_drive) {
     snprintf(S.base, sizeof S.base, "%s", base_dir ? base_dir : "./");
     snprintf(S.pref, sizeof S.pref, "%s", pref_dir ? pref_dir : "./");
     snprintf(S.c_drive, sizeof S.c_drive, "%s", c_drive ? c_drive : "./");
     art_bind(S.pref);
+    char installed[1200];
+    snprintf(installed, sizeof installed, "%sinstalled.cfg", S.pref);
+    where_load(installed);
 }
 
 void catalog_fixed_clock(int fixed) {
@@ -164,9 +168,8 @@ void catalog_fixed_clock(int fixed) {
 }
 
 /* Every .cat in the catalogues folder beside the program, each saying for
- * itself where it goes.  They are kept in the order of their drives, so C:
- * is the first tab; one that wants a letter or an id already taken is left
- * out, and everything wrong with any of them goes to the log. */
+ * itself what it is and what it holds.  One wanting an id another already
+ * has is left out, and everything wrong with any of them goes to the log. */
 typedef struct {
     char names[CAT_LIST * 2][64];
     int n;
@@ -185,72 +188,110 @@ static SDL_EnumerationResult found_cat(void *ud, const char *dirname, const char
 static int by_name(const void *a, const void *b) {
     return strcmp((const char *)a, (const char *)b);
 }
-static int by_drive(const void *a, const void *b) {
-    return ((const shelf *)a)->cat.drive - ((const shelf *)b)->cat.drive;
+/* The tabs, in a settled order: what came with the machine first, then by
+ * name.  Nothing claims a drive any more, so there is no other ordering the
+ * catalogues themselves imply. */
+static int by_tab(const void *a, const void *b) {
+    const shelf *x = a, *y = b;
+    if (x->cat.community != y->cat.community)
+        return x->cat.community - y->cat.community;
+    return strcmp(x->cat.name, y->cat.name);
 }
 
-void catalog_load(void) {
-    char dir[1400], path[1400];
-    snprintf(dir, sizeof dir, "%scatalogues/", S.base);
-    nshelves = 0;
+/* Where this machine keeps the catalogues it has written: its own folder.
+ * A copy is always named for its id, so the folder says at a glance which
+ * catalogue each file is. */
+static void my_dir(char *out, size_t n) {
+    snprintf(out, n, "%scatalogues/", S.pref);
+}
+static void my_path_for(const char *id, char *out, size_t n) {
+    char dir[1300];
+    my_dir(dir, sizeof dir);
+    snprintf(out, n, "%s%s.cat", dir, id);
+}
+
+static int shelf_by_id(const char *id) {
+    for (int i = 0; i < nshelves; i++)
+        if (!strcmp(shelves[i].cat.id, id))
+            return i;
+    return -1;
+}
+
+/* Every .cat in one folder, read and put on a shelf.  `mine` says the
+ * folder is the machine's own, and a catalogue found there stands in for
+ * the one of the same id that came with the program - which has already
+ * been read, since the shipped folder is walked first. */
+static void load_dir(const char *dir, int mine) {
+    static cat_catalogue got; /* far too big for the stack, and used here only */
+    char path[1400];
     found_cats f = {.n = 0};
-    if (!SDL_EnumerateDirectory(dir, found_cat, &f) || !f.n) {
-        dxm_log("catalog: no catalogues in %s", dir);
+    if (!SDL_EnumerateDirectory(dir, found_cat, &f) || !f.n)
         return;
-    }
     /* a folder lists in whatever order its filesystem likes: sort it, so
      * which of two clashing catalogues wins is the same on every machine */
     qsort(f.names, (size_t)f.n, sizeof f.names[0], by_name);
     for (int i = 0; i < f.n; i++) {
-        if (nshelves >= CAT_LIST) {
-            dxm_log("catalog: more catalogues than the machine holds; %s and after left out",
-                    f.names[i]);
-            break;
-        }
-        shelf *s = &shelves[nshelves];
         snprintf(path, sizeof path, "%s%s", dir, f.names[i]);
-        int n = cat_read(&s->cat, path);
-        for (int k = 0; k < s->cat.n_notes; k++)
-            dxm_log("catalog: %s: %s", f.names[i], s->cat.notes[k]);
+        int n = cat_read(&got, path);
+        for (int k = 0; k < got.n_notes; k++)
+            dxm_log("catalog: %s: %s", f.names[i], got.notes[k]);
         if (n < 0) {
             dxm_log("catalog: %s is not a catalogue this machine can use", f.names[i]);
             continue;
         }
-        int clash = 0;
-        for (int k = 0; k < nshelves; k++)
-            if (shelves[k].cat.drive == s->cat.drive || !strcmp(shelves[k].cat.id, s->cat.id)) {
-                dxm_log("catalog: %s wants %c: or the id %s, which %s already has", f.names[i],
-                        s->cat.drive, s->cat.id, shelves[k].cat.id);
-                clash = 1;
-            }
-        if (clash)
+        int at = shelf_by_id(got.id);
+        if (at >= 0 && !mine) {
+            dxm_log("catalog: %s wants the id %s, which another catalogue already has", f.names[i],
+                    got.id);
             continue;
-        /* the folder that is its drive: C: is the machine's own.  The id is
-         * copied out first: it lives in the same struct as the mount, and
-         * GCC will not have snprintf read from what it is writing into. */
-        char id[CAT_ID];
-        memcpy(id, s->cat.id, sizeof id);
-        if (s->cat.drive == 'C')
-            snprintf(s->mount, sizeof s->mount, "%s/", S.c_drive);
-        else
-            snprintf(s->mount, sizeof s->mount, "%scatalogues/%s/", S.pref, id);
-        SDL_CreateDirectory(s->mount);
-        dxm_log("catalog: %s on %c: - %d titles, %s", s->cat.name, s->cat.drive, s->cat.n,
-                s->cat.community ? "community" : "bundled");
-        nshelves++;
+        }
+        if (at < 0) {
+            if (nshelves >= CAT_LIST) {
+                dxm_log("catalog: more catalogues than the machine holds; %s and after left out",
+                        f.names[i]);
+                return;
+            }
+            at = nshelves++;
+            shelves[at].shipped = !mine;
+        }
+        shelf *s = &shelves[at];
+        s->cat = got;
+        snprintf(s->path, sizeof s->path, "%s", path);
+        my_path_for(s->cat.id, s->my_path, sizeof s->my_path);
+        s->edited = mine;
+        dxm_log("catalog: %s - %d titles %s, %s%s", s->cat.name, s->cat.n,
+                s->cat.holds == CAT_DISK ? "on this computer" : "to download",
+                s->cat.community ? "community" : "bundled", s->edited ? ", edited here" : "");
     }
-    qsort(shelves, (size_t)nshelves, sizeof shelves[0], by_drive);
 }
 
-void catalog_drives(char *out, size_t n) {
-    size_t k = 0;
-    out[0] = 0;
-    for (int i = 0; i < nshelves; i++) {
-        const shelf *s = &shelves[i];
-        if (s->cat.drive == 'C' || k >= n)
-            continue;
-        k += (size_t)snprintf(out + k, n - k, "%c=%s=%s\n", s->cat.drive, s->cat.id, s->mount);
-    }
+void catalog_load(void) {
+    char dir[1400];
+    nshelves = 0;
+    snprintf(dir, sizeof dir, "%scatalogues/", S.base);
+    load_dir(dir, 0); /* what came with the machine */
+    my_dir(dir, sizeof dir);
+    SDL_CreateDirectory(dir);
+    load_dir(dir, 1); /* and what has been written here, over the top */
+    if (!nshelves)
+        dxm_log("catalog: no catalogues beside the program or in %s", dir);
+    qsort(shelves, (size_t)nshelves, sizeof shelves[0], by_tab);
+}
+
+/* The drives DOS has.  C: is the machine's own folder, mounted by the core
+ * itself; nothing else is mounted, because a catalogue no longer brings a
+ * drive with it and there is not yet anywhere else to say so.  The core's
+ * side of it is still there (DXM_ENV_DRIVES), waiting for SETUP to offer
+ * mounting a folder as a letter. */
+int cat_drive_mount(char letter, char *out, size_t n) {
+    if (letter != 'C' && letter != 'c')
+        return 0;
+    snprintf(out, n, "%s/", S.c_drive);
+    return 1;
+}
+
+char cat_default_drive(void) {
+    return 'C';
 }
 
 static shelf *cur(void) {
@@ -259,6 +300,25 @@ static shelf *cur(void) {
 static const cat_title *picked(void) {
     shelf *s = cur();
     return (s && S.nshown) ? &s->cat.titles[S.shown[S.pick]] : NULL;
+}
+
+const shelf *cat_shelves(int *n) {
+    *n = nshelves;
+    return shelves;
+}
+
+int cat_picked_index(void) {
+    return (cur() && S.nshown) ? S.shown[S.pick] : -1;
+}
+
+const char *cat_pref_dir(void) {
+    return S.pref;
+}
+
+const char *cat_my_dir(void) {
+    static char dir[1300];
+    my_dir(dir, sizeof dir);
+    return dir;
 }
 
 /* ---- which titles pass --------------------------------------------------- */
@@ -450,6 +510,33 @@ static void go_shelf(int to) {
     refilter();
 }
 
+/* What the editor has written is read back the way everything else is: the
+ * files are parsed again, by the same reader, holding whatever it produces
+ * to the same rules.  So nothing is on screen because the editor put it
+ * there - it is on screen because it is in a file and survived being read,
+ * which is the only claim worth making after a save. */
+void cat_reload(const char *shelf_id, const char *title_id, const char *note, int bad) {
+    catalog_load();
+    S.shelf = 0;
+    if (shelf_id)
+        for (int i = 0; i < nshelves; i++)
+            if (!strcmp(shelves[i].cat.id, shelf_id))
+                S.shelf = i;
+    S.scroll = 0;
+    S.pick = 0;
+    refilter();
+    if (title_id && cur())
+        for (int i = 0; i < S.nshown; i++)
+            if (!strcmp(cur()->cat.titles[S.shown[i]].id, title_id)) {
+                S.pick = i;
+                show_row(i);
+                break;
+            }
+    S.dtitle = NULL; /* the details start at the top again */
+    if (note)
+        say(note, bad);
+}
+
 /* The errands.  Each is a drive, a directory and a line for the DOS; the
  * screen steps out of sight until the core says it is back. */
 static void errand(int kind, const char *cmd) {
@@ -457,11 +544,16 @@ static void errand(int kind, const char *cmd) {
     const cat_title *t = picked();
     if (!s || !t || !install_present(s, t))
         return;
-    char dos[80];
+    /* The directory the title is actually in, whatever drive that is on and
+     * however deep - DOS is put there before the command runs, because a
+     * program of the period looks for its own files where it is standing. */
+    char dos[WHERE_PATH];
     install_dir(s, t, NULL, 0, dos, sizeof dos);
-    dosbox_catalog_run(s->cat.drive, dos, cmd, kind);
+    if (!dos[0] || dos[1] != ':')
+        return;
+    dosbox_catalog_run(dos[0], dos + 2, cmd, kind);
     S.away = 1;
-    dxm_log("catalog: %s in %c:%s", kind ? "prompt" : cmd, s->cat.drive, dos);
+    dxm_log("catalog: %s in %s", kind ? "prompt" : cmd, dos);
 }
 
 static void enter(void) {
@@ -469,10 +561,19 @@ static void enter(void) {
     const cat_title *t = picked();
     if (!s || !t || install_busy())
         return;
-    if (install_present(s, t))
+    if (install_present(s, t)) {
         errand(0, t->run);
-    else if (!install_begin(s, t, S.pref))
-        say("Something else is installing.", 1);
+        return;
+    }
+    /* Not there yet.  A title with a download can be fetched, and the
+     * machine asks where to put it first, the way an installer of the
+     * period opened by asking.  One with nothing to fetch has to be
+     * pointed at whatever is already on the drive. */
+    if (!t->download.url[0]) {
+        say("Nothing to install from: point it at a folder with F8.", 1);
+        return;
+    }
+    edit_install(s, t);
 }
 
 /* What a key types into the Find field: the letters, the digits and the
@@ -502,6 +603,16 @@ static char typed(int sc, int shift) {
 void catalog_key(int sdl_scancode, int shift) {
     if (S.away || S.close_t0)
         return;
+    /* the editor is modal: while one of its panels is up it has the keys */
+    if (edit_up()) {
+        edit_key(sdl_scancode, shift);
+        return;
+    }
+    if (sdl_scancode == SDL_SCANCODE_F8 && !S.more && !install_busy()) {
+        if (cur())
+            edit_open(cur());
+        return;
+    }
     /* F4 to F6 cycle the filters along the top, as a click on them does,
      * backwards with shift; F7 opens and closes the panel of the rest.  They
      * work while something installs, since they only change what is shown. */
@@ -705,9 +816,12 @@ void catalog_mouse(int dx, int dy) {
 }
 
 void catalog_click(int down) {
-    S.held = down;
     if (!down || S.away || S.close_t0)
         return;
+    if (edit_up()) {
+        edit_click(S.mx, S.my);
+        return;
+    }
     int h = hit_at(S.mx, S.my);
     int what = h < 0 ? -1 : S.hit[h].what;
     if (S.more) { /* the panel: its rows cycle, anywhere off it closes it */
@@ -748,9 +862,10 @@ void catalog_click(int down) {
         errand(1, "");
     else if (what == HIT_KEY + KEY_FILTERS)
         open_more(); /* the one of them that is not already a click away */
-    else if (what == HIT_KEY + KEY_TAB)
-        go_shelf(S.shelf + 1);
-    else if (what == HIT_KEY + KEY_BACK)
+    else if (what == HIT_KEY + KEY_EDIT) {
+        if (cur())
+            edit_open(cur());
+    } else if (what == HIT_KEY + KEY_BACK)
         catalog_key(SDL_SCANCODE_ESCAPE, 0);
     else if (what == HIT_SCROLL_UP)
         catalog_wheel(1);
@@ -902,12 +1017,13 @@ static void draw_status(const shelf *s) {
     for (int i = 0; i < s->cat.n; i++)
         installed += install_present(s, &s->cat.titles[i]);
     char line[96];
+    const char *kind = s->cat.holds == CAT_DISK ? "on this computer" : "to download";
     if (S.nshown != s->cat.n)
-        snprintf(line, sizeof line, "%d of %d titles  \x07  %d installed  \x07  %c:", S.nshown,
-                 s->cat.n, installed, s->cat.drive);
+        snprintf(line, sizeof line, "%d of %d titles  \x07  %d installed  \x07  %s", S.nshown,
+                 s->cat.n, installed, kind);
     else
-        snprintf(line, sizeof line, "%d titles  \x07  %d installed  \x07  %c:", s->cat.n, installed,
-                 s->cat.drive);
+        snprintf(line, sizeof line, "%d titles  \x07  %d installed  \x07  %s", s->cat.n, installed,
+                 kind);
     cv_text(right - cv_width(line), TAB_Y, line, G_TEXT2, -1);
 }
 
@@ -947,7 +1063,7 @@ static int particular(int y, const char *label, const char *value) {
 }
 
 static void draw_title(const cat_title *t) {
-    gui_picture(RIGHT_X, PIC_Y, RIGHT_W, PIC_H, art_picture());
+    gui_picture(RIGHT_X, PIC_Y, RIGHT_W, PIC_H, art_picture(), t ? t->category : NULL);
     if (!t) {
         cv_text(RIGHT_X, NAME_Y, "Nothing chosen.", G_TEXT2, -1);
         return;
@@ -1027,16 +1143,30 @@ static void draw_foot(const shelf *s, const cat_title *t) {
         {"F2", "Setup", KEY_SETUP, !(present && t->setup[0])},
         {"F3", "Prompt", KEY_PROMPT, !present},
         {"F4-F7", "Filters", KEY_FILTERS, 0},
-        {"\x1B\x1A", "Catalogue", KEY_TAB, nshelves < 2},
+        {"F8", "Edit", KEY_EDIT, !s},
         {"ESC", S.find[0] ? "Clear" : "Back", KEY_BACK, 0},
     };
+    /* Set to the rule rather than at a fixed pitch: the words change with
+     * what the chosen title can do - Run against Install, Back against
+     * Clear - and a fixed gap either leaves a hole at the end or runs off
+     * it.  Measured first, then the slack shared out between them. */
+    int n = (int)(sizeof keys / sizeof keys[0]), text = 0, w[8];
+    for (int i = 0; i < n; i++) {
+        w[i] = gui_hint(0, -100, keys[i].key, keys[i].what, 0, 0);
+        text += w[i];
+    }
+    int room = SCR_W - 2 * MARGIN, gap = (room - text) / (n - 1);
+    if (gap > 26)
+        gap = 26;
+    if (gap < 10)
+        gap = 10; /* they would run over the end; the rule is the honest edge */
     int pen = MARGIN;
-    for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++) {
+    for (int i = 0; i < n; i++) {
         int what = HIT_KEY + keys[i].id;
-        int w = gui_hint(pen, FOOT_Y, keys[i].key, keys[i].what, hovering(what), keys[i].off);
+        gui_hint(pen, FOOT_Y, keys[i].key, keys[i].what, hovering(what), keys[i].off);
         if (!keys[i].off)
-            add_hit(pen, FOOT_Y - 2, w, CV_LINE + 4, what);
-        pen += w + 22;
+            add_hit(pen, FOOT_Y - 2, w[i], CV_LINE + 4, what);
+        pen += w[i] + gap;
     }
 }
 
@@ -1119,10 +1249,18 @@ const uint8_t *catalog_render(int *w, int *h) {
     {
         char err[160];
         int d = install_take_done(err, sizeof err);
+        if (d)
+            edit_installed(d > 0, err); /* an add may have been waiting on it */
         if (d > 0) {
             say("Installed.", 0);
-            if (s)
-                dosbox_catalog_rescan(s->cat.drive);
+            /* DOS caches what it has seen of a drive: tell it to look at
+             * the one the title landed on again. */
+            if (s && t) {
+                char dos[WHERE_PATH];
+                install_dir(s, t, NULL, 0, dos, sizeof dos);
+                if (dos[0] && dos[1] == ':')
+                    dosbox_catalog_rescan(dos[0]);
+            }
             refilter();
         } else if (d < 0) {
             char line[200];
@@ -1145,7 +1283,13 @@ const uint8_t *catalog_render(int *w, int *h) {
         add_hit(pen - 4, TAB_Y - 2, tw + 8, CV_LINE + 6, HIT_TAB + i);
         pen += tw + 24;
     }
+    /* that the tabs step with the arrow keys is said here, beside them,
+     * rather than down in the foot: there is no room for a seventh key
+     * there, and this is where a reader is looking when they want it */
+    if (nshelves > 1)
+        cv_text(pen - 14, TAB_Y, "\x1B\x1A", G_OFF, -1);
     cv_rect(MARGIN, RULE_Y, SCR_W - 2 * MARGIN, 1, G_LINE);
+    plate_colourbar(SCR_W - MARGIN - plate_colourbar_w(), RULE_Y - 1);
     if (!nshelves)
         cv_text(MARGIN, TAB_Y, "No catalogues beside the program.", G_RED, -1);
     draw_status(s);
@@ -1163,6 +1307,10 @@ const uint8_t *catalog_render(int *w, int *h) {
     draw_foot(s, t);
     if (S.more)
         draw_more();
+    if (edit_up()) {
+        edit_draw();
+        S.nhit = 0; /* nothing behind the editor answers the pointer */
+    }
 
     /* the way out: down to black on the palette, and then the program ends */
     if (S.close_t0) {

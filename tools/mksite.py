@@ -6,7 +6,7 @@ MANUAL.md is the source: the page is never edited by hand.  The guide is set
 as a printed manual - numbered chapters, a contents column, keys drawn as
 keys, figures - and that is all this adds; every word comes from the
 Markdown.  Only the Markdown the manual actually uses is understood:
-headings, paragraphs, bullet lists with wrapped lines, tables, and bold,
+headings at two levels, paragraphs, bullet lists with wrapped lines, tables, and bold,
 code, emphasis and links inline.
 
   tools/mksite.py          write docs/manual.html
@@ -93,6 +93,12 @@ def blocks(lines):
         line = lines[i]
         if not line.strip():
             i += 1
+        elif line.startswith("### "):
+            # A heading within a chapter.  The chapters themselves are the
+            # numbered parts and come from `##`; this is a shelf inside one,
+            # and takes no number of its own.
+            out.append("<h3>%s</h3>" % inline(line[4:].strip()))
+            i += 1
         elif line.startswith("|"):
             rows = []
             while i < len(lines) and lines[i].startswith("|"):
@@ -118,7 +124,7 @@ def blocks(lines):
             out.append("<ul>%s</ul>" % "".join("<li>%s</li>" % inline(x) for x in items))
         else:
             para = []
-            while i < len(lines) and lines[i].strip() and not lines[i].startswith(("|", "- ")):
+            while i < len(lines) and lines[i].strip() and not lines[i].startswith(("|", "- ", "### ")):
                 para.append(lines[i].strip())
                 i += 1
             out.append("<p>%s</p>" % inline(" ".join(para)))
