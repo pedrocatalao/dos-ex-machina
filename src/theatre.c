@@ -10,7 +10,11 @@
 /* The machine comes up out of the same black the splash left behind, so
  * the two read as one continuous power-on rather than a cut. */
 static const double MACH_FADE = 0.70;
-static const double WARM = 1.6;    /* the tube's warm-up, seconds */
+static const double WARM = 5.7; /* the raster opening out, seconds */
+/* The beam comes up to brightness on a clock of its own, and a longer one:
+ * a tube has its picture before it has its light.  This outlasts WARM, and
+ * is what says when the warm-up is over. */
+static const double GLOW = 4.2;
 static const double OFF_END = 1.1; /* power-off, from the switch to the end */
 
 void theatre_power_on(theatre *th, int deterministic) {
@@ -112,15 +116,35 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
             }
             if (o >= OFF_END)
                 done = 1;
-        } else if (fe < WARM) {
-            /* the raster opens quickly and then creeps the last of the
-             * way, the way a cold tube settles: a cubic ease-OUT, all
-             * the speed at the start and none at the end */
-            float u = 1.0f - (float)(fe / WARM);
-            float p = 1.0f - u * u * u;
+        } else if (fe < GLOW) {
+            /* The raster opens quickly and then creeps the last of the
+             * way, the way a cold tube settles: an ease-OUT, all the speed
+             * at the start and none at the end.  The geometry is settled
+             * well before the brightness is, so the two run on their own
+             * clocks and only the light is still arriving at the end.
+             *
+             * The power is the dial.  At the fifth, four fifths of the
+             * travel is over in the first quarter of WARM and the rest is
+             * a slow drift onto the stop - a tube that stops moving rather
+             * than one that arrives. */
+            double z = fe / WARM;
+            if (z > 1.0)
+                z = 1.0;
+            float u = 1.0f - (float)z;
+            float p = 1.0f - u * u * u * u * u;
             rh = 0.96f + 0.04f * p;
             rv = 0.90f + 0.10f * p;
-            gain = p * p;
+            /* The light comes the other way about: slowest at the start and
+             * quickest as it arrives, the cathode getting away from itself
+             * once it is hot.
+             *
+             * The fourth power is not the curve the eye is given.  This
+             * gain is in linear light and the picture is encoded at 1/2.2
+             * on its way out, so what is seen rises as about x^1.8 - a
+             * square here would look very nearly like a straight line, and
+             * the cube the raster uses would barely lean at all. */
+            float x = (float)(fe / GLOW);
+            gain = x * x * x * x;
         }
         gpu_set_tube_power(g, rh, rv, gain);
     }
