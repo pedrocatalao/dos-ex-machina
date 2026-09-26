@@ -374,8 +374,13 @@ static void build_shelf_form(void) {
 
 /* ---- opening a form ---------------------------------------------------- */
 
-static int index_of(const char *const *opts, int n, const char *word) {
-    for (int i = 0; i < n; i++)
+/* Where `word` sits in opts[], or 0 for a word that is not in it.  The
+ * search starts at `first` because a table can open with a label rather
+ * than a value: VIDEO_OPT[0] is "not said", which is eight characters and
+ * so cannot be in the eight-byte field it would have to match.  Searching
+ * it is a comparison that can never come out true. */
+static int index_of(const char *const *opts, int n, const char *word, int first) {
+    for (int i = first; i < n; i++)
         if (!strcmp(opts[i], word))
             return i;
     return 0;
@@ -427,8 +432,8 @@ static void open_title_form(int adding, int at) {
         E.size[0] = 0;
     words_out(E.sound, (int)sizeof E.sound, E.work.sound);
     words_out(E.controls, (int)sizeof E.controls, E.work.controls);
-    E.category = index_of(CATEGORY_OPT, categories(), E.work.category);
-    E.video = E.work.video[0] ? index_of(VIDEO_OPT, 5, E.work.video) : 0;
+    E.category = index_of(CATEGORY_OPT, categories(), E.work.category, 0);
+    E.video = E.work.video[0] ? index_of(VIDEO_OPT, 5, E.work.video, 1) : 0;
     E.players = E.work.multiplayer > 0;
     E.network = E.work.network > 0;
     E.adding = adding;
@@ -815,7 +820,12 @@ static void guess_id(const char *name, char *out, size_t n) {
  * `add_root` is where the archive went; `add_dir` is where the program
  * turned out to be, which is the same place unless the archive brought
  * folders of its own. */
-static void read_folder(const char *dos_dir) {
+static void read_folder(const char *chosen) {
+    /* One of the two ways in hands us E.add_dir itself, and snprintf may not
+     * be given its own destination to read from.  A copy first, and both
+     * fields are then written from somewhere that is plainly not in E. */
+    char dos_dir[WHERE_PATH];
+    snprintf(dos_dir, sizeof dos_dir, "%s", chosen);
     snprintf(E.add_root, sizeof E.add_root, "%s", dos_dir);
     snprintf(E.add_dir, sizeof E.add_dir, "%s", dos_dir);
 
@@ -863,7 +873,7 @@ static void read_folder(const char *dos_dir) {
     browse_split(found[pick].rel, dir, sizeof dir, base, sizeof base);
     snprintf(E.work.run, sizeof E.work.run, "%s", base);
     if (dir[0]) /* it came with a tree of its own: it runs inside it */
-        snprintf(E.add_dir, sizeof E.add_dir, "%s\\%s", E.add_root, dir);
+        snprintf(E.add_dir, sizeof E.add_dir, "%s\\%s", dos_dir, dir);
 
     /* A setup program is only useful beside the thing it sets up. */
     if (!E.work.setup[0])
@@ -890,7 +900,7 @@ static void add_chose_dir(void) {
     E.scroll = 0;
     E.fault[0] = 0;
     snprintf(E.year, sizeof E.year, "%d", E.work.year ? E.work.year : 1990);
-    E.category = index_of(CATEGORY_OPT, categories(), CATEGORY_OPT[E.category]);
+    E.category = index_of(CATEGORY_OPT, categories(), CATEGORY_OPT[E.category], 0);
     E.panel = PANEL_TITLE;
     build_title_form();
 }
@@ -1577,7 +1587,7 @@ void edit_install(shelf *s, const cat_title *t) {
     E.add_zip[0] = 0;
     E.add_dir[0] = 0;
     E.add_made = 0;
-    E.category = index_of(CATEGORY_OPT, categories(), t->category);
+    E.category = index_of(CATEGORY_OPT, categories(), t->category, 0);
     snprintf(E.dest_id, sizeof E.dest_id, "%s", t->id);
     install_default_dir(s, t, E.dest, sizeof E.dest);
     E.panel = PANEL_DEST;

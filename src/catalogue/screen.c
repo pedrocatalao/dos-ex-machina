@@ -205,9 +205,14 @@ static void my_dir(char *out, size_t n) {
     snprintf(out, n, "%scatalogues/", S.pref);
 }
 static void my_path_for(const char *id, char *out, size_t n) {
-    char dir[1300];
+    char dir[1300], mine[CAT_ID];
     my_dir(dir, sizeof dir);
-    snprintf(out, n, "%s%s.cat", dir, id);
+    /* The caller hands us two members of the same shelf, and a compiler that
+     * can see only the one object cannot know they do not overlap; snprintf
+     * is not allowed to read what it writes.  The id is nine bytes, so a
+     * copy of it settles the question. */
+    snprintf(mine, sizeof mine, "%s", id);
+    snprintf(out, n, "%s%s.cat", dir, mine);
 }
 
 static int shelf_by_id(const char *id) {

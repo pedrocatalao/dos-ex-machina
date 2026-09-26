@@ -6,6 +6,7 @@
 #include "internal.h"
 #include "setup/internal.h"
 #include <SDL3/SDL.h>
+#include <stdio.h>
 #include <string.h>
 
 /* the interface's colours, in the order of the enum */
