@@ -24,7 +24,7 @@ static const struct {
     const char *name, *about;
 } SECTION[] = {
     {"MONITOR", "The tube and its glass."},
-    {"KEYBOARD", "The layout DOS types in."},
+    {"KEYBOARD", "The layout DOS types in, and how the keys sound."},
     {"MACHINE", "Memory and processor core."},
     {"VIDEO", "The 3dfx card, and how it draws."},
     {"SOUND", "The MIDI device, and what it costs."},
@@ -107,6 +107,9 @@ void setup_load(void) {
 }
 const char *setup_keyboard(void) {
     return machine_keyboard();
+}
+int setup_key_sound(void) {
+    return machine_key_sound();
 }
 const char *setup_memory(void) {
     return machine_memory();

@@ -1,6 +1,6 @@
 /* sound.h — everything the machine itself makes noise with (SPEC §9).  The
  * DOS's own sound comes from DOSBox; this is the case around it: the POST
- * beep, the PSU fan, the disk spindle and the floppy drive. */
+ * beep, the PSU fan, the disk spindle, the floppy drive and the keyboard. */
 #ifndef DXM_SOUND_H
 #define DXM_SOUND_H
 #include <stdint.h>
@@ -13,5 +13,6 @@ void snd_degauss(void);                  /* the monitor's coil thump at power-on
 void snd_disk(double seconds);           /* (retired: head seeks removed)       */
 void snd_floppy(double seconds);         /* 3.5" drive: motor + stepper buzz    */
 float snd_floppy_level(void);            /* 0..1, for driving the activity LED  */
+void snd_key(int loud);                  /* a key going down: 0 silent, to 3    */
 void snd_mix(int16_t *out, int nframes); /* additive, s16 stereo           */
 #endif

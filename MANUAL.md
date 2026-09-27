@@ -109,6 +109,14 @@ guess from a handful of keys, and an unfamiliar board falls back to US;
 `it`, `sp`, `po`, `br`, `sv`, `dk`, `no` and the rest of DOSBox's set. The
 log says which it chose.
 
+**The keyboard sounds like one.** Every key you press is heard going down,
+the way a mechanical board of the day sounded: one of a handful of strokes
+cut from a recording of real typing, never the same one twice running, and
+a little higher or lower, harder or softer, each time. A key held down is
+heard once. It is every key, whatever it is for - DOS, SETUP, CATALOG, the
+OSD. SETUP's **KEYBOARD** section sets it Off, Low, Medium or High; it comes
+at Medium.
+
 ## The controls on the case
 
 **The power button** switches the machine off, with the mouse released.
@@ -141,10 +149,10 @@ crosses to the settings and back, **SPACE** changes the picture, **ESC**
 steps out.
 
 It holds the tube's own settings, which move as you drag them; the keyboard
-layout; which processor the machine is, how much memory it has and which
+layout, and how loud its keys are; which processor the machine is, how much memory it has and which
 processor core runs it; the 3dfx card; which MIDI device answers the
-MPU-401; and where the boot ends up. Only the tube is live - everything else
-is read as the machine starts, which is why the way out is **SAVE &
+MPU-401; and where the boot ends up. Only the tube and the keys' sound are
+live - everything else is read as the machine starts, which is why the way out is **SAVE &
 REBOOT**: it keeps both files and starts the machine again so they take
 effect. Machine settings live in `dxm.cfg` beside the preferences, the
 tube's in `crt.cfg`.

@@ -8,6 +8,7 @@
 #include "setup.h"
 #include "catalog.h"
 #include "osd.h"
+#include "sound.h"
 
 /* Which of the display's buttons, if any, is under a point in drawable
  * pixels; -1 for none. */
@@ -175,6 +176,13 @@ static void key_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k
         else
             dos_skip(); /* any other key hurries the POST along */
     }
+    /* Every key that goes down is heard going down, whatever it turned out
+     * to be for: the keyboard is on the desk, not in the machine, and it
+     * has no idea who is listening.  Not the repeats - a held key is a key
+     * lying still.  After the key has done its work, so that the one that
+     * changes SETUP's own setting for this is heard at what it changed to. */
+    if (down && !e->key.repeat)
+        snd_key(setup_key_sound());
 }
 
 input_result input_event(input_state *in, app *a, const dxm_layout *L, gpu_knobs *k,

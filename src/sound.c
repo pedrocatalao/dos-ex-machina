@@ -6,6 +6,7 @@
 
 #define NHUM 3
 #define NWHINE 4
+#define NKEYV 4 /* strokes sounding at once: fast typing overlaps */
 /* The machine's sound: the generators and their envelopes, mixed on the audio thread */
 static struct {
     int rate;
@@ -26,7 +27,19 @@ static struct {
     float fdd_env;
     double fdd_pos; /* playback position, fractional */
     float fdd_lp;   /* low shelf for a heavier drive  */
-} snd = {.rate = 44100, .rng = 0x1234567u, .rel_t = -1.0, .dg_t = -1.0};
+    /* the keyboard: presses counted on the main thread, and played - which
+     * stroke, how fast, how hard - on this one, so a voice is never seen
+     * half set up */
+    volatile unsigned keys_asked;
+    volatile float key_gain; /* as loud as the last press asked for */
+    unsigned keys_heard;
+    int key_last;
+    struct {
+        int at, end;      /* the stroke, in keys_pcm[]      */
+        double pos, step; /* where in it, and how fast; <0 idle */
+        float gain;
+    } kv[NKEYV];
+} snd = {.rate = 44100, .rng = 0x1234567u, .rel_t = -1.0, .dg_t = -1.0, .key_last = -1};
 
 static float nrand(void) {
     snd.rng ^= snd.rng << 13;
@@ -69,6 +82,8 @@ static const float whine_amp[NWHINE] = {1.00f, 0.58f, 0.30f, 0.13f};
 
 void snd_init(int rate) {
     snd.rate = rate > 0 ? rate : 44100;
+    for (int i = 0; i < NKEYV; i++)
+        snd.kv[i].pos = -1.0;
 }
 void snd_power(int on) {
     snd.powered = on;
@@ -107,8 +122,62 @@ float snd_floppy_level(void) {
     return snd.fdd_env;
 }
 
+/* ---- the keyboard -------------------------------------------------------
+ * Sampled, for the floppy's reason: a key is a click, a keycap bottoming out
+ * and a ring off the plate, and none of that is a sine or a filtered noise.
+ * Strokes cut from a recording of somebody typing (tools/mkkeys.py);
+ * each press plays one of them, never the one just played, a few percent
+ * faster or slower and a little harder or softer - so that one key struck in
+ * a rhythm sounds like a hand and not like a loop. */
+#include "gen/keys_pcm.h"
+#if KEYS_PCM_N < 2
+#    error "the keyboard needs two strokes at least, to never play one twice running"
+#endif
+
+/* Off, Low, Medium and High, as SETUP offers them: about 5 dB apart, with
+ * Medium near the POST beep. */
+static const float KEY_LOUD[4] = {0.0f, 0.13f, 0.24f, 0.42f};
+
+void snd_key(int loud) {
+    if (loud <= 0 || loud > 3)
+        return;
+    snd.key_gain = KEY_LOUD[loud];
+    snd.keys_asked++;
+}
+
+static void key_start(void) {
+    int choices = snd.key_last >= 0 ? KEYS_PCM_N - 1 : KEYS_PCM_N;
+    int k = (int)((nrand() * 0.5f + 0.5f) * choices);
+    if (k > choices - 1)
+        k = choices - 1;
+    if (snd.key_last >= 0 && k >= snd.key_last)
+        k++; /* any of the others, evenly */
+    snd.key_last = k;
+    /* a free voice, or else the one furthest through its stroke */
+    int v = 0;
+    for (int i = 0; i < NKEYV; i++) {
+        if (snd.kv[i].pos < 0.0) {
+            v = i;
+            break;
+        }
+        if (snd.kv[i].pos > snd.kv[v].pos)
+            v = i;
+    }
+    snd.kv[v].at = keys_pcm_at[k];
+    snd.kv[v].end = keys_pcm_at[k + 1];
+    snd.kv[v].pos = 0.0;
+    snd.kv[v].step = (double)KEYS_PCM_RATE / snd.rate * (1.0 + 0.04 * (double)nrand());
+    snd.kv[v].gain = snd.key_gain * (0.875f + 0.125f * nrand());
+}
+
 void snd_mix(int16_t *out, int nframes) {
     double sr = snd.rate;
+    /* a buffer is made in far less time than it lasts, so a press heard at
+     * its start is as soon as a press can be heard at all */
+    while (snd.keys_heard != snd.keys_asked) {
+        snd.keys_heard++;
+        key_start();
+    }
     for (int i = 0; i < nframes; i++) {
         float s = 0.0f;
         float target = snd.powered ? 1.0f : 0.0f;
@@ -201,6 +270,21 @@ void snd_mix(int16_t *out, int nframes) {
             /* and a gentle low shelf: keep the body, ease off the top */
             snd.fdd_lp += (v - snd.fdd_lp) * 0.34f;
             s += (snd.fdd_lp * 0.75f + v * 0.25f) * 0.60f * snd.fdd_env;
+        }
+
+        /* --- the keyboard (sampled) --- */
+        for (int k = 0; k < NKEYV; k++) {
+            if (snd.kv[k].pos < 0.0)
+                continue;
+            int i0 = snd.kv[k].at + (int)snd.kv[k].pos;
+            if (i0 + 1 >= snd.kv[k].end) {
+                snd.kv[k].pos = -1.0;
+                continue;
+            }
+            float fr = (float)(snd.kv[k].pos - (int)snd.kv[k].pos);
+            float v = (keys_pcm[i0] * (1.0f - fr) + keys_pcm[i0 + 1] * fr) / 32768.0f;
+            s += v * snd.kv[k].gain;
+            snd.kv[k].pos += snd.kv[k].step;
         }
 
         /* --- PC speaker on top --- */

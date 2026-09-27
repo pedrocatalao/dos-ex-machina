@@ -14,6 +14,7 @@ if a reproducible file drifts from what its tool produces.
 | `uifont_bold.h`, `uifont_small.h` | Helvetica Bold 14, the proportional face SETUP and CATALOG are set in, and Helvetica 12 for labels and small controls | `mkbdf.py` | `assets/fonts/helvB14.bdf`, `helvR12.bdf` (5) | reproducible |
 | `horizon.h` | the Horizon badge stuck under the left speaker pod | `mklogo.py`, full size | `assets/horizon-sticker.png` | reproducible |
 | `banners.c`, `banners.h` | the artwork across the top of SETUP, as the files themselves (4) | `mkbanners.py` | `assets/banners/*.jpg` | reproducible |
+| `keys_pcm.h` | key strokes, 44100 Hz s16, one played for each key pressed | `mkkeys.py` | `assets/keyboard.wav` (6) | reproducible |
 | `logo.h` | the POST-screen wordmark | `mklogo.py` | `assets/logo-src.png` | frozen (1) |
 | `icon.h` | window icon, 128 px | `mklogo.py` | `assets/icon-src.png` | frozen (1) |
 | `corner_sticker.h` | the dotted mark engraved above the left speaker | `mklogo.py` | `assets/corner-sticker.png` | frozen (1) |
@@ -45,3 +46,11 @@ shipped copies.
 tree (uuencoded), under the BSD licence. Glyph for glyph it is the IBM
 VGA ROM font - byte-identical to the one DOSBox draws text mode with, which
 is the point: the machine's own text and a real DOS's are the same glyphs.
+
+(6) Someone typing on a mechanical keyboard, two and a half seconds of it:
+`mechanical-keyboard-44701` from Pixabay's `freesound_community`, decoded
+from its MP3 to mono 16-bit once, so that the tool reads it with nothing
+but Python's own `wave` and the bytes do not depend on an MP3 decoder. The
+tool does the cutting: the recording is committed whole rather than as the
+strokes it yields, so a different rule for where a stroke ends is a change
+to the tool and nothing else.

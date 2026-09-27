@@ -37,6 +37,10 @@ const char *setup_voodoo(void);
  * - so setting it here keeps it at once, in the same file as the rest. */
 int setup_processor(void);
 void setup_set_processor(int stop);
+/* How loud the keyboard is as its keys go down: 0 for off, then Low,
+ * Medium and High.  Unlike the rest it is live, as the tube's settings
+ * are, so it is asked at every key rather than read once. */
+int setup_key_sound(void);
 
 void setup_open(void);
 void setup_close(void);

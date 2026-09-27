@@ -419,7 +419,9 @@ it dissolves into the screen - and fitting it 240 colours by median cut,
 which is what the 750 ms of loading screen is actually doing.
 
 **Live, or at the next power-on.** The tube's settings are floats the shader
-reads every frame, so a slider moves the picture as it is dragged. Nothing
+reads every frame, so a slider moves the picture as it is dragged, and the
+keyboard's sound is heard at its new loudness on the very key that changed
+it - both belong to things on the desk rather than inside the PC. Nothing
 else is: memory, the processor core, the keyboard layout and the MIDI device
 are all read once as the core starts, and cannot change under a running DOS
 any more than a real machine could be re-chipped while it was on. So the way
@@ -756,9 +758,16 @@ One audio device, 44.1 kHz, 16-bit stereo, opened by the machine. DOSBox's
 samples are pulled from a ring into the device's callback at the same rate,
 so nothing is resampled, and are silent until the handover. The machine's
 own sounds are mixed on top: the mains relay, the degauss thump, the fans
-and the disk spindle, the POST beep on the PC speaker, and the floppy
-drive. Sound Blaster, AdLib, General MIDI and
+and the disk spindle, the POST beep on the PC speaker, the floppy
+drive, and the keyboard. Sound Blaster, AdLib, General MIDI and
 the rest are DOSBox's.
+
+The keyboard is heard for every key that goes down, whoever it is for -
+DOS, SETUP, CATALOG or the OSD - and not for its repeats. Each press is one
+of a handful of strokes cut from a recording of real typing, never the one
+just played, at a pitch and a loudness a little off from the last, so a
+key struck in a rhythm does not sound like a loop. How loud, or whether at
+all, is KEYBOARD's Sound in SETUP: Off, Low, Medium - as it comes - or High.
 
 ## 10. Roadmap
 

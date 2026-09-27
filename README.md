@@ -13,6 +13,12 @@ display's resolution, and the tube is a real pipeline: phosphor persistence,
 barrel curvature, scanlines, an aperture-grille mask, bloom, and light from
 the picture spilling onto the plastic around it.
 
+It sounds like one, too: the mains relay and the degauss thump as it comes
+on, the fans and the disk spinning up, the floppy drive when a program
+loads. And under your hands, a mechanical keyboard - every key you press is
+heard going down, a different stroke each time, cut from a recording of
+real typing.
+
 | | |
 |---|---|
 | ![The POST: the BIOS banner, the processor and the memory count](docs/screenshots/post.jpg) | ![Tyrian 2000 in its attract mode](docs/screenshots/tyrian.jpg) |
@@ -48,7 +54,8 @@ to do where SDL3 is not packaged.
   keyboard goes with it, so your desktop's shortcuts are off while the
   machine has the mouse.
 - **SPACE** during the POST, or **`SETUP`** at the prompt, opens the
-  machine's configuration: processor, memory, keyboard, MIDI, the 3dfx card.
+  machine's configuration: processor, memory, the keyboard's layout and how
+  loud its keys are, MIDI, the 3dfx card.
 - The **OSD key** on the case opens the monitor's own
   on-screen display for the tube's settings.
 - **`dxm.log`**, in the preferences directory, is the bug report if

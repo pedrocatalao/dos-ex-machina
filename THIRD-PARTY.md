@@ -19,6 +19,10 @@ games, was MIT licensed and remains so.
 - **The interface font** is X11's Adobe Helvetica bitmap, copyright
   1984-1989, 1994 Adobe Systems and 1988, 1994 Digital Equipment
   Corporation, redistributable under the notice in the `.bdf` files.
+- **The key strokes** are cut from `mechanical-keyboard-44701`, a recording
+  of someone typing, from Pixabay's `freesound_community`, under the
+  Pixabay Content License. It is in `assets/keyboard.wav`, decoded from the
+  MP3 it came as.
 - **`src/third_party/stb_image.h`** is Sean Barrett's image loader, vendored
   as it ships, in the public domain (MIT at your option).
 - **SDL3** is linked, not vendored, under the zlib licence; so are

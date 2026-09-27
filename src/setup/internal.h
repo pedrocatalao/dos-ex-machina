@@ -68,6 +68,7 @@ void machine_load(const char *path);
 void machine_save(const char *path);
 void machine_where(const char *c_drive); /* where to look for MIDI ROMs */
 const char *machine_keyboard(void);      /* "auto", or a DOS layout */
+int machine_key_sound(void);             /* 0 off, up to 3 */
 const char *machine_memory(void);        /* as the core wants it: "16" */
 const char *machine_cpu_core(void);
 const char *machine_midi(void); /* auto | off | mt32 | sc55 | sf2 */

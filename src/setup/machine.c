@@ -7,7 +7,9 @@
  * starts, and cannot be changed under a running DOS any more than a real
  * one could be re-chipped while it was on.  So each says so on screen, and
  * they are kept in a file of their own that the machine reads before it
- * boots (main.c), not applied from here.
+ * boots (main.c), not applied from here.  The keyboard's sound is the one
+ * that is not - it is the board on the desk, not the PC - and like the
+ * tube's it is heard the moment it changes, and kept when SETUP saves.
  *
  * The file is plain: one `name = value` a line, the values being what the
  * core itself wants to be told, so a line can be read without a table. */
@@ -28,6 +30,11 @@ static const char *const KB_CODE[] = {"auto", "us", "uk", "fr", "gr", "it", "sp"
 static const char *const KB_NAME[] = {
     "Auto (the host's)", "United States", "United Kingdom", "France", "Germany", "Italy", "Spain",
     "Portugal",          "Brazil",        "Netherlands",    "Sweden", "Denmark", "Norway"};
+
+/* How loud the keys are as they go down.  The loudness each stands for is
+ * the sound's business (sound.c); here they are only in order. */
+static const char *const KEYSND_CODE[] = {"off", "low", "medium", "high"};
+static const char *const KEYSND_NAME[] = {"Off", "Low", "Medium", "High"};
 
 /* The processor is the one setting the machine itself can change while
  * it is up - the turbo display's - and + step it - so it is kept the
@@ -87,11 +94,11 @@ static int dynamic_core_ok(void) {
 
 /* what it is set to: an index into each list above */
 static struct {
-    int kb, mem, cpu, boot, midi, voodoo, proc;
+    int kb, keysnd, mem, cpu, boot, midi, voodoo, proc;
     char c_drive[1024];
-} M = {.mem = 2, .voodoo = 2, .proc = DXM_PROCESSOR_DEFAULT};
-/* 16 MB, Auto - the fastest core the host allows - the 8 MB Voodoo, as the
- * core itself defaults to, and the 486DX2 at 66 */
+} M = {.keysnd = 2, .mem = 2, .voodoo = 2, .proc = DXM_PROCESSOR_DEFAULT};
+/* keys heard at Medium, 16 MB, Auto - the fastest core the host allows -
+ * the 8 MB Voodoo, as the core itself defaults to, and the 486DX2 at 66 */
 
 static int on_c(const char *name) {
     char path[1200];
@@ -138,6 +145,9 @@ void machine_where(const char *c_drive) {
 const char *machine_keyboard(void) {
     return KB_CODE[M.kb];
 }
+int machine_key_sound(void) {
+    return M.keysnd;
+}
 const char *machine_memory(void) {
     return MEM_CODE[M.mem];
 }
@@ -177,6 +187,12 @@ int machine_settings(int section, setting *out, int max) {
                        .nopts = (int)(sizeof KB_NAME / sizeof KB_NAME[0]),
                        .next_boot = 1,
                        .note = "Auto reads what the host's own keys produce."}));
+        PUT(((setting){.name = "Sound",
+                       .kind = SET_CHOICE,
+                       .pick = &M.keysnd,
+                       .opts = KEYSND_NAME,
+                       .nopts = (int)(sizeof KEYSND_NAME / sizeof KEYSND_NAME[0]),
+                       .note = "A mechanical board, heard as each key goes down."}));
     } else if (section == SEC_MACHINE) {
         if (!proc_name[0])
             for (int i = 0; i < DXM_NPROCESSORS; i++)
@@ -261,6 +277,9 @@ void machine_load(const char *path) {
         if (!strcmp(name, "keyboard"))
             at = find(KB_CODE, (int)(sizeof KB_CODE / sizeof KB_CODE[0]), value),
             M.kb = at < 0 ? M.kb : at;
+        else if (!strcmp(name, "key_sound"))
+            at = find(KEYSND_CODE, (int)(sizeof KEYSND_CODE / sizeof KEYSND_CODE[0]), value),
+            M.keysnd = at < 0 ? M.keysnd : at;
         else if (!strcmp(name, "memory"))
             at = find(MEM_CODE, (int)(sizeof MEM_CODE / sizeof MEM_CODE[0]), value),
             M.mem = at < 0 ? M.mem : at;
@@ -280,9 +299,9 @@ void machine_load(const char *path) {
             at = dxm_processor_find(value), M.proc = at < 0 ? M.proc : at;
     }
     fclose(f);
-    dxm_log("setup: %s, keyboard %s, memory %s MB, core %s, midi %s, voodoo %s",
-            dxm_processors[M.proc].name, machine_keyboard(), machine_memory(), machine_cpu_core(),
-            machine_midi(), machine_voodoo());
+    dxm_log("setup: %s, keyboard %s, key sound %s, memory %s MB, core %s, midi %s, voodoo %s",
+            dxm_processors[M.proc].name, machine_keyboard(), KEYSND_CODE[M.keysnd],
+            machine_memory(), machine_cpu_core(), machine_midi(), machine_voodoo());
 }
 
 void machine_save(const char *path) {
@@ -295,6 +314,7 @@ void machine_save(const char *path) {
                "# powers on; the tube's own settings are in crt.cfg.\n");
     fprintf(f, "processor = %s\n", dxm_processors[M.proc].code);
     fprintf(f, "keyboard = %s\n", machine_keyboard());
+    fprintf(f, "key_sound = %s\n", KEYSND_CODE[M.keysnd]);
     fprintf(f, "memory = %s\n", machine_memory());
     fprintf(f, "cpu_core = %s\n", machine_cpu_core());
     fprintf(f, "midi = %s\n", machine_midi());
