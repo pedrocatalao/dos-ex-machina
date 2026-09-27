@@ -85,6 +85,12 @@ int app_init(app *a, const app_options *o) {
         int v = SDL_GetVersion();
         dxm_log("DOS ex Machina " DXM_VERSION " on %s, SDL %d.%d.%d", SDL_GetPlatform(),
                 SDL_VERSIONNUM_MAJOR(v), SDL_VERSIONNUM_MINOR(v), SDL_VERSIONNUM_MICRO(v));
+        /* Where it is running from and where it keeps things: the two
+         * places everything else is looked for, and the first thing to
+         * know when something is not found (#7). */
+        const char *base = SDL_GetBasePath();
+        dxm_log("program in %s", base ? base : "(unknown)");
+        dxm_log("preferences in %s", a->pref ? a->pref : "(none)");
     }
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);

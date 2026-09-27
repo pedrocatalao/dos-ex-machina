@@ -2,3 +2,8 @@
  * convention for an icon file beside the binary - it has to be a resource
  * compiled into the executable, which is what this is for. */
 IDI_ICON1 ICON "dxm.ico"
+
+/* The manifest, which says above all that every path is UTF-8 - see the
+ * file.  1 is the id Windows looks for on an executable, 24 is RT_MANIFEST;
+ * it stands in for the one the toolchain would otherwise link in. */
+1 24 "dxm.manifest"

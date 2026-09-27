@@ -32,6 +32,9 @@ find_package(ZLIB REQUIRED)
 if(WIN32)
     enable_language(RC)
     set(DXM_WIN_RC packaging/windows/dxm.rc)
+    # the resource compiler does not say what the .rc pulls in
+    set_source_files_properties(packaging/windows/dxm.rc PROPERTIES OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/dxm.ico;${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/dxm.manifest")
 endif()
 
 add_executable(dxm

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- What Windows is told about dxm.exe before it runs a line of it.
+
+     The reason this exists is the code page.  Every path the machine has is
+     UTF-8, which is what SDL hands out, but fopen and LoadLibraryA read the
+     bytes they are given in the system's ANSI code page - so a folder called
+     Coleção, or a user called João, is a folder that is not there,
+     and the core and the catalogues beside the program are not found (#7).
+     Declaring UTF-8 as the active code page makes the whole process read
+     them as UTF-8: our calls, and the core's own, which we cannot change.
+     Windows 10 1903 and later; before that it is ignored, and nothing is
+     worse than it was.
+
+     The rest is what the toolchain's default manifest said, since this one
+     takes its place: run as whoever started it, and the versions of
+     Windows it knows about, so none of them treats it as something older. -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{e2011457-1546-43c5-a5fe-008deee3d3f0}"/> <!-- Vista -->
+      <supportedOS Id="{35138b9a-5d96-4fbd-8e2d-a2440225f93a}"/> <!-- 7 -->
+      <supportedOS Id="{4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38}"/> <!-- 8 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/> <!-- 8.1 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/> <!-- 10 and 11 -->
+    </application>
+  </compatibility>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>
