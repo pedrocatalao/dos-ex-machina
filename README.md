@@ -2,7 +2,7 @@
   <img src="docs/logo-readme.png" alt="DOS ex Machina" width="720">
 </p>
 
-A 1993 beige-box PC on your screen, case and CRT and all, that boots a real
+A early nineties beige-box PC on your screen, case and CRT and all, that boots a real
 DOS. The machine powers on, runs its POST, and hands the tube to
 [DOSBox Pure][dbp] at the prompt. From there it is a DOS PC: whatever you put
 on its C: drive runs behind the same glass, in the same phosphor, with the
