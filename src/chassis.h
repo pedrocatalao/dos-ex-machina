@@ -14,8 +14,12 @@ typedef struct {
     float fdd_led[4]; /* x,y,w,h, output px  */
     float pwr_led[4];
     float pwr_btn[4]; /* the power button's well, x,y,w,h, for the mouse */
-    float pwr_shelf;  /* y of the power cap's lower edge: the LED's light
-                             reaches the plastic below it, not the cap's face */
+    /* The power cap the LED sits under: its outline x,y,w,h, and its corner
+     * radius, rounded rim and the dark gap round it, all output px.  The
+     * LED lights the case up to that outline, and the rim where it turns
+     * down toward the lamp; the cap's face is turned away from it. */
+    float pwr_cap[4];
+    float pwr_cap_edge[3]; /* radius, rim, gap */
     /* The digit display's window, x,y,w,h in output px: the digits are lit
      * live by the shader, like the LEDs; the case holds the window.  And
      * its three push buttons, MODE, - and +, for the mouse to find. */

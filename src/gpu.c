@@ -166,7 +166,8 @@ struct gpu {
     int osd_on; /* the OSD is up, and tex_osd holds it */
     double last_t;
     int have_last;
-    float led[6][4], led_col[6][3], led_on[6], led_round[6], led_clip[6];
+    float led[6][4], led_col[6][3], led_on[6], led_round[6], led_cap[6];
+    float cap[4], cap_edge[3];
     float seg[4], seg_on, seg_lvl[21];
     float raster_h, raster_v, tube_gain;
 };
@@ -337,7 +338,7 @@ void gpu_resize(gpu *g, int w, int h) {
     g->out_h = h;
 }
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
-                 float b, int round, float clip) {
+                 float b, int round, int under_cap) {
     if (idx < 0 || idx > 5)
         return;
     g->led[idx][0] = x;
@@ -349,7 +350,17 @@ void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, 
     g->led_col[idx][2] = b;
     g->led_on[idx] = on;
     g->led_round[idx] = round ? 1.0f : 0.0f;
-    g->led_clip[idx] = clip;
+    g->led_cap[idx] = under_cap ? 1.0f : 0.0f;
+}
+
+void gpu_set_cap(gpu *g, float x, float y, float w, float h, float rad, float rim, float gap) {
+    g->cap[0] = x;
+    g->cap[1] = y;
+    g->cap[2] = w;
+    g->cap[3] = h;
+    g->cap_edge[0] = rad;
+    g->cap_edge[1] = rim;
+    g->cap_edge[2] = gap;
 }
 
 void gpu_set_segdisp(gpu *g, float x, float y, float w, float h, const float lvl[21], float on) {
@@ -596,7 +607,9 @@ void gpu_draw(gpu *g, float tx, float ty, float tw, float th, const gpu_knobs *k
     glUniform3fv(glGetUniformLocation(p, "ledcol"), 6, &g->led_col[0][0]);
     glUniform1fv(glGetUniformLocation(p, "ledon"), 6, g->led_on);
     glUniform1fv(glGetUniformLocation(p, "ledround"), 6, g->led_round);
-    glUniform1fv(glGetUniformLocation(p, "ledclip"), 6, g->led_clip);
+    glUniform1fv(glGetUniformLocation(p, "ledcap"), 6, g->led_cap);
+    glUniform4fv(glGetUniformLocation(p, "capbox"), 1, g->cap);
+    glUniform3fv(glGetUniformLocation(p, "capedge"), 1, g->cap_edge);
     glUniform4fv(glGetUniformLocation(p, "seg_rect"), 1, g->seg);
     glUniform1fv(glGetUniformLocation(p, "seglvl"), 21, g->seg_lvl);
     glUniform1f(glGetUniformLocation(p, "seg_on"), g->seg_on);

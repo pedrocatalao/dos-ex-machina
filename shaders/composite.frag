@@ -13,7 +13,9 @@ uniform vec4  led[6];
 uniform vec3  ledcol[6];
 uniform float ledon[6];
 uniform float ledround[6];
-uniform float ledclip[6];
+uniform float ledcap[6];   // 1: the LED sits under the power cap
+uniform vec4  capbox;      // that cap's outline, x,y,w,h in 0..1 output space
+uniform vec3  capedge;     // and its corner radius, rounded rim and gap, in px
 // the turbo display (segdisp.h): the window in uv, how lit each of the
 // three digits' seven segments is, the emission, and the digit geometry
 // in window-height units
@@ -39,6 +41,13 @@ uniform float u_dish_rin, u_dish_warp, u_fillet;         // the dish, and where 
 // diagonal sweeping the tube as the time offset grows.  At full-screen
 // pixel coordinates the argument is already in the millions.  This is
 // the integer-style hash instead: no trig, no magnitude sensitivity.
+// A rounded rectangle's signed distance: centre c, half-size hb, corners r.
+// The same one the chassis draws its keys with (canvas.c).
+float rr_sd(vec2 p, vec2 c, vec2 hb, float r){
+  vec2 q = abs(p - c) - (hb - r);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
 float hash(vec2 p){
   vec3 q = fract(vec3(p.xyx) * 0.1031);
   q += dot(q, q.yzx + 33.33);
@@ -357,10 +366,32 @@ void main(){
     float core  = exp(-d2*0.75);
     float wide  = exp(-d2*0.10);
     float bleed = core*0.30 + wide*0.16;
-    // What sits above the LED - the power cap - is a separate face at a
-    // different height.  Its underside shadows the light, so the bleed
-    // stops there; a lamp does not light the front of a button above it.
-    bleed *= 1.0 - smoothstep(ledclip[i] - 1.5/outsize.y, ledclip[i], uv.y);
+    // The power cap stands over its LED.  The case runs on under it right
+    // up to its outline, and takes the light there as it does anywhere -
+    // shadow and all, since the shadow is the room's and the lamp is
+    // below it.  The dark gap round the cap is a crevice and takes little.
+    // The cap's rounded rim, where it turns down toward the lamp, faces it
+    // squarely, and so catches it harder than the case, which the lamp
+    // only grazes; the face, turned away, takes none.  So the halo runs up
+    // into the cap's shadow and ends in a catch along its lower edge.
+    if (ledcap[i] > 0.5 && capbox.z > 0.0) {
+      vec2 cp  = uv*outsize;
+      vec2 cc  = (capbox.xy + capbox.zw*0.5)*outsize;
+      vec2 chb = capbox.zw*0.5*outsize;
+      float csd = rr_sd(cp, cc, chb, capedge.x);
+      if (csd < 0.0) {
+        vec2 cn = vec2(rr_sd(cp + vec2(1.0, 0.0), cc, chb, capedge.x)
+                         - rr_sd(cp - vec2(1.0, 0.0), cc, chb, capedge.x),
+                       rr_sd(cp + vec2(0.0, 1.0), cc, chb, capedge.x)
+                         - rr_sd(cp - vec2(0.0, 1.0), cc, chb, capedge.x));
+        cn = normalize(cn + vec2(1e-5));
+        vec2 cl = normalize(lc*outsize - cp + vec2(1e-5));
+        float ct = clamp(-csd/max(capedge.y, 1.0), 0.0, 1.0);
+        bleed *= max(dot(cn, cl), 0.0) * (1.0 - ct)*(1.0 - ct) * 2.0;
+      } else {
+        bleed *= mix(0.35, 1.0, smoothstep(0.0, max(capedge.z, 1.0), csd));
+      }
+    }
     fin += ledcol[i] * (lens*1.50 + bleed) * ledon[i];
   }
   // The turbo display's lit segments.  Red LEDs behind smoked acrylic:

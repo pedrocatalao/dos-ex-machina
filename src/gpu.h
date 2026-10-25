@@ -77,10 +77,13 @@ void gpu_set_osd(gpu *g, const uint8_t *rgba, int w, int h, int changed);
  * display's FPS and MHz mode lights, 4 and 5 the mouse lamps, HOST and
  * DXM.  round!=0 uses a circular lens profile.  All the light and its
  * bleed onto the plastic come from here. */
-/* clip: a height in 0..1 output space above which the LED throws no light
- * on the plastic - the underside of a button it sits beneath.  2.0 = none. */
+/* under_cap!=0: the LED sits beneath the cap gpu_set_cap describes, which
+ * shapes the light it throws on the plastic around it. */
 void gpu_set_led(gpu *g, int idx, float x, float y, float w, float h, float on, float r, float gr,
-                 float b, int round, float clip);
+                 float b, int round, int under_cap);
+/* The power cap, standing over its LED: x,y,w,h in 0..1 output space, and
+ * its corner radius, rounded rim and the gap round it in output pixels. */
+void gpu_set_cap(gpu *g, float x, float y, float w, float h, float rad, float rim, float gap);
 /* The turbo display's digits, lit over the baked window (see segdisp.h).
  * x,y,w,h in 0..1 output space; lvl[k*7+s] is how lit segment s of digit
  * k is, 0..1, left to right; on scales the whole emission. */

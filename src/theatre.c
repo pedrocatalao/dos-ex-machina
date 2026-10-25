@@ -160,13 +160,16 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
         float lv = th->deterministic ? (t < th->drive_until ? 1.0f : 0.0f) : snd_floppy_level();
         float fl = 0.72f + 0.28f * (float)sin(t * 47.0) * (float)sin(t * 23.0);
         gpu_set_led(g, 0, L->fdd_led[0] / W, 1.0f - (L->fdd_led[1] + L->fdd_led[3]) / H,
-                    L->fdd_led[2] / W, L->fdd_led[3] / H, lv * fl, 0.16f, 1.0f, 0.22f, 0, 2.0f);
+                    L->fdd_led[2] / W, L->fdd_led[3] / H, lv * fl, 0.16f, 1.0f, 0.22f, 0, 0);
         /* power: steady, and it comes up with the machine */
         th->pwr +=
             ((th->off_t0 >= 0.0 ? 0.0f : 1.0f) - th->pwr) * (th->off_t0 >= 0.0 ? 0.25f : 0.02f);
+        gpu_set_cap(g, L->pwr_cap[0] / W, 1.0f - (L->pwr_cap[1] + L->pwr_cap[3]) / H,
+                    L->pwr_cap[2] / W, L->pwr_cap[3] / H, L->pwr_cap_edge[0], L->pwr_cap_edge[1],
+                    L->pwr_cap_edge[2]);
         gpu_set_led(g, 1, L->pwr_led[0] / W, 1.0f - (L->pwr_led[1] + L->pwr_led[3]) / H,
                     L->pwr_led[2] / W, L->pwr_led[3] / H, th->pwr, 0.20f, 1.0f, 0.26f, 1,
-                    1.0f - L->pwr_shelf / H);
+                    L->pwr_cap[2] > 0.0f);
         /* the turbo display: lit like the power LED, and it comes up and
          * goes down with it; the clock or the frame rate, with the legend
          * to say which */
@@ -192,8 +195,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
         for (int i = 0; i < 2; i++)
             gpu_set_led(g, 2 + i, L->mode_led[i][0] / W,
                         1.0f - (L->mode_led[i][1] + L->mode_led[i][3]) / H, L->mode_led[i][2] / W,
-                        L->mode_led[i][3] / H, th->leg_lvl[i] * th->pwr, 1.0f, 0.16f, 0.06f, 1,
-                        2.0f);
+                        L->mode_led[i][3] / H, th->leg_lvl[i] * th->pwr, 1.0f, 0.16f, 0.06f, 1, 0);
         /* the mouse lamps on the left pod: HOST or DXM, red like the mode
          * lights, crossfading the same way; none where the pod had no room
          * for them */
@@ -204,7 +206,7 @@ int theatre_frame(theatre *th, gpu *g, const dxm_layout *L, int W, int H, double
                         1.0f - (L->mouse_led[i][1] + L->mouse_led[i][3]) / H,
                         L->mouse_led[i][2] / W, L->mouse_led[i][3] / H,
                         L->mouse_led[i][2] > 0.0f ? th->mouse_lvl[i] * th->pwr : 0.0f, 1.0f, 0.16f,
-                        0.06f, 1, 2.0f);
+                        0.06f, 1, 0);
         }
     }
     return done;

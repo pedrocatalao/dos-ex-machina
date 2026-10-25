@@ -703,8 +703,10 @@ static void well_rect(canvas *c, float x, float y, float w, float h, float rad, 
     canvas_grain = saved;
 }
 
+static void power_cap_edges(float h, float mm, float *rad, float *gap, float *roll);
+
 /* The power button: label, cap, mark, the shadow it throws, and the LED
- * under it.  Records the LED and the cap's underside in L. */
+ * under it.  Records the LED and the cap's outline in L. */
 void power_button(canvas *c, float px0, float pw, float mid, float mm, float band_h,
                   dxm_layout *L) {
     /* smooth moulding: none of the case's grain on the cap or its well */
@@ -730,22 +732,27 @@ void power_button(canvas *c, float px0, float pw, float mid, float mm, float ban
      * key drawn last (power_key), so a click can press it */
     {
         float kw = pw * 0.91f, kh = pw * 0.70f, dummy[4];
-        keys_slot(KEY_POWER, px0 + pw * 0.045f + kw * 0.5f,
-                  mid - pw * 0.39f + pw * 0.04f + kh * 0.5f, kw, kh, mm, "", 0.0f, 0,
+        float kx = px0 + pw * 0.045f, ky = mid - pw * 0.39f + pw * 0.04f;
+        keys_slot(KEY_POWER, kx + kw * 0.5f, ky + kh * 0.5f, kw, kh, mm, "", 0.0f, 0,
                   KEY_STYLE_POWER, dummy);
+        /* and where it is, for the LED's light to find it (composite.frag) */
+        L->pwr_cap[0] = kx;
+        L->pwr_cap[1] = ky;
+        L->pwr_cap[2] = kw;
+        L->pwr_cap[3] = kh;
+        power_cap_edges(kh, mm, &L->pwr_cap_edge[0], &L->pwr_cap_edge[2], &L->pwr_cap_edge[1]);
     }
     /* power LED: a small round lens under the button */
     {
         float lr = 1.35f * mm;
         float lcx = px0 + pw * 0.5f;
-        float cap_lo = mid - pw * 0.39f + pw * 0.78f; /* the cap's lower edge */
+        float cap_lo = mid - pw * 0.39f + pw * 0.78f; /* the well's lower edge */
         float lcy = cap_lo + fmaxf(4.0f, band_h * 0.09f) + 1.6f * mm;
         led(c, lcx, lcy, lr, 26, 44, 26); /* UNLIT */
         L->pwr_led[0] = lcx - lr;
         L->pwr_led[1] = lcy - lr;
         L->pwr_led[2] = lr * 2.0f;
         L->pwr_led[3] = lr * 2.0f;
-        L->pwr_shelf = cap_lo;
     }
     canvas_grain = grain_was;
 }
@@ -942,13 +949,20 @@ static const float OUTLINE_RGB[3] = {44.0f, 41.0f, 34.0f};
 #define PUSH_SOFT 2.0f  /* px its edges ease over: a shade softer than a keycap's */
 /* the same plastic the turbo module's caps are moulded in */
 static const float PUSH_RGB[3] = {KEY_R, KEY_G, KEY_B};
+/* The cap's edges, which the drawing below and the LED's light both have to
+ * agree on: its eased corners, the dark gap between it and its well, and the
+ * rounded rim in from its outline. */
+static void power_cap_edges(float h, float mm, float *rad, float *gap, float *roll) {
+    *rad = h * 0.16f;
+    *gap = fmaxf(1.0f, 0.30f * mm);
+    *roll = fmaxf(1.5f, 0.55f * mm) * POWER_TALL;
+}
 static void power_key(canvas *c, float cx, float cy, float w, float h, float mm, float press,
                       float ox, float oy, int cw, int ch) {
     const float tall = POWER_TALL;
     float x = cx - w * 0.5f, y = cy - h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
-    float rad = h * 0.16f;                       /* the corners, eased */
-    float gap = fmaxf(1.0f, 0.30f * mm);         /* the dark gap between cap and well */
-    float roll = fmaxf(1.5f, 0.55f * mm) * tall; /* the rounded rim, in from the edge */
+    float rad, gap, roll;
+    power_cap_edges(h, mm, &rad, &gap, &roll);
     /* the taller it stands, the further its shadow falls and the darker -
      * the reach with the square of the height, so the shadow runs well out
      * under it rather than stopping short in a dark line */
